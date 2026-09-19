@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JarvisToolCall",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "tool", "arguments"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "tool": { "type": "string", "pattern": "^[a-z0-9_.-]+$" },
+    "arguments": { "type": "object" }
+  }
+}
