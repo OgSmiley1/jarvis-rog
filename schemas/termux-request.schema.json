@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TermuxBridgeRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "params"],
+  "properties": {
+    "action": { "enum": ["system.status", "git.status"] },
+    "params": { "type": "object" }
+  }
+}
