@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JarvisMemory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "body", "type", "source", "approved", "pinned", "tags", "createdAt", "updatedAt"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1 },
+    "type": { "enum": ["preference", "fact", "project", "lesson", "mistake", "task", "note"] },
+    "source": { "enum": ["manual", "coach", "understand", "project", "imported"] },
+    "approved": { "type": "boolean" },
+    "pinned": { "type": "boolean" },
+    "tags": { "type": "array", "items": { "type": "string" }, "maxItems": 50 },
+    "createdAt": { "type": "integer" },
+    "updatedAt": { "type": "integer" }
+  }
+}
