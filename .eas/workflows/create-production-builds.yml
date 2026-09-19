@@ -1,0 +1,15 @@
+name: Create JARVIS Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_android:
+    name: Build JARVIS ROG Android APK
+    type: build
+    params:
+      platform: android
+      profile: preview
