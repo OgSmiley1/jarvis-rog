@@ -3,8 +3,9 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'JARVIS ROG',
-  slug: 'jarvis-rog',
-  version: '0.3.0',
+  slug: 'smiley',
+  owner: 'smiley007s-team',
+  version: '0.4.0',
   orientation: 'portrait',
   scheme: 'jarvisrog',
   userInterfaceStyle: 'dark',
@@ -43,12 +44,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           compileSdkVersion: 36,
           targetSdkVersion: 36,
           minSdkVersion: 24,
-          // Required for the authenticated localhost-only Termux bridge.
           usesCleartextTraffic: true,
         },
       },
     ],
   ],
+  extra: {
+    ...(config.extra ?? {}),
+    eas: {
+      projectId: 'eda56376-aa74-45d7-b652-68d661a9da9e',
+    },
+  },
   experiments: {
     typedRoutes: true,
   },
