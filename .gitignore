@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+android/
+ios/
+coverage/
+*.log
+.env
+termux/.env
+termux/runtime/
+termux/logs/
+.DS_Store
