@@ -1,80 +1,259 @@
-# JARVIS Build State
+# JARVIS ROG — LIVE BUILD STATE
 
 ## CURRENT OBJECTIVE
-Produce a verified Android build candidate for ASUS ROG Phone 8 Pro while preserving the local-first Local Jarvis Coach architecture and package ID `com.app.localjarviscoach`.
+
+Produce a verified, installable Android APK for the ASUS ROG Phone 8 Pro while preserving the local-first JARVIS architecture and package ID `com.app.localjarviscoach`.
+
+Do not restart the project. Continue from the latest unfinished gate.
 
 ## CURRENT PHASE
-Phase 1/2 — Core stability, continuity, and optional keyless online-model integration. Build 0.3.0 source candidate created.
 
-## SOURCE BASELINE
-Production pack baseline commit in this working build: `d064589`.
-Build 0.2.0 core-stability commit: `8c765e9`.
-Existing project checkpoint reported by the dossier: `aeaff2dc`.
+**Build 0.4.0 — Real Android build + device validation.**
 
-## COMPLETED IN BUILD 0.2.0
-- Added explicit `react-native-audio-api` Expo plugin configuration with background microphone service disabled.
-- Reworked live voice session cleanup so Start returns after recording begins and stream consumption runs independently.
-- Added stale-session guards and reliable recorder/stream cleanup on Stop/background/unmount.
-- Added asynchronous GGUF copy path for large model files plus copy-size verification and available-storage guard.
-- Added native GGUF validation before accepting a newly imported model in Settings.
-- Added startup database/runtime gate with retry instead of rendering through initialization failure.
-- Added real slash navigation for `/analyse`, `/draft`, `/plan`, `/project`, `/memory`, `/status`.
-- Added chat auto-title, new-chat flow and delete-current-chat flow.
-- Added project activate/pause/complete/delete controls.
-- Added step running/success/failed/retry lifecycle.
-- Persisted project `lastCompletedStep` and `nextAction` from actual step state.
-- Added Termux bridge diagnostics and recent audited tool-run display.
-- Added default intelligence-mode controls and improved model/runtime diagnostics.
-- Added structured-output fallback in Understand so useful model output is not discarded solely for formatting drift.
-- Added more continuity and command-router tests.
+The application source is already substantially implemented. The work now is not another architecture rewrite. The immediate job is to make the existing source compile into a real APK, then validate its real local-AI, voice, memory, continuity, tools, and optional online-model paths on the physical ASUS ROG Phone 8 Pro.
 
-## VERIFIED IN THIS ENVIRONMENT
-- TypeScript/TSX syntax parse: PASS (53 source/test files).
-- Pure core runtime assertions: PASS (routing, continuity derivation, structured parser, prompt isolation, nonblank completion).
-- Python `py_compile`: PASS for Termux bridge.
-- Shell `bash -n`: PASS for Termux/scripts shell files.
-- JSON parse: PASS for schemas/package/eas files.
-- Existing smoke-test file-presence gate: PASS.
+## LIVE REPOSITORY
 
-## BLOCKED IN THIS ENVIRONMENT
-- `pnpm install` / dependency resolution: package registry DNS/network unavailable in the build container.
-- Full Expo TypeScript check: requires project dependencies.
-- Expo lint and Vitest suite: requires project dependencies.
-- `expo prebuild`: requires installed Expo/native dependencies.
-- Gradle APK compile: requires generated Android project and Android/Gradle dependency resolution.
-- Physical ROG Phone tests: require the owner's device and an actual GGUF.
+- Repository: `OgSmiley1/jarvis-rog`
+- Default branch: `main`
+- Expo owner/project: `@smiley007s-team/smiley`
+- EAS project ID: `eda56376-aa74-45d7-b652-68d661a9da9e`
+- Android package: `com.app.localjarviscoach`
+- Expo SDK 54
+- React Native 0.81
+- React 19
+- TypeScript
+- pnpm 10.15.0
+- Node >= 20.19.0
 
-## FAILED ATTEMPTS
-- `corepack pnpm` attempted; failed with `EAI_AGAIN registry.npmjs.org`.
-- `scripts/verify-project.mjs` cannot proceed because pnpm is unavailable for the same reason.
+## LATEST BUILD-INFRA CHECKPOINTS
 
-## NEXT EXACT ACTION
-On a networked build machine or Claude Code environment:
-1. `corepack enable`
-2. `corepack prepare pnpm@10.15.0 --activate`
-3. `pnpm install`
-4. `pnpm check`
-5. `pnpm lint`
-6. `pnpm test`
-7. `pnpm prebuild:android`
-8. `cd android && ./gradlew assembleDebug`
-9. Fix every real compile failure without weakening strictness or replacing native functionality with mocks.
-10. Install resulting APK on ASUS ROG Phone 8 Pro and execute `docs/ACCEPTANCE_TESTS.md`.
+- `e04473e` — Expo onboarding workflow added.
+- `761fb23` — malformed GitHub Actions trigger repaired.
+- `5ee3d3a` — GitHub Android verification build enabled on pushes to `main`.
 
-## BUILD 0.3.0 — ONLINE MODEL HUB
+The GitHub Android workflow now has valid YAML and runs both manually and on pushes to `main`.
 
-### Completed in source
-- Added optional keyless Online Models Hub.
-- Added browser-side Puter.js gateway via React Native WebView.
-- Added explicit in-WebView user authentication; JARVIS stores no provider API key.
-- Added dynamic live model list and provider grouping.
-- Added Free-only guard using live `:free` model metadata.
-- Added online chat streaming and local SQLite persistence.
-- Added official ChatGPT/Gemini/Grok consumer-web fallbacks.
-- Added online-model catalog tests and docs.
+## VERIFIED DEVICE BASELINE
 
-### Critical truth boundary
-No claim of physical Android WebView auth success has been made yet. That must be validated on the ROG Phone. No claim is made that all hosted models are unlimited free; Puter free allowance and provider free-variant quotas can change.
+Already established before this checkpoint:
 
-### Next exact action
-Run dependency install, TypeScript, lint, Vitest, Expo prebuild and Gradle. Then install on ASUS ROG Phone 8 Pro and validate embedded Puter authentication + free model streaming.
+- ASUS ROG Phone 8 Pro / AI2401
+- Android 16 / API 36
+- arm64-v8a
+- ADB authorization available from the owner's Intel macOS Catalina machine
+
+Do not repeat device-identification work unless the device state changes.
+
+## COMPLETED SOURCE WORK
+
+### Local inference
+- Owner-selected GGUF import.
+- Asynchronous large-file copy.
+- Storage-space guard.
+- Copy-size verification.
+- Native GGUF validation before selection.
+- llama.rn lifecycle architecture.
+- Fast / Deep / Create / Code generation profiles.
+- Runtime metrics path that must never fabricate values.
+
+### Voice
+- Explicit owner-started microphone session.
+- react-native-audio-api integration.
+- Local STT architecture.
+- Start returns after recorder start rather than blocking on the transcript stream.
+- Session identity guards prevent stale transcription updates.
+- Stop/background/unmount cleanup.
+- Device TTS path.
+- No hidden background microphone service.
+
+### Storage / memory / continuity
+- SQLite persistence.
+- Conversations and local titles.
+- Owner-approved bounded memories.
+- Projects and project-step lifecycle.
+- pending/running/success/failed/retry states.
+- Persisted lastCompletedStep and nextAction.
+- Active-project continuity injected into prompts.
+- Completed work must not be presented as pending.
+
+### Tools
+- Structured tool registry/router.
+- Schema validation.
+- Confirmation boundary where required.
+- Tool result audit records.
+- Deterministic routing before LLM tool planning.
+- Authenticated loopback Termux bridge.
+- No generic arbitrary-shell API.
+
+### Workspaces
+- Coach / Chat.
+- Memory.
+- Projects.
+- Reflect.
+- Understand.
+- Settings diagnostics.
+- Slash routing for analyse/draft/plan/project/memory/status.
+
+### Optional online AI hub
+- Keyless browser-side Puter gateway in React Native WebView.
+- Dynamic live model catalog.
+- Explicit free-only guard.
+- Local persistence of online conversations.
+- Official consumer-web launchers kept separate.
+- Local GGUF remains independent from the online layer.
+- No provider developer API keys embedded in JARVIS.
+
+## PREVIOUS SOFTWARE VERIFICATION
+
+Prior source-side work recorded successful parser/core assertions, Python compile checks, shell syntax checks, JSON checks, and source-presence smoke checks.
+
+A prior project dossier also recorded TypeScript, lint, tests, and an isolated Expo prebuild passing at an earlier checkpoint. Treat those results as historical evidence only. The **current main branch must pass again** before APK status is claimed.
+
+## CURRENT LIVE BUILD SIGNAL
+
+After the latest push, GitHub commit status reported EAS workflow contexts for:
+
+- `build-android.yml (@smiley007s-team/smiley)`
+- `create-production-builds.yml (@smiley007s-team/smiley)`
+
+Both were reported as `error`.
+
+Do not guess the cause. Retrieve the actual workflow/build log when available. Common causes such as credentials, workflow setup, dependencies, or native compilation are hypotheses only until the log proves one.
+
+A separate GitHub Actions workflow exists specifically so Android compilation can be verified without depending on EAS workflow success.
+
+## GITHUB ANDROID VERIFICATION WORKFLOW
+
+File: `.github/workflows/android-build.yml`
+
+Required gates:
+
+1. checkout
+2. pnpm 10.15.0
+3. Node 20.19.4
+4. Java 17
+5. Android SDK 36
+6. `pnpm install --no-frozen-lockfile`
+7. `npx expo install --check`
+8. `pnpm check`
+9. `pnpm lint`
+10. `pnpm test`
+11. `pnpm smoke`
+12. `npx expo prebuild --platform android --clean --no-install`
+13. `./gradlew assembleDebug --stacktrace --no-daemon`
+14. verify `android/app/build/outputs/apk/debug/app-debug.apk`
+15. upload `JARVIS-ROG-debug-APK`
+
+Only a produced APK counts as a build pass.
+
+## NEXT EXACT ACTION FOR CLAUDE CODE
+
+At the start of the next Claude Code session:
+
+1. Read this file completely.
+2. Run `git status --short --branch`.
+3. Run `git log -15 --oneline`.
+4. Inspect the latest CI/EAS result before editing application features.
+5. If GitHub Actions has a failing Android run, read the first failing job/step and its full log.
+6. Reproduce locally when possible.
+7. Fix the smallest root cause.
+8. Run the affected gate.
+9. Run the entire verification chain again.
+10. Commit and push only verified fixes.
+11. Repeat until the debug APK is produced.
+
+Do **not** spend a session rebuilding features that are already implemented unless a compiler/runtime test demonstrates that they are broken.
+
+## REQUIRED LOCAL COMMAND CHAIN
+
+```bash
+corepack enable
+corepack prepare pnpm@10.15.0 --activate
+pnpm install
+npx expo install --check
+pnpm check
+pnpm lint
+pnpm test
+pnpm smoke
+npx expo prebuild --platform android --clean --no-install
+cd android
+./gradlew assembleDebug --stacktrace --no-daemon
+```
+
+If any command fails, stop advancing and repair that real failure first. Do not weaken TypeScript, lint, tests, native functionality, or security boundaries just to obtain a green build.
+
+## AFTER APK SUCCESS
+
+Install the exact produced APK on the physical ASUS ROG Phone 8 Pro using ADB.
+
+Then execute `docs/ACCEPTANCE_TESTS.md` and record only observed evidence in `docs/ACCEPTANCE_REPORT.md`.
+
+The critical physical tests include:
+
+- cold launch
+- GGUF picker/copy/parse/load
+- offline English inference
+- offline Arabic inference
+- Fast/Deep/Create/Code modes
+- real measured TTFT/tokens-per-second only
+- memory persistence and deletion
+- project continuity after restart
+- voice permission
+- real local transcript
+- microphone stop/background cleanup
+- TTS
+- Termux absent behavior
+- Termux authentication and allowlist rejection
+- tool audit
+- erase-all behavior
+- representative thermal/stability run
+- Android WebView authentication for the online hub
+- free-only online model guard
+- streamed online response persistence
+- local GGUF continuing to work with internet disabled
+
+## OPTIONAL STAGE 2 — ONLY AFTER CORE PASS
+
+Do not block the APK on these:
+
+- Shizuku adapter
+- Android Assistant role
+- MediaProjection screen understanding
+- explicitly enabled Accessibility helper
+- Quick Settings tile
+- OEM/ROG-specific integrations
+- local wake-word layer
+
+Implement them after the core APK passes, behind capability detection and explicit enablement.
+
+## ENGINEERING NON-NEGOTIABLES
+
+- Never fake model, GPU/NPU, microphone, transcript, tool, or performance state.
+- Never replace failing native behavior with mock success.
+- Never introduce LLM -> arbitrary shell execution.
+- Keep retrieved memories/documents as untrusted reference data.
+- Keep local GGUF usable without internet, Termux, Shizuku, screen capture, or online providers.
+- Keep microphone/screen-sensitive sessions visible and owner initiated.
+- Do not silently switch a free online model request to a paid model.
+- Preserve existing user data across migrations.
+- Prefer root-cause fixes over broad rewrites.
+- Update this file after every verified checkpoint.
+
+## DEFINITION OF DONE
+
+JARVIS is not “alive” because the UI opens. It is alive when a real APK on the ROG Phone can:
+
+- run the local model offline,
+- understand English and Arabic,
+- accept real voice input,
+- speak responses,
+- remember approved information,
+- preserve project continuity,
+- execute bounded audited tools,
+- survive restarts,
+- expose truthful diagnostics,
+- optionally access the free/keyless online hub without breaking local operation,
+- and pass the documented acceptance gates.
+
+Until those are observed, report the remaining gap truthfully.
