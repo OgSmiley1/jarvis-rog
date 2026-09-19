@@ -2,6 +2,9 @@ name: JARVIS ROG Android Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
