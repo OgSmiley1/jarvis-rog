@@ -1,6 +1,7 @@
 name: JARVIS ROG Android Build
 
-on:\n  workflow_dispatch:
+on:
+  workflow_dispatch:
 
 permissions:
   contents: read
