@@ -1,0 +1,52 @@
+{
+  "name": "jarvis-rog",
+  "version": "0.3.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "check": "tsc --noEmit",
+    "lint": "expo lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prebuild:android": "expo prebuild --platform android --clean",
+    "verify": "pnpm check && pnpm lint && pnpm test",
+    "smoke": "node scripts/smoke-test.mjs",
+    "acceptance": "node scripts/acceptance-report.mjs"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~54.0.0",
+    "expo-build-properties": "~1.0.10",
+    "expo-constants": "~18.0.14",
+    "expo-document-picker": "~14.0.7",
+    "expo-file-system": "~19.0.24",
+    "expo-notifications": "~0.32.17",
+    "expo-router": "~6.0.24",
+    "expo-secure-store": "~15.0.8",
+    "expo-speech": "~14.0.8",
+    "expo-sqlite": "~16.0.10",
+    "expo-status-bar": "~3.0.9",
+    "llama.rn": "0.13.0-rc.1",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-audio-api": "^0.9.3",
+    "react-native-executorch": "^0.9.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "zod": "^3.24.2",
+    "react-native-webview": "13.15.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
