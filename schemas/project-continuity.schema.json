@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectContinuity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["activeObjective", "lastCompleted", "failedAttempts", "pendingTasks", "nextAction"],
+  "properties": {
+    "activeObjective": { "type": "string" },
+    "lastCompleted": { "type": "string" },
+    "failedAttempts": { "type": "array", "items": { "type": "string" } },
+    "pendingTasks": { "type": "array", "items": { "type": "string" } },
+    "nextAction": { "type": "string" }
+  }
+}
