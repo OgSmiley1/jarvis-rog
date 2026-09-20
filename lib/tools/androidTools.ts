@@ -5,6 +5,37 @@ import { speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 
 export const androidTools: ToolDefinition[] = [
   {
+    name: 'device.open_map_search',
+    description: 'Open the device maps experience and search for a place requested by the owner.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({ query: z.string().min(1).max(300) }),
+    execute: async ({ query }) => {
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
+      await Linking.openURL(url);
+      return { opened: true, query };
+    },
+  },
+  {
+    name: 'device.compose_email',
+    description: 'Open the device email composer with optional recipient, subject and body. This does not silently press Send.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({
+      to: z.string().email().optional(),
+      subject: z.string().max(300).optional(),
+      body: z.string().max(10000).optional(),
+    }),
+    execute: async ({ to, subject, body }) => {
+      const params: string[] = [];
+      if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
+      if (body) params.push(`body=${encodeURIComponent(body)}`);
+      const url = `mailto:${to ?? ''}${params.length ? `?${params.join('&')}` : ''}`;
+      await Linking.openURL(url);
+      return { opened: true, to: to ?? null };
+    },
+  },
+  {
     name: 'device.open_url',
     description: 'Open a user-requested http or https URL.',
     target: 'ANDROID',
