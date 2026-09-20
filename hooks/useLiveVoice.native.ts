@@ -15,6 +15,7 @@ export type VoiceState =
 export interface UseLiveVoiceOptions {
   language: 'auto' | 'en' | 'ar';
   onFinal?: (text: string) => void;
+  shouldAcceptAudio?: () => boolean;
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
@@ -115,7 +116,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     runningRef.current = true;
 
     recorder.onAudioReady((chunk) => {
-      if (runningRef.current && sessionRef.current === session) {
+      if (
+        runningRef.current &&
+        sessionRef.current === session &&
+        (optionsRef.current.shouldAcceptAudio?.() ?? true)
+      ) {
         stt.streamInsert(chunk.buffer.getChannelData(0));
       }
     });
