@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 
@@ -168,11 +168,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') void stop();
-    });
+    // Keep the active recorder alive when the app is backgrounded. On Android
+    // the react-native-audio-api recorder is backed by a microphone foreground
+    // service (configured in app.config.ts), so the session can continue while
+    // the app is minimized. We still release the microphone when this hook is
+    // actually unmounted or the owner stops the session.
     return () => {
-      subscription.remove();
       void stop();
     };
   }, [stop]);
