@@ -18,6 +18,8 @@ export default function SettingsScreen() {
   const [importing, setImporting] = useState(false);
   const [termuxStatus, setTermuxStatus] = useState('Not checked');
   const [toolRuns, setToolRuns] = useState<ToolRun[]>([]);
+  const [ownerProfileDraft, setOwnerProfileDraft] = useState('');
+  const [wakeWordDraft, setWakeWordDraft] = useState('jarvis');
 
   const section = Array.isArray(params.section) ? params.section[0] : params.section;
 
@@ -28,6 +30,11 @@ export default function SettingsScreen() {
   useEffect(() => {
     void refreshDiagnostics();
   }, []);
+
+  useEffect(() => {
+    setOwnerProfileDraft(jarvis.settings.ownerProfile);
+    setWakeWordDraft(jarvis.settings.wakeWord);
+  }, [jarvis.settings.ownerProfile, jarvis.settings.wakeWord]);
 
   async function importModel() {
     if (importing) return;
@@ -165,7 +172,32 @@ export default function SettingsScreen() {
           <AppText>Auto speak responses</AppText>
           <Switch value={jarvis.settings.autoSpeak} onValueChange={(value) => void jarvis.updateSettings({ autoSpeak: value })} />
         </View>
-        <AppText muted>The microphone is used only during a visible session. Background microphone service is disabled in this build.</AppText>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>Hands-free Jarvis</AppText>
+          <Switch
+            value={jarvis.settings.handsFreeEnabled}
+            onValueChange={(value) => void jarvis.updateSettings({ handsFreeEnabled: value })}
+          />
+        </View>
+        <Field value={wakeWordDraft} onChangeText={setWakeWordDraft} placeholder="Wake word, e.g. Jarvis" />
+        <Button
+          title="Save wake word"
+          disabled={!wakeWordDraft.trim()}
+          onPress={() => void jarvis.updateSettings({ wakeWord: wakeWordDraft.trim() })}
+        />
+        <AppText muted>
+          When hands-free is on, JARVIS starts listening from the visible app and keeps that microphone session alive while the app is minimized using an Android foreground microphone service.
+        </AppText>
+      </Card>
+
+      <Card title="Owner profile">
+        <AppText muted>These preferences stay in JARVIS local settings and are included in its prompt so it understands how you want it to work and reply.</AppText>
+        <Field value={ownerProfileDraft} onChangeText={setOwnerProfileDraft} placeholder="Tell JARVIS how you work and what you prefer…" multiline />
+        <Button
+          title="Save owner profile"
+          disabled={!ownerProfileDraft.trim()}
+          onPress={() => void jarvis.updateSettings({ ownerProfile: ownerProfileDraft.trim() })}
+        />
       </Card>
 
       <Card title="Memory">
