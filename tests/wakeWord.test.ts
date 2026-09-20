@@ -17,4 +17,12 @@ describe('extractWakeCommand', () => {
   it('returns no wake word for ordinary speech', () => {
     expect(extractWakeCommand('open email')).toEqual({ heard: false, command: '' });
   });
+
+  it('does not trigger when Jarvis is only mentioned in the middle of speech', () => {
+    expect(extractWakeCommand('tell me whether Jarvis can open email')).toEqual({ heard: false, command: '' });
+  });
+
+  it('accepts a short greeting before the wake word', () => {
+    expect(extractWakeCommand('Hey Jarvis open YouTube')).toEqual({ heard: true, command: 'open YouTube' });
+  });
 });
