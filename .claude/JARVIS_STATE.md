@@ -1,5 +1,32 @@
 # JARVIS ROG — LIVE BUILD STATE
 
+> **AUDIT UPDATE — 2026-09-20**
+>
+> Current working branch: `feat/handsfree-jarvis-rog`.
+> Build target: **0.4.0** for `com.app.localjarviscoach`.
+> The older sections below are retained as historical evidence, but any statement
+> saying background voice or Android Assistant is "not implemented" is superseded
+> by this update.
+>
+> Current source now includes: microphone foreground-service configuration,
+> hands-free wake-word routing, local STT, local GGUF reasoning, Android
+> VoiceInteractionService/SessionService integration, bounded tool planning,
+> Maps/email intents, authenticated Termux actions, owner profile memory, and
+> local TTS. The Termux installer is repeatable, creates its secret with Python,
+> prepares a Termux:Boot startup script, and all tracked shell scripts are stored
+> executable in Git.
+>
+> Final audit fixes include: correct speech-recognition bind permission, safe
+> wake-word boundary matching, STT input muted while JARVIS speaks, truthful
+> loaded-runtime diagnostics, clean Termux bridge restarts, and corrected
+> hands-free acceptance tests.
+>
+> **Current gate:** run one clean EAS Android preview build from the final audited
+> branch, then install that exact APK on the physical ROG Phone 8 Pro and execute
+> `docs/ACCEPTANCE_TESTS.md`. Do not claim final device success before those
+> tests pass.
+
+
 ## CURRENT OBJECTIVE
 
 Produce a verified, installable Android APK for the ASUS ROG Phone 8 Pro while preserving the local-first JARVIS architecture and package ID `com.app.localjarviscoach`.
