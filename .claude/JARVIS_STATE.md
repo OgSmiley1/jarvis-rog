@@ -169,7 +169,7 @@ Run against the real toolchain, not asserted:
 | Gate | Result |
 | --- | --- |
 | `pnpm check` (tsc strict) | pass, 0 errors |
-| `pnpm lint` | pass, 0 errors, 1 pre-existing warning |
+| `pnpm lint` | pass, 0 errors, 0 warnings |
 | `pnpm test` | pass, 12 files, 43 tests |
 | `pnpm smoke` | pass, 9 checks |
 | `npx expo prebuild` | pass, no warnings |
