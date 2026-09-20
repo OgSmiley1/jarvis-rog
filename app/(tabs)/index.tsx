@@ -19,6 +19,22 @@ export default function CoachScreen() {
   const [busy, setBusy] = useState(false);
   const awakeUntilRef = useRef(0);
   const autoStartAttemptedRef = useRef(false);
+  const speakingRef = useRef(false);
+
+
+  function speakJarvis(text: string) {
+    speakingRef.current = true;
+    void speakResponse(text, jarvis.settings.language, {
+      onDone: () => {
+        speakingRef.current = false;
+      },
+      onError: () => {
+        speakingRef.current = false;
+      },
+    }).catch(() => {
+      speakingRef.current = false;
+    });
+  }
 
   async function runCommand(commandText: string) {
     const command = commandText.trim();
@@ -33,13 +49,13 @@ export default function CoachScreen() {
       setResponse(result.text);
 
       if (jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled) {
-        speakResponse(result.text, jarvis.settings.language);
+        speakJarvis(result.text);
       }
     } catch (error) {
       const message = humanizeError(errorMessage(error));
       setResponse(message);
       if (jarvis.settings.handsFreeEnabled) {
-        speakResponse(message, jarvis.settings.language);
+        speakJarvis(message);
       } else {
         Alert.alert('JARVIS error', message);
       }
@@ -50,7 +66,7 @@ export default function CoachScreen() {
 
   function handleVoiceFinal(text: string) {
     const clean = text.trim();
-    if (!clean) return;
+    if (!clean || speakingRef.current) return;
 
     if (!jarvis.settings.handsFreeEnabled) {
       setInput((current) => `${current} ${clean}`.trim());
@@ -64,7 +80,7 @@ export default function CoachScreen() {
         void runCommand(wake.command);
       } else {
         awakeUntilRef.current = Date.now() + 10_000;
-        speakResponse(jarvis.settings.language === 'ar' ? 'معاك.' : 'Yes?', jarvis.settings.language);
+        speakJarvis(jarvis.settings.language === 'ar' ? 'معاك.' : 'Yes?');
       }
       return;
     }
@@ -163,7 +179,7 @@ export default function CoachScreen() {
         <Card title="Response">
           <AppText>{response}</AppText>
           <Row>
-            <Button title="Speak" onPress={() => speakResponse(response, jarvis.settings.language)} />
+            <Button title="Speak" onPress={() => speakJarvis(response)} />
             <Button title="Save memory" onPress={() => void jarvis.saveMemory('Saved JARVIS insight', response)} />
           </Row>
         </Card>
