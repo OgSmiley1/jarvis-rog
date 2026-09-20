@@ -66,7 +66,7 @@ export const androidTools: ToolDefinition[] = [
     confirmation: 'none',
     schema: z.object({ text: z.string().min(1).max(5000), language: z.enum(['en', 'ar']).default('en') }),
     execute: async ({ text, language }) => {
-      speakResponse(text, language);
+      await speakResponse(text, language);
       return { speaking: true };
     },
   },
@@ -77,7 +77,7 @@ export const androidTools: ToolDefinition[] = [
     confirmation: 'none',
     schema: z.object({}),
     execute: async () => {
-      stopSpeaking();
+      await stopSpeaking();
       return { speaking: false };
     },
   },
