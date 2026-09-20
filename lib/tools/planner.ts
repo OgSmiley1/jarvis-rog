@@ -11,6 +11,7 @@ const ARGUMENT_HINTS: Record<string, string> = {
   'assistant.speak': '{"text":"what to say","language":"en|ar"}',
   'assistant.stop_speaking': '{}',
   'termux.system_status': '{}',
+  'termux.app_open': '{"package":"Android package name"}',
   'termux.git_status': '{"path":"explicit repository path"}',
 };
 
