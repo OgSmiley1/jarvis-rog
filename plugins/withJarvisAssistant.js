@@ -14,12 +14,36 @@ function upsertService(services, next) {
   else services.push(next);
 }
 
+function ensureActivityIntentFilter(activity, actionName) {
+  activity['intent-filter'] = activity['intent-filter'] || [];
+  const exists = activity['intent-filter'].some((filter) =>
+    (filter.action || []).some((action) => action && action.$ && action.$['android:name'] === actionName)
+  );
+  if (exists) return;
+
+  activity['intent-filter'].push({
+    action: [{ $: { 'android:name': actionName } }],
+    category: [{ $: { 'android:name': 'android.intent.category.DEFAULT' } }],
+  });
+}
+
 function withManifest(config) {
   return withAndroidManifest(config, (config) => {
     const manifest = config.modResults.manifest;
     const application = manifest.application && manifest.application[0];
     if (!application) throw new Error('JARVIS_ASSISTANT_APPLICATION_MISSING');
     application.service = application.service || [];
+
+    const activities = application.activity || [];
+    const mainActivity = activities.find((activity) =>
+      (activity['intent-filter'] || []).some((filter) =>
+        (filter.action || []).some((action) => action && action.$ && action.$['android:name'] === 'android.intent.action.MAIN')
+      )
+    );
+    if (mainActivity) {
+      ensureActivityIntentFilter(mainActivity, 'android.intent.action.ASSIST');
+      ensureActivityIntentFilter(mainActivity, 'android.intent.action.VOICE_COMMAND');
+    }
 
     upsertService(application.service, {
       $: {
@@ -50,6 +74,7 @@ function withManifest(config) {
         'android:name': RECOGNITION,
         'android:exported': 'true',
         'android:label': 'JARVIS ROG',
+        'android:permission': 'android.permission.BIND_VOICE_INTERACTION',
       },
       'intent-filter': [{
         action: [{ $: { 'android:name': 'android.speech.RecognitionService' } }],
