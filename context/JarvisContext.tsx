@@ -21,6 +21,9 @@ import { createId } from '@/lib/utils/ids';
 import * as runtime from '@/lib/inference/standaloneModel';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { executeToolWithAudit } from '@/lib/tools/execution';
+import { listToolNames } from '@/lib/tools/registry';
+import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
+import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
 
 export type StepStatus = ProjectStep['status'];
 
@@ -156,6 +159,41 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       return { text: `${deterministic.successMessage}${dataSuffix}`, metrics };
     }
 
+    if (looksLikeToolRequest(text) && modelState.status === 'ready') {
+      const allowedTools = [...listToolNames(), NO_TOOL];
+      const planner = await runtime.runCompletion({
+        messages: buildToolPlanningMessages(text, settings.language),
+        mode: 'fast',
+        grammar: buildToolCallGrammar(allowedTools),
+      });
+
+      try {
+        const planned = parseToolCall(planner.text, allowedTools);
+        if (planned.tool !== NO_TOOL) {
+          const toolResult = await executeToolWithAudit({
+            id: createId('tool'),
+            tool: planned.tool,
+            arguments: planned.arguments,
+          });
+          setLastMetrics(planner.metrics);
+
+          if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
+
+          const summary = settings.language === 'ar'
+            ? `تم تنفيذ ${planned.tool}.`
+            : `Done. ${planned.tool} completed.`;
+          const dataSuffix = toolResult.data === undefined
+            ? ''
+            : `\n${JSON.stringify(toolResult.data, null, 2)}`;
+          return { text: `${summary}${dataSuffix}`, metrics: planner.metrics };
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message === 'CONFIRMATION_REQUIRED') throw error;
+        // If planning output is invalid or no executable tool was selected,
+        // continue to the normal assistant answer instead of pretending an action ran.
+      }
+    }
+
     let memoryContext: string | undefined;
     if (settings.approvedMemoryEnabled) {
       memoryContext = formatMemoryContext(selectMemoryContext(text, memories));
@@ -182,7 +220,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
     return result;
-  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language, settings.ownerProfile]);
+  }, [activeProject, memories, modelState.status, settings.approvedMemoryEnabled, settings.language, settings.ownerProfile]);
 
   const stopGeneration = useCallback(async () => {
     await runtime.stopGeneration();
