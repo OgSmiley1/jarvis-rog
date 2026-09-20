@@ -1,7 +1,13 @@
 name: Build JARVIS ROG Android APK
 
+# `workflow_dispatch:` with no value parses as YAML null. GitHub Actions
+# tolerates that, but the EAS workflow schema requires an object and rejects
+# the whole definition with:
+#   Failed to create workflow run. Invalid workflow definition.
+#   [on.workflow_dispatch]: Invalid input: expected object, received null.
+# An empty mapping is the manual trigger with no inputs.
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches:
       - main
@@ -12,4 +18,7 @@ jobs:
     type: build
     params:
       platform: android
+      # The preview profile is distribution: internal with buildType: apk, so
+      # this produces a directly sideloadable APK for the ROG Phone 8 Pro
+      # rather than an app bundle.
       profile: preview
