@@ -37,7 +37,11 @@ export default function SettingsScreen() {
     setWakeWordDraft(jarvis.settings.wakeWord);
   }, [jarvis.settings.ownerProfile, jarvis.settings.wakeWord]);
 
-  async function validateAndSelectModel(imported: { path: string; name: string; size: number }, successTitle: string) {
+  async function validateAndSelectModel(
+    imported: { path: string; name: string; size: number },
+    successTitle: string,
+    autoLoad = false,
+  ) {
     try {
       if (Platform.OS === 'android') await jarvis.validateModel(imported.path);
     } catch (error) {
@@ -46,7 +50,8 @@ export default function SettingsScreen() {
     }
 
     await jarvis.updateSettings({ modelPath: imported.path, modelName: imported.name, modelSize: imported.size });
-    Alert.alert(successTitle, `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB`);
+    if (autoLoad) await jarvis.loadModel({ path: imported.path, name: imported.name });
+    Alert.alert(successTitle, `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB${autoLoad ? '\nJARVIS brain: READY' : ''}`);
   }
 
   async function importModel() {
@@ -70,7 +75,7 @@ export default function SettingsScreen() {
     setModelDownloadProgress(0);
     try {
       const imported = await downloadRecommendedModel(setModelDownloadProgress);
-      await validateAndSelectModel(imported, 'Free local brain downloaded');
+      await validateAndSelectModel(imported, 'Free local brain downloaded', true);
     } catch (error) {
       const code = errorMessage(error, 'MODEL_DOWNLOAD_FAILED');
       Alert.alert('Download failed', humanizeError(code));
