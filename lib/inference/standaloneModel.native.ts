@@ -57,16 +57,30 @@ export async function loadLocalModel(
     // readings this yields the previous fixed defaults, so behaviour is
     // unchanged until a real thermal signal arrives.
     const plan = planRuntime(options.device ?? {});
+    const appliedPlan: RuntimePlan = {
+      ...plan,
+      contextSize: options.contextSize ?? plan.contextSize,
+      batchSize: options.batchSize ?? plan.batchSize,
+      threads: options.threads ?? plan.threads,
+      gpuLayers: options.gpuLayers ?? plan.gpuLayers,
+      reason:
+        options.contextSize !== undefined ||
+        options.batchSize !== undefined ||
+        options.threads !== undefined ||
+        options.gpuLayers !== undefined
+          ? `${plan.reason}; explicit runtime overrides applied`
+          : plan.reason,
+    };
     context = await initLlama({
       model: modelPath,
-      n_ctx: options.contextSize ?? plan.contextSize,
-      n_batch: options.batchSize ?? plan.batchSize,
-      n_threads: options.threads ?? plan.threads,
-      n_gpu_layers: options.gpuLayers ?? plan.gpuLayers,
+      n_ctx: appliedPlan.contextSize,
+      n_batch: appliedPlan.batchSize,
+      n_threads: appliedPlan.threads,
+      n_gpu_layers: appliedPlan.gpuLayers,
       use_mmap: true,
       use_mlock: options.useMlock ?? false,
     });
-    activePlan = plan;
+    activePlan = appliedPlan;
 
     state = {
       status: 'ready',
