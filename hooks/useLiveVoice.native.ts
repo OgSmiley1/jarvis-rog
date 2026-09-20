@@ -91,6 +91,15 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       return;
     }
 
+    if (Platform.Version >= 33) {
+      try {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      } catch {
+        // Notification permission is helpful for the visible foreground-service
+        // notification, but a denial must not fake a microphone failure.
+      }
+    }
+
     const stt = modelRef.current;
     if (!stt.isReady) {
       setError(stt.error?.message ?? 'Local speech model is not ready yet.');
