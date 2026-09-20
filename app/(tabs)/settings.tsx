@@ -200,6 +200,16 @@ export default function SettingsScreen() {
         />
       </Card>
 
+      <Card title="Android assistant">
+        <AppText>
+          After installing the APK: Phone Settings → Apps → Default apps → Digital assistant app → choose JARVIS ROG.
+        </AppText>
+        <AppText muted>
+          This lets Android keep the assistant service available and lets the phone's assistant gesture / power-button shortcut invoke JARVIS.
+        </AppText>
+        <Button title="Open JARVIS Android settings" onPress={() => void jarvis.ask('open settings', 'fast')} />
+      </Card>
+
       <Card title="Memory">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <AppText>Approved memory injection</AppText>
