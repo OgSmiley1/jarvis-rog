@@ -74,7 +74,7 @@ function withManifest(config) {
         'android:name': RECOGNITION,
         'android:exported': 'true',
         'android:label': 'JARVIS ROG',
-        'android:permission': 'android.permission.BIND_VOICE_INTERACTION',
+        'android:permission': 'android.permission.BIND_SPEECH_RECOGNITION_SERVICE',
       },
       'intent-filter': [{
         action: [{ $: { 'android:name': 'android.speech.RecognitionService' } }],
