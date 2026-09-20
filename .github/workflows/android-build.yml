@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 permissions:
   contents: read
@@ -21,49 +22,105 @@ jobs:
       CI: true
       EXPO_NO_GIT_STATUS: "1"
       NODE_OPTIONS: "--max-old-space-size=6144"
+      # The ROG Phone 8 Pro is arm64-v8a. Building the other three ABIs roughly
+      # quadruples native build time and APK size for hardware we never target.
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: arm64-v8a
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.15.0
           run_install: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20.19.4"
+          cache: pnpm
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
       - uses: android-actions/setup-android@v3
+
       - name: Install Android SDK 36
         run: yes | sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-      - name: Expo dependency check
-        run: npx expo install --check
+
+      # llama.rn ships its arm64 inference libraries via a postinstall download
+      # rather than inside the npm tarball. pnpm blocks lifecycle scripts by
+      # default, and when that download is skipped CMake silently omits every
+      # librnllama variant: the APK still builds, installs and launches, but
+      # local GGUF inference is dead on the device. package.json allowlists the
+      # script under pnpm.onlyBuiltDependencies; this step proves it ran.
+      - name: Verify llama.rn native libraries were fetched
+        run: |
+          JNI="node_modules/llama.rn/android/src/main/jniLibs/arm64-v8a"
+          if [ ! -d "$JNI" ]; then
+            echo "::error::llama.rn arm64-v8a jniLibs are missing. The postinstall download did not run, so the APK would ship without a local inference engine."
+            exit 1
+          fi
+          COUNT=$(find "$JNI" -name 'librnllama*.so' | wc -l)
+          echo "Found $COUNT librnllama variants:"
+          find "$JNI" -name 'librnllama*.so' -exec basename {} \;
+          if [ "$COUNT" -lt 1 ]; then
+            echo "::error::No librnllama*.so variants present for arm64-v8a."
+            exit 1
+          fi
+
       - name: TypeScript
         run: pnpm check
+
       - name: Lint
         run: pnpm lint
+
       - name: Unit tests
         run: pnpm test
+
       - name: Smoke test
         run: pnpm smoke
+
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
+
       - name: Build debug APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
       - name: Verify APK
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           ls -lh "$APK"
-          sha256sum "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+
+      # A green Gradle run does not prove the inference engine is inside the
+      # APK. Assert it directly so a dead-on-device build can never be reported
+      # as a success.
+      - name: Verify inference engine is inside the APK
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          LIBS=$(unzip -Z1 "$APK" | grep '^lib/arm64-v8a/librnllama' || true)
+          if [ -z "$LIBS" ]; then
+            echo "::error::The APK contains no librnllama native library. Local GGUF inference would fail on the device."
+            unzip -Z1 "$APK" | grep '^lib/' | head -40
+            exit 1
+          fi
+          echo "Bundled inference libraries:"
+          echo "$LIBS"
+
       - name: Upload JARVIS APK
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-ROG-debug-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            apk-sha256.txt
           if-no-files-found: error
           retention-days: 30

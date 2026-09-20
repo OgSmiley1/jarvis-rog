@@ -16,6 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
+    'expo-system-ui',
     'expo-secure-store',
     'expo-sqlite',
     [
@@ -34,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         enableEntitlements: true,
         entitlementsProfile: 'production',
         forceCxx20: true,
-        enableOpenCL: true,
+        enableOpenCLAndHexagon: true,
       },
     ],
     [
