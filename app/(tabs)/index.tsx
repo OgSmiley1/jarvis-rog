@@ -94,6 +94,7 @@ export default function CoachScreen() {
   const voice = useLiveVoice({
     language: jarvis.settings.language,
     onFinal: handleVoiceFinal,
+    shouldAcceptAudio: () => !speakingRef.current,
   });
 
   useEffect(() => {
