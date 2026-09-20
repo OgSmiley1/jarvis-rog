@@ -50,7 +50,7 @@ type ContextValue = {
   activeRuntimePlan: RuntimePlan | null;
   updateSettings: (patch: Partial<JarvisSettings>) => Promise<void>;
   refresh: () => Promise<void>;
-  loadModel: () => Promise<void>;
+  loadModel: (selection?: { path: string; name: string }) => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
   ask: (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation?: CompletionMessage[]) => Promise<{ text: string; metrics: RuntimeMetrics }>;
@@ -106,8 +106,10 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const validateModel = useCallback(async (path: string) => runtime.validateGguf(path), []);
 
-  const loadModel = useCallback(async () => {
-    if (!settings.modelPath || !settings.modelName) throw new Error('NO_MODEL_SELECTED');
+  const loadModel = useCallback(async (selection?: { path: string; name: string }) => {
+    const modelPath = selection?.path ?? settings.modelPath;
+    const modelName = selection?.name ?? settings.modelName;
+    if (!modelPath || !modelName) throw new Error('NO_MODEL_SELECTED');
 
     if (settings.adaptiveRuntime) {
       // Size the runtime from what the device actually reports. Signals that
@@ -115,7 +117,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       // "not measured" rather than as spare headroom.
       const reading = await readDevicePowerState();
       setPowerReading(reading);
-      const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
+      const state = await runtime.loadLocalModel(modelPath, modelName, {
         device: reading.state,
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
@@ -124,7 +126,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }
 
     setPowerReading(null);
-    const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
+    const state = await runtime.loadLocalModel(modelPath, modelName, {
       contextSize: settings.contextSize,
       batchSize: settings.batchSize,
       threads: settings.threads,
@@ -140,6 +142,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setActiveRuntimePlan(null);
     setModelState(runtime.getModelRuntimeState());
   }, []);
+
+  useEffect(() => {
+    if (!ready || modelState.status !== 'unloaded') return;
+    if (!settings.modelPath || !settings.modelName) return;
+    void loadModel().catch(() => undefined);
+  }, [ready, modelState.status, settings.modelPath, settings.modelName, loadModel]);
 
   const activeProject = projects.find((project) => project.status === 'active');
 
