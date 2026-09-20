@@ -170,7 +170,7 @@ Run against the real toolchain, not asserted:
 | --- | --- |
 | `pnpm check` (tsc strict) | pass, 0 errors |
 | `pnpm lint` | pass, 0 errors, 0 warnings |
-| `pnpm test` | pass, 12 files, 43 tests |
+| `pnpm test` | pass, 15 files, 76 tests |
 | `pnpm smoke` | pass, 9 checks |
 | `npx expo prebuild` | pass, no warnings |
 
@@ -258,6 +258,86 @@ Adreno GPU and Hexagon DSP paths are available to the prebuilt engine.
 **GPU/NPU availability is still only whatever llama.rn reports at runtime via
 `context.gpu` / `reasonNoGPU`. Never present these flags as proof of
 acceleration.**
+
+## SESSION 2 ADVANCES (audit of the subsystems the handoff listed)
+
+Found by auditing, not by chasing a compiler error.
+
+### Arabic was not actually implemented
+
+`settings.language` drove only the TTS voice. It never reached `buildMessages`,
+so the system prompt carried no language directive at all: selecting Arabic
+changed which voice spoke while the model kept answering in English. "Offline
+Arabic" is an acceptance gate, so this was close to a feature that did not
+exist.
+
+`buildMessages` now takes a language and emits an explicit directive ahead of
+the mode instruction, because small quantised models drift back to English when
+the requirement is stated late or softly. The Arabic directive keeps code,
+paths and identifiers in Latin script and suppresses unsolicited English
+translations. 10 tests.
+
+### The database could not evolve without risking owner data
+
+`migrate()` was one `CREATE TABLE IF NOT EXISTS` block with no version counter.
+Idempotent, but incapable of migrating: on a device that already has a table, a
+later added column silently never appears.
+
+Now uses `PRAGMA user_version` with one step per version. Step 1 is the
+existing baseline, written so a pre-versioning install adopts version 1 without
+losing anything. Future steps must be additive.
+
+The schema moved to `lib/storage/schema.ts` with no expo-sqlite or React Native
+import, so **the exact SQL that ships is executed against a real SQLite engine**
+(`node:sqlite`) in tests: fresh apply, idempotent re-run, adoption of a
+pre-versioning database with rows intact, and `ON DELETE CASCADE` genuinely
+removing dependents. 8 tests.
+
+`getDatabaseDiagnostics()` reads `user_version`, `foreign_keys` and
+`journal_mode` back off the open connection rather than assuming the pragmas
+took effect.
+
+### planRuntime was wired but could never fire
+
+Settings always supply contextSize/batchSize/threads/gpuLayers, and explicit
+options override the plan, so the planner was dead code in practice. Added an
+owner-controlled `adaptiveRuntime` setting, default on.
+
+`lib/device/powerState.ts` reads **real signals only**: battery level and
+charging state (expo-battery), total RAM (expo-device). Both autolink for
+Android; prebuild stays clean.
+
+**Thermal status is still unavailable** and is reported as such in Settings.
+`PowerManager.getCurrentThermalStatus()` is not bridged by React Native and
+needs a small native module. Battery temperature is deliberately NOT
+substituted: it measures the pack, not the SoC, and lags the Snapdragon badly
+under load. Do not claim thermal adaptation is live until that bridge exists.
+
+The Settings runtime card now shows the plan the loaded context was **actually
+built with**, its tier and reason, whether a thermal reading was present, the
+observed battery/charging/RAM values with N/A where unread, and every
+unavailable signal with its cause.
+
+### GBNF constrained tool calling
+
+`lib/tools/grammar.ts` generates a GBNF grammar from the registry itself, so
+the sampler can only emit a complete JSON object with exactly `tool` and
+`arguments`, and `tool` can only be a registered name. A tool outside the
+allowlist is unrepresentable rather than rejected after the fact.
+
+The grammar does **not** validate arguments against a tool's schema. Arguments
+are constrained to valid JSON; zod still validates them in the router, and the
+executor allowlist remains the security boundary. `parseToolCall` re-checks the
+allowlist rather than trusting the grammar, so a call arriving another way
+cannot bypass it. 15 tests.
+
+`RunCompletionInput.grammar` is plumbed through to llama.rn. **The grammar is
+unit-tested for structure but has not yet been executed by llama.cpp on
+device** -- confirm it during acceptance testing before relying on it.
+
+No autonomous LLM tool-execution loop was added. Planning returns a validated
+call; execution still goes through the existing audited router and its
+confirmation policy.
 
 ## NEXT EXACT ACTION
 

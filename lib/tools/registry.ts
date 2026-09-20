@@ -1,4 +1,5 @@
 import { androidTools } from './androidTools';
+import { buildToolCallGrammar } from './grammar';
 import { termuxTools } from './termuxTools';
 import type { ToolDefinition } from './types';
 
@@ -12,4 +13,18 @@ export function listToolSchemas() {
     target: tool.target,
     confirmation: tool.confirmation,
   }));
+}
+
+/** Every registered tool name. The allowlist, in one place. */
+export function listToolNames(): string[] {
+  return definitions.map((tool) => tool.name);
+}
+
+/**
+ * GBNF grammar admitting exactly one call to a registered tool. Derived from
+ * the registry itself, so a tool added or removed here cannot drift out of
+ * sync with what the sampler is allowed to emit.
+ */
+export function toolCallGrammar(): string {
+  return buildToolCallGrammar(listToolNames());
 }

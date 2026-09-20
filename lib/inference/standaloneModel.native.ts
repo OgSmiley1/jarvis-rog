@@ -117,6 +117,7 @@ export async function runCompletion(input: RunCompletionInput): Promise<{ text: 
       top_p: mode.topP,
       top_k: mode.topK,
       stop: ['</s>', '<|end|>', '<|eot_id|>', '<|end_of_text|>', '<|im_end|>', '<|endoftext|>'],
+      ...(input.grammar ? { grammar: input.grammar } : {}),
     },
     (data) => {
       const token = data.token ?? '';
