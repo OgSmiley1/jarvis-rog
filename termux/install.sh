@@ -7,7 +7,7 @@ if [ ! -d "/data/data/com.termux" ]; then
 fi
 
 pkg update -y
-pkg install -y python git openssl
+pkg install -y python git
 
 cd "$(dirname "$0")"
 JARVIS_TERMUX_DIR="$(pwd)"
@@ -20,7 +20,7 @@ mkdir -p runtime logs
 chmod 700 runtime logs
 
 if [ ! -f .env ]; then
-  SECRET="$(openssl rand -hex 32)"
+  SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')"
   printf 'JARVIS_IPC_SECRET=%s\n' "$SECRET" > .env
   chmod 600 .env
 else
