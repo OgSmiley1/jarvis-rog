@@ -173,6 +173,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       // The Settings language toggle previously only changed the TTS voice, so
       // selecting Arabic still produced English answers. It now reaches the model.
       language: settings.language,
+      ownerProfileContext: settings.ownerProfile,
       projectContext,
       memoryContext,
       conversation: boundedConversation,
@@ -181,7 +182,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
     return result;
-  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language]);
+  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language, settings.ownerProfile]);
 
   const stopGeneration = useCallback(async () => {
     await runtime.stopGeneration();
