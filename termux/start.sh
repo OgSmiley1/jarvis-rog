@@ -8,6 +8,10 @@ set +a
 mkdir -p runtime logs
 PIDFILE="runtime/jarvis.pid"
 
+if command -v termux-wake-lock >/dev/null 2>&1; then
+  termux-wake-lock >/dev/null 2>&1 || true
+fi
+
 if [ -f "$PIDFILE" ]; then
   PID="$(cat "$PIDFILE")"
   if kill -0 "$PID" 2>/dev/null; then
