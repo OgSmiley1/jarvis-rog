@@ -1,6 +1,16 @@
 import type { JarvisToolCall } from './types';
 import { createId } from '@/lib/utils/ids';
 
+const KNOWN_APPS: Record<string, string> = {
+  gmail: 'com.google.android.gm',
+  email: 'com.google.android.gm',
+  youtube: 'com.google.android.youtube',
+  whatsapp: 'com.whatsapp',
+  chrome: 'com.android.chrome',
+  photos: 'com.google.android.apps.photos',
+  'google photos': 'com.google.android.apps.photos',
+};
+
 export interface DeterministicToolRoute {
   call: JarvisToolCall;
   successMessage: string;
@@ -64,6 +74,17 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
     return {
       call: { id: createId('tool'), tool: 'device.open_map_search', arguments: { query: mapQuery.trim() } },
       successMessage: `Opened Maps for ${mapQuery.trim()}.`,
+    };
+  }
+
+  const englishApp = trimmed.match(/^(?:open|launch)\s+(?:the\s+)?(.+)$/i);
+  const arabicApp = trimmed.match(/^(?:افتح|شغل)\s+(.+)$/u);
+  const requestedApp = (englishApp?.[1] ?? arabicApp?.[1])?.trim().toLowerCase();
+  const packageName = requestedApp ? KNOWN_APPS[requestedApp] : undefined;
+  if (packageName) {
+    return {
+      call: { id: createId('tool'), tool: 'termux.app_open', arguments: { package: packageName } },
+      successMessage: `Opened ${requestedApp}.`,
     };
   }
 
