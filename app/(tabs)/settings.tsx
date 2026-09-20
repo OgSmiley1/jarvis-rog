@@ -3,7 +3,7 @@ import { Alert, Platform, Switch, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { useJarvis } from '@/context/JarvisContext';
-import { importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
+import { downloadRecommendedModel, importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
 import { eraseAllJarvisData, listRecentToolRuns } from '@/lib/storage/database';
 import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -16,6 +16,7 @@ export default function SettingsScreen() {
   const params = useLocalSearchParams<{ section?: string | string[] }>();
   const [termuxSecret, setTermuxSecretInput] = useState('');
   const [importing, setImporting] = useState(false);
+  const [modelDownloadProgress, setModelDownloadProgress] = useState<number | null>(null);
   const [termuxStatus, setTermuxStatus] = useState('Not checked');
   const [toolRuns, setToolRuns] = useState<ToolRun[]>([]);
   const [ownerProfileDraft, setOwnerProfileDraft] = useState('');
@@ -36,26 +37,45 @@ export default function SettingsScreen() {
     setWakeWordDraft(jarvis.settings.wakeWord);
   }, [jarvis.settings.ownerProfile, jarvis.settings.wakeWord]);
 
+  async function validateAndSelectModel(imported: { path: string; name: string; size: number }, successTitle: string) {
+    try {
+      if (Platform.OS === 'android') await jarvis.validateModel(imported.path);
+    } catch (error) {
+      removeImportedModel(imported.path);
+      throw new Error(`GGUF validation failed: ${errorMessage(error)}`);
+    }
+
+    await jarvis.updateSettings({ modelPath: imported.path, modelName: imported.name, modelSize: imported.size });
+    Alert.alert(successTitle, `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB`);
+  }
+
   async function importModel() {
     if (importing) return;
     setImporting(true);
     try {
       const imported = await importGgufModel();
       if (!imported) return;
-
-      try {
-        if (Platform.OS === 'android') await jarvis.validateModel(imported.path);
-      } catch (error) {
-        removeImportedModel(imported.path);
-        throw new Error(`GGUF validation failed: ${errorMessage(error)}`);
-      }
-
-      await jarvis.updateSettings({ modelPath: imported.path, modelName: imported.name, modelSize: imported.size });
-      Alert.alert('Model imported and validated', `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB`);
+      await validateAndSelectModel(imported, 'Model imported and validated');
     } catch (error) {
       const code = errorMessage(error, 'MODEL_IMPORT_FAILED');
       Alert.alert('Import failed', humanizeError(code));
     } finally {
+      setImporting(false);
+    }
+  }
+
+  async function downloadFreeBrain() {
+    if (importing) return;
+    setImporting(true);
+    setModelDownloadProgress(0);
+    try {
+      const imported = await downloadRecommendedModel(setModelDownloadProgress);
+      await validateAndSelectModel(imported, 'Free local brain downloaded');
+    } catch (error) {
+      const code = errorMessage(error, 'MODEL_DOWNLOAD_FAILED');
+      Alert.alert('Download failed', humanizeError(code));
+    } finally {
+      setModelDownloadProgress(null);
       setImporting(false);
     }
   }
@@ -81,8 +101,16 @@ export default function SettingsScreen() {
       <Card title="Model">
         <AppText>{jarvis.settings.modelName ?? 'No GGUF selected'}</AppText>
         {jarvis.settings.modelSize ? <AppText muted>{(jarvis.settings.modelSize / 1024 / 1024).toFixed(1)} MB</AppText> : null}
+        {modelDownloadProgress !== null ? (
+          <AppText muted>Downloading free local brain: {Math.round(modelDownloadProgress * 100)}%</AppText>
+        ) : null}
         <Row>
-          <Button title={importing ? 'Importing…' : 'Import + validate GGUF'} disabled={importing} onPress={() => void importModel()} />
+          <Button
+            title={modelDownloadProgress !== null ? `Downloading… ${Math.round(modelDownloadProgress * 100)}%` : 'Download free local brain'}
+            disabled={importing}
+            onPress={() => void downloadFreeBrain()}
+          />
+          <Button title={importing ? 'Working…' : 'Import your GGUF'} disabled={importing} onPress={() => void importModel()} />
           <Button
             title="Load"
             disabled={!jarvis.settings.modelPath || jarvis.modelState.status === 'loading'}
