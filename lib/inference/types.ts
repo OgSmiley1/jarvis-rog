@@ -1,5 +1,8 @@
 export type IntelligenceMode = 'fast' | 'deep' | 'create' | 'code';
 
+/** Language the model must answer in. Mirrors JarvisSettings.language. */
+export type ResponseLanguage = 'en' | 'ar';
+
 export interface ModeConfig {
   label: string;
   maxTokens: number;
@@ -36,4 +39,10 @@ export interface RunCompletionInput {
   messages: CompletionMessage[];
   mode: IntelligenceMode;
   onToken?: (token: string) => void;
+  /**
+   * Optional GBNF grammar. When present the sampler can only emit tokens that
+   * keep the output within the grammar, which is how tool calls are made
+   * structurally valid by construction rather than by parsing and hoping.
+   */
+  grammar?: string;
 }

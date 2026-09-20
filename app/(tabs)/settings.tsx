@@ -89,10 +89,61 @@ export default function SettingsScreen() {
       </Card>
 
       <Card title="Local runtime">
-        <AppText>Context: {jarvis.settings.contextSize}</AppText>
-        <AppText>Batch: {jarvis.settings.batchSize}</AppText>
-        <AppText>Threads: {jarvis.settings.threads}</AppText>
-        <AppText>GPU layers requested: {jarvis.settings.gpuLayers}</AppText>
+        <Row>
+          <Button
+            title={jarvis.settings.adaptiveRuntime ? 'Adaptive sizing: ON' : 'Adaptive sizing: OFF'}
+            onPress={() => void jarvis.updateSettings({ adaptiveRuntime: !jarvis.settings.adaptiveRuntime })}
+          />
+        </Row>
+
+        {jarvis.activeRuntimePlan ? (
+          <>
+            <AppText>Running tier: {jarvis.activeRuntimePlan.tier}</AppText>
+            <AppText>Context: {jarvis.activeRuntimePlan.contextSize}</AppText>
+            <AppText>Batch: {jarvis.activeRuntimePlan.batchSize}</AppText>
+            <AppText>Threads: {jarvis.activeRuntimePlan.threads}</AppText>
+            <AppText>GPU layers requested: {jarvis.activeRuntimePlan.gpuLayers}</AppText>
+            <AppText muted>Reason: {jarvis.activeRuntimePlan.reason}</AppText>
+            <AppText muted>
+              Thermal reading: {jarvis.activeRuntimePlan.thermalSignalPresent ? 'present' : 'not measured'}
+            </AppText>
+          </>
+        ) : (
+          <>
+            <AppText muted>No model loaded, so no runtime is active.</AppText>
+            <AppText muted>
+              Configured: context {jarvis.settings.contextSize} · batch {jarvis.settings.batchSize} · threads{' '}
+              {jarvis.settings.threads} · GPU layers {jarvis.settings.gpuLayers}
+            </AppText>
+          </>
+        )}
+
+        {jarvis.powerReading ? (
+          <>
+            <AppText muted>
+              Battery:{' '}
+              {typeof jarvis.powerReading.state.batteryLevel === 'number'
+                ? `${Math.round(jarvis.powerReading.state.batteryLevel * 100)}%`
+                : 'N/A'}
+              {' · '}
+              Charging:{' '}
+              {typeof jarvis.powerReading.state.charging === 'boolean'
+                ? String(jarvis.powerReading.state.charging)
+                : 'N/A'}
+              {' · '}
+              RAM:{' '}
+              {typeof jarvis.powerReading.state.totalRamGb === 'number'
+                ? `${jarvis.powerReading.state.totalRamGb} GB`
+                : 'N/A'}
+            </AppText>
+            {jarvis.powerReading.unavailable.map((note) => (
+              <AppText key={note} muted>
+                Unavailable: {note}
+              </AppText>
+            ))}
+          </>
+        ) : null}
+
         <AppText muted>{formatPerformance(jarvis.lastMetrics)}</AppText>
       </Card>
 

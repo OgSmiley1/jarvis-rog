@@ -1,10 +1,12 @@
 import { initLlama, releaseAllLlama, loadLlamaModelInfo } from 'llama.rn';
 import { INTELLIGENCE_MODES } from './intelligenceModes';
 import { requireNonBlankCompletion } from './inferenceResponse';
+import { planRuntime, type DevicePowerState, type RuntimePlan } from './thermalPlan';
 import type { ModelRuntimeState, RunCompletionInput, RuntimeMetrics } from './types';
 
 let context: Awaited<ReturnType<typeof initLlama>> | null = null;
 let state: ModelRuntimeState = { status: 'unloaded' };
+let activePlan: RuntimePlan | null = null;
 
 export interface LoadModelOptions {
   contextSize?: number;
@@ -12,6 +14,21 @@ export interface LoadModelOptions {
   threads?: number;
   gpuLayers?: number;
   useMlock?: boolean;
+  /**
+   * Observed device thermal/power state. When supplied, the runtime is sized
+   * for the hardware's current headroom instead of fixed defaults. Explicit
+   * options above still win, so the owner can always override the plan.
+   */
+  device?: DevicePowerState;
+}
+
+/**
+ * The runtime plan the loaded context was actually built with, or null when no
+ * model is loaded. Diagnostics must read this rather than recomputing a plan,
+ * so the UI reports what is running and not what would be chosen now.
+ */
+export function getActiveRuntimePlan(): RuntimePlan | null {
+  return activePlan ? { ...activePlan } : null;
 }
 
 export function getModelRuntimeState(): ModelRuntimeState {
@@ -35,15 +52,21 @@ export async function loadLocalModel(
     }
 
     await validateGguf(modelPath);
+
+    // Size the runtime for the hardware's current headroom. With no device
+    // readings this yields the previous fixed defaults, so behaviour is
+    // unchanged until a real thermal signal arrives.
+    const plan = planRuntime(options.device ?? {});
     context = await initLlama({
       model: modelPath,
-      n_ctx: options.contextSize ?? 4096,
-      n_batch: options.batchSize ?? 512,
-      n_threads: options.threads ?? 6,
-      n_gpu_layers: options.gpuLayers ?? 99,
+      n_ctx: options.contextSize ?? plan.contextSize,
+      n_batch: options.batchSize ?? plan.batchSize,
+      n_threads: options.threads ?? plan.threads,
+      n_gpu_layers: options.gpuLayers ?? plan.gpuLayers,
       use_mmap: true,
       use_mlock: options.useMlock ?? false,
     });
+    activePlan = plan;
 
     state = {
       status: 'ready',
@@ -55,6 +78,7 @@ export async function loadLocalModel(
     };
     return getModelRuntimeState();
   } catch (error) {
+    activePlan = null;
     state = {
       status: 'error',
       modelPath,
@@ -68,6 +92,7 @@ export async function loadLocalModel(
 export async function unloadLocalModel(): Promise<void> {
   if (context) await releaseAllLlama();
   context = null;
+  activePlan = null;
   state = { status: 'unloaded' };
 }
 
@@ -92,6 +117,7 @@ export async function runCompletion(input: RunCompletionInput): Promise<{ text: 
       top_p: mode.topP,
       top_k: mode.topK,
       stop: ['</s>', '<|end|>', '<|eot_id|>', '<|end_of_text|>', '<|im_end|>', '<|endoftext|>'],
+      ...(input.grammar ? { grammar: input.grammar } : {}),
     },
     (data) => {
       const token = data.token ?? '';

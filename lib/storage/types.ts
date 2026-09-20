@@ -12,6 +12,12 @@ export interface JarvisSettings {
   batchSize: number;
   threads: number;
   gpuLayers: number;
+  /**
+   * When true (the default), the runtime is sized from the device's observed
+   * power and memory state instead of the fixed values above. Turning it off
+   * pins the runtime to the explicit contextSize/batchSize/threads/gpuLayers.
+   */
+  adaptiveRuntime: boolean;
   modelPath?: string;
   modelName?: string;
   modelSize?: number;

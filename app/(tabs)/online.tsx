@@ -41,8 +41,8 @@ export default function OnlineScreen() {
   const [lastError, setLastError] = useState<string>();
   const [routeReason, setRouteReason] = useState<string>();
   const [usage, setUsage] = useState<string>();
-  const requestRef = useRef<string>();
-  const activeModelRef = useRef<string>();
+  const requestRef = useRef<string | undefined>(undefined);
+  const activeModelRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     void listOnlineMessages().then(setMessages).catch((error) => setLastError(String(error)));
@@ -226,7 +226,7 @@ export default function OnlineScreen() {
 
       <Card title="Official free web fallbacks">
         <AppText muted>
-          These open the providers' official consumer sites. They are separate sessions, so replies are not automatically copied back into JARVIS.
+          These open the providers&apos; official consumer sites. They are separate sessions, so replies are not automatically copied back into JARVIS.
         </AppText>
         {FREE_AI_PORTALS.map((portal) => (
           <Card key={portal.id} title={portal.name}>

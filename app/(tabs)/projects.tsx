@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { useJarvis } from '@/context/JarvisContext';
@@ -12,17 +12,29 @@ export default function ProjectsScreen() {
   const [stepText, setStepText] = useState('');
   const [steps, setSteps] = useState<ProjectStep[]>([]);
 
-  async function refreshSteps() {
-    if (!jarvis.activeProject) {
+  const activeProjectId = jarvis.activeProject?.id;
+  // Switching projects while a query is in flight could otherwise let the older
+  // result land last and show one project's steps under another's heading.
+  // Continuity has to stay truthful, so a superseded result is discarded.
+  const latestRequestRef = useRef(0);
+
+  const refreshSteps = useCallback(async () => {
+    const request = latestRequestRef.current + 1;
+    latestRequestRef.current = request;
+
+    if (!activeProjectId) {
       setSteps([]);
       return;
     }
-    setSteps(await listProjectSteps(jarvis.activeProject.id));
-  }
+
+    const loaded = await listProjectSteps(activeProjectId);
+    if (latestRequestRef.current !== request) return;
+    setSteps(loaded);
+  }, [activeProjectId]);
 
   useEffect(() => {
     void refreshSteps();
-  }, [jarvis.activeProject?.id]);
+  }, [refreshSteps]);
 
   return (
     <Screen>

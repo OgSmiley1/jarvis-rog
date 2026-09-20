@@ -47,10 +47,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     try {
       modelRef.current.streamStop();
     } catch {
-      // Stream may already be closed.    }
+      // Stream may already be closed.
+    }
 
     try {
-      if (recorder) await recorder.stop();
+      if (recorder) recorder.stop();
     } catch {
       // Recorder cleanup is best-effort; the session must still terminate.
     }
@@ -98,18 +99,17 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     }
 
     setState('INITIALIZING');
-    const recorder = new AudioRecorder();
+    // react-native-audio-api takes the capture format in the constructor.
+    // 16 kHz mono is what the local Whisper STT graph expects.
+    const recorder = new AudioRecorder({ sampleRate: 16000, bufferLengthInSamples: 1600 });
     recorderRef.current = recorder;
     runningRef.current = true;
 
-    recorder.onAudioReady(
-      { sampleRate: 16000, bufferLength: 1600, channelCount: 1 },
-      (chunk) => {
-        if (runningRef.current && sessionRef.current === session) {
-          stt.streamInsert(chunk.buffer.getChannelData(0));
-        }
-      },
-    );
+    recorder.onAudioReady((chunk) => {
+      if (runningRef.current && sessionRef.current === session) {
+        stt.streamInsert(chunk.buffer.getChannelData(0));
+      }
+    });
 
     const consume = async () => {
       let finalized = '';
@@ -143,9 +143,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     consumerRef.current = consume();
 
     try {
-      await recorder.start();
+      recorder.start();
       if (sessionRef.current !== session) {
-        await recorder.stop().catch(() => undefined);
+        try {
+          recorder.stop();
+        } catch {
+          // Cleanup of a superseded session is best-effort.
+        }
         return;
       }
       setState('LISTENING');
@@ -155,7 +159,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         stt.streamStop();
       } catch {}
       try {
-        await recorder.stop();
+        recorder.stop();
       } catch {}
       recorderRef.current = null;
       setError(cause instanceof Error ? cause.message : String(cause));
