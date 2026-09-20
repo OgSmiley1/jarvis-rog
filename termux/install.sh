@@ -29,6 +29,17 @@ else
   SECRET="$(sed -n 's/^JARVIS_IPC_SECRET=//p' .env | head -n 1)"
 fi
 
+BOOT_DIR="$HOME/.termux/boot"
+BOOT_SCRIPT="$BOOT_DIR/start-jarvis.sh"
+mkdir -p "$BOOT_DIR"
+{
+  printf '%s\n' '#!/data/data/com.termux/files/usr/bin/bash'
+  printf 'cd %q\n' "$JARVIS_TERMUX_DIR"
+  printf '%s\n' './start.sh'
+} > "$BOOT_SCRIPT"
+chmod 700 "$BOOT_SCRIPT"
+
 printf '\nJARVIS Termux bridge installed.\n'
 printf 'Run: ./start.sh\n'
+printf 'Boot script prepared: %s\n' "$BOOT_SCRIPT"
 printf 'Copy this secret into JARVIS > Settings > Termux bridge:\n%s\n' "$SECRET"
