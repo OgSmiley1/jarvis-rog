@@ -13,10 +13,9 @@ Do these steps once after installing the APK.
 9. Optional but recommended for app-control tools: install **Termux** and **Termux:Boot** from F-Droid, place this repo's `termux` folder in Termux, then run:
    ```bash
    cd termux
-   chmod +x install.sh start.sh stop.sh
    ./install.sh
    ```
-   Copy the secret printed by the installer into **JARVIS → Settings → Termux bridge** and tap **Check bridge**. Open the Termux:Boot app once so Android registers its boot receiver.
+   The installer prepares `~/.termux/boot/start-jarvis.sh` automatically. Copy the secret printed by the installer into **JARVIS → Settings → Termux bridge** and tap **Check bridge**. If you installed Termux:Boot, open that app once so Android registers its boot receiver.
 
 Then test these exact commands:
 
@@ -25,4 +24,4 @@ Then test these exact commands:
 - **Jarvis, open YouTube**
 - **Jarvis, what do you remember about how I like you to reply?**
 
-Important Android limitation: minimizing the app can keep an active microphone foreground service running. Force-stopping JARVIS stops it. Selecting JARVIS as the Android digital assistant gives the system an official assistant entry point, but it does not bypass Android's force-stop rules.
+Important Android limitation: minimizing the app can keep an active microphone foreground service running. Force-stopping JARVIS stops it. Selecting JARVIS as the Android digital assistant gives the system an official assistant entry point and Android keeps the selected VoiceInteractionService available, but this build still requires physical-device validation for custom wake-word behavior after aggressive OEM process management. Force-stopping JARVIS still stops it.
