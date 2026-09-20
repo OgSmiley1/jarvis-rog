@@ -15,6 +15,8 @@ import {
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
 import { buildMessages } from '@/lib/inference/promptBuilder';
+import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
+import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
 import * as runtime from '@/lib/inference/standaloneModel';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
@@ -31,6 +33,18 @@ type ContextValue = {
   projects: JarvisProject[];
   activeProject?: JarvisProject;
   lastMetrics?: RuntimeMetrics;
+  /**
+   * The device readings the loaded runtime was actually sized from, or null
+   * when adaptive sizing is off or no model is loaded. Diagnostics read this
+   * rather than taking a fresh reading, so the UI reports what is running.
+   */
+  powerReading: PowerStateReading | null;
+  /**
+   * The runtime parameters the loaded context was actually built with. Null
+   * when no model is loaded. Settings must display this rather than the
+   * configured values, which can differ under adaptive sizing.
+   */
+  activeRuntimePlan: RuntimePlan | null;
   updateSettings: (patch: Partial<JarvisSettings>) => Promise<void>;
   refresh: () => Promise<void>;
   loadModel: () => Promise<void>;
@@ -54,6 +68,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [projects, setProjects] = useState<JarvisProject[]>([]);
   const [modelState, setModelState] = useState<ModelRuntimeState>({ status: 'unloaded' });
   const [lastMetrics, setLastMetrics] = useState<RuntimeMetrics>();
+  const [powerReading, setPowerReading] = useState<PowerStateReading | null>(null);
+  const [activeRuntimePlan, setActiveRuntimePlan] = useState<RuntimePlan | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,17 +105,36 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const loadModel = useCallback(async () => {
     if (!settings.modelPath || !settings.modelName) throw new Error('NO_MODEL_SELECTED');
+
+    if (settings.adaptiveRuntime) {
+      // Size the runtime from what the device actually reports. Signals that
+      // cannot be read stay undefined, and planRuntime treats them as
+      // "not measured" rather than as spare headroom.
+      const reading = await readDevicePowerState();
+      setPowerReading(reading);
+      const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
+        device: reading.state,
+      });
+      setActiveRuntimePlan(runtime.getActiveRuntimePlan());
+      setModelState(state);
+      return;
+    }
+
+    setPowerReading(null);
     const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
       contextSize: settings.contextSize,
       batchSize: settings.batchSize,
       threads: settings.threads,
       gpuLayers: settings.gpuLayers,
     });
+    setActiveRuntimePlan(runtime.getActiveRuntimePlan());
     setModelState(state);
   }, [settings]);
 
   const unloadModel = useCallback(async () => {
     await runtime.unloadLocalModel();
+    setPowerReading(null);
+    setActiveRuntimePlan(null);
     setModelState(runtime.getModelRuntimeState());
   }, []);
 
@@ -133,11 +168,20 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }
 
     const boundedConversation = conversation.slice(-12);
-    const messages = buildMessages({ mode, projectContext, memoryContext, conversation: boundedConversation, userMessage: text });
+    const messages = buildMessages({
+      mode,
+      // The Settings language toggle previously only changed the TTS voice, so
+      // selecting Arabic still produced English answers. It now reaches the model.
+      language: settings.language,
+      projectContext,
+      memoryContext,
+      conversation: boundedConversation,
+      userMessage: text,
+    });
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
     return result;
-  }, [activeProject, memories, settings.approvedMemoryEnabled]);
+  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language]);
 
   const stopGeneration = useCallback(async () => {
     await runtime.stopGeneration();
@@ -255,6 +299,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     projects,
     activeProject,
     lastMetrics,
+    powerReading,
+    activeRuntimePlan,
     updateSettings,
     refresh,
     loadModel,
@@ -269,7 +315,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    updateSettings, refresh, loadModel, unloadModel, validateModel, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

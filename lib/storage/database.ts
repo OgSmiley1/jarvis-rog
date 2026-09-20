@@ -9,6 +9,7 @@ import type {
   OnlineChatRecord,
 } from './types';
 import { createId } from '@/lib/utils/ids';
+import { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';
 
 const DB_NAME = 'jarvis.db';
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -22,92 +23,59 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   batchSize: 512,
   threads: 6,
   gpuLayers: 99,
+  adaptiveRuntime: true,
   onlineFreeOnly: true,
 };
 
+export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';
+
+export interface DatabaseDiagnostics {
+  schemaVersion: number;
+  expectedSchemaVersion: number;
+  /** Whether ON DELETE CASCADE is actually being enforced on this connection. */
+  foreignKeysEnforced: boolean;
+  journalMode: string;
+}
+
+let diagnostics: DatabaseDiagnostics | null = null;
+
+/**
+ * Real values read back from the open connection, or null before the database
+ * is opened. Diagnostics must never assert a pragma took effect without having
+ * read it back.
+ */
+export function getDatabaseDiagnostics(): DatabaseDiagnostics | null {
+  return diagnostics ? { ...diagnostics } : null;
+}
+
 async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
+  // These are per-connection and must be set outside a transaction, so they are
+  // applied before any migration step runs.
+  await db.execAsync('PRAGMA journal_mode = WAL;');
+  await db.execAsync('PRAGMA foreign_keys = ON;');
 
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
-    );
+  const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const current = versionRow?.user_version ?? 0;
 
-    CREATE TABLE IF NOT EXISTS memories (
-      id TEXT PRIMARY KEY NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      type TEXT NOT NULL,
-      source TEXT NOT NULL,
-      approved INTEGER NOT NULL DEFAULT 1,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+  for (let version = current + 1; version <= SCHEMA_VERSION; version += 1) {
+    const step = SCHEMA_STEPS[version - 1];
+    if (!step) throw new Error(`SCHEMA_STEP_MISSING_${version}`);
+    await db.execAsync(step);
+    // user_version does not accept a bound parameter, and `version` is a
+    // loop-bound integer, never caller input.
+    await db.execAsync(`PRAGMA user_version = ${version};`);
+  }
 
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      objective TEXT NOT NULL,
-      status TEXT NOT NULL,
-      last_completed_step TEXT,
-      next_action TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+  const appliedRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const fkRow = await db.getFirstAsync<{ foreign_keys: number }>('PRAGMA foreign_keys');
+  const journalRow = await db.getFirstAsync<{ journal_mode: string }>('PRAGMA journal_mode');
 
-    CREATE TABLE IF NOT EXISTS project_steps (
-      id TEXT PRIMARY KEY NOT NULL,
-      project_id TEXT NOT NULL,
-      sequence INTEGER NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT NOT NULL,
-      result TEXT,
-      error TEXT,
-      started_at INTEGER,
-      finished_at INTEGER,
-      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS conversations (
-      id TEXT PRIMARY KEY NOT NULL,
-      title TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY NOT NULL,
-      conversation_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      mode TEXT,
-      metrics_json TEXT,
-      FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS tool_runs (
-      id TEXT PRIMARY KEY NOT NULL,
-      tool TEXT NOT NULL,
-      ok INTEGER NOT NULL,
-      started_at INTEGER NOT NULL,
-      finished_at INTEGER NOT NULL,
-      data_json TEXT,
-      error TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS online_messages (
-      id TEXT PRIMARY KEY NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      model_id TEXT,
-      created_at INTEGER NOT NULL
-    );
-  `);
+  diagnostics = {
+    schemaVersion: appliedRow?.user_version ?? 0,
+    expectedSchemaVersion: SCHEMA_VERSION,
+    foreignKeysEnforced: fkRow?.foreign_keys === 1,
+    journalMode: journalRow?.journal_mode ?? 'unknown',
+  };
 }
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {

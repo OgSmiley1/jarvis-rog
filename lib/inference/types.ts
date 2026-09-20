@@ -1,5 +1,8 @@
 export type IntelligenceMode = 'fast' | 'deep' | 'create' | 'code';
 
+/** Language the model must answer in. Mirrors JarvisSettings.language. */
+export type ResponseLanguage = 'en' | 'ar';
+
 export interface ModeConfig {
   label: string;
   maxTokens: number;
