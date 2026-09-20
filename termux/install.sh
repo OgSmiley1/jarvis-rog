@@ -10,6 +10,7 @@ pkg update -y
 pkg install -y python git openssl
 
 cd "$(dirname "$0")"
+JARVIS_TERMUX_DIR="$(pwd)"
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
