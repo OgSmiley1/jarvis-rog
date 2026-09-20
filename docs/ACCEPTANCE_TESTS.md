@@ -80,7 +80,7 @@ Put the device in **airplane mode** for this whole section.
 | 5.3 | STT is real | A spoken test phrase produces a transcript matching what was said. | Placeholder or canned text appears. |
 | 5.4 | Model-not-ready honesty | Before the local STT model is ready, the UI says so. | It shows listening with no engine loaded. |
 | 5.5 | Stop releases the mic | The Android microphone indicator disappears after Stop. | The indicator persists. |
-| 5.6 | Background releases the mic | Backgrounding during a session releases the microphone. | |
+| 5.6 | Background hands-free session | With Hands-free ON, backgrounding/minimizing the app keeps the visible foreground microphone session active and wake commands are still processed. | The microphone stops unexpectedly, no foreground-service indication exists, or wake commands stop being processed. |
 | 5.7 | Rapid start/stop | Start and stop repeatedly. No stale transcript from an earlier session appears. | |
 | 5.8 | TTS | The device speaks a generated response. | |
 | 5.9 | TTS language | With Arabic selected, the Arabic reply is spoken with an Arabic voice. | |
