@@ -138,12 +138,48 @@ repository owner can clear it.** Check, in order:
 Do not spend another session rewriting workflow YAML. The YAML is valid and
 was re-validated this session. The runner is the problem.
 
-### EAS
+### EAS — ROOT CAUSE FOUND AND FIXED
 
-The `.eas/workflows/*.yml` contexts also reported `error`. They were not the
-focus this session because they depend on EAS credentials that are not
-available to a headless agent. The GitHub Actions pipeline is the
-credential-free path and should be fixed first.
+The EAS commit statuses carried the real error, which never appeared in any
+GitHub Actions log:
+
+```
+Failed to create workflow run. Invalid workflow definition.
+[on.workflow_dispatch]: Invalid input: expected object, received null.
+```
+
+Both `.eas/workflows/*.yml` declared a bare `workflow_dispatch:` with no value.
+YAML resolves that to null. GitHub Actions tolerates it; the EAS workflow
+schema requires an object and rejects the **entire definition**, so EAS never
+created a run for any commit. That is the "EAS is reporting ERROR" symptom,
+and it was a one-token bug: `workflow_dispatch: {}`.
+
+**Verified by back-to-back commits on the same branch:**
+
+| Commit | EAS statuses |
+| --- | --- |
+| `134413a` (before fix) | 2 x `error`, "Invalid workflow definition" |
+| `1cfe97a` (after fix) | 0 statuses, definition accepted |
+
+EAS now posts nothing on this branch because the push trigger targets `main`
+and this is a feature branch. That is correct behaviour for a valid
+definition; the parse error used to fire regardless of branch.
+
+**Why this is the critical path:** EAS builds run in Expo's cloud and do NOT
+depend on the GitHub Actions runners that are failing to allocate on this
+account. Merging this to `main` should start a real EAS Android build and
+produce an installable APK, routing around the runner block entirely.
+
+The `preview` profile is `distribution: internal` with `buildType: apk`, so it
+yields a directly sideloadable APK for the ROG Phone 8 Pro rather than an app
+bundle. EAS runs `pnpm install` itself, so it picks up the
+`pnpm.onlyBuiltDependencies` allowlist and fetches llama.rn's arm64 jniLibs
+rather than building an APK with no inference engine.
+
+Also stopped a duplicate build: both EAS workflows declared the identical job
+(android/preview) on push to main, so every push started two identical cloud
+builds and spent twice the EAS allowance for one artifact.
+`create-production-builds.yml` is now manual-only. Neither file was deleted.
 
 ### Local build attempt in the agent sandbox
 
@@ -341,8 +377,13 @@ confirmation policy.
 
 ## NEXT EXACT ACTION
 
-1. **Owner:** clear the account-level GitHub Actions block (billing page
-   first). Nothing else can proceed until a runner starts.
+1. **Merge PR #2 into `main`.** This is now the fastest route to an APK. The
+   EAS workflow definition is valid again, its push trigger targets `main`, and
+   EAS builds in Expo's cloud, so it does not need a GitHub runner. Watch the
+   build at https://expo.dev under `@smiley007s-team/smiley`.
+2. **Owner (in parallel):** clear the account-level GitHub Actions block
+   (billing page first). This restores the credential-free verification
+   pipeline, but it is no longer the only path to an APK.
 2. Re-run "JARVIS ROG Android Build". It should now pass every gate, since all
    of them were verified locally this session.
 3. Download the `JARVIS-ROG-debug-APK` artifact and install it on the ROG
