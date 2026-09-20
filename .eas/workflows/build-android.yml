@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - feat/handsfree-jarvis-rog
 
 jobs:
   build_android:
