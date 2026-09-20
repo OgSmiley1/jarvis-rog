@@ -28,6 +28,18 @@ describe('deterministic tool routing', () => {
     expect(route?.call.arguments).toEqual({ query: 'دبي مول' });
   });
 
+  it('routes common app-open commands through the safe Termux launcher', () => {
+    const route = routeDeterministicTool('Jarvis open YouTube');
+    expect(route?.call.tool).toBe('termux.app_open');
+    expect(route?.call.arguments).toEqual({ package: 'com.google.android.youtube' });
+  });
+
+  it('routes Arabic app-open commands', () => {
+    const route = routeDeterministicTool('جارفس افتح whatsapp');
+    expect(route?.call.tool).toBe('termux.app_open');
+    expect(route?.call.arguments).toEqual({ package: 'com.whatsapp' });
+  });
+
   it('leaves ordinary requests for reasoning', () => {
     expect(routeDeterministicTool('help me plan my week')).toBeNull();
   });
