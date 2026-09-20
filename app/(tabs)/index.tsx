@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { JarvisOrb, type OrbState } from '@/components/JarvisOrb';
@@ -7,6 +7,7 @@ import { useJarvis } from '@/context/JarvisContext';
 import type { IntelligenceMode } from '@/lib/inference/types';
 import { formatPerformance } from '@/lib/inference/performance';
 import { speakResponse } from '@/lib/voice/voiceResponse';
+import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 
@@ -16,10 +17,80 @@ export default function CoachScreen() {
   const [input, setInput] = useState('');
   const [response, setResponse] = useState('');
   const [busy, setBusy] = useState(false);
+  const awakeUntilRef = useRef(0);
+  const autoStartAttemptedRef = useRef(false);
+
+  async function runCommand(commandText: string) {
+    const command = commandText.trim();
+    if (!command || busy) return;
+
+    setBusy(true);
+    setInput(command);
+    setResponse('');
+
+    try {
+      const result = await jarvis.ask(command, mode, (token) => setResponse((current) => current + token));
+      setResponse(result.text);
+
+      if (jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled) {
+        speakResponse(result.text, jarvis.settings.language);
+      }
+    } catch (error) {
+      const message = humanizeError(errorMessage(error));
+      setResponse(message);
+      if (jarvis.settings.handsFreeEnabled) {
+        speakResponse(message, jarvis.settings.language);
+      } else {
+        Alert.alert('JARVIS error', message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleVoiceFinal(text: string) {
+    const clean = text.trim();
+    if (!clean) return;
+
+    if (!jarvis.settings.handsFreeEnabled) {
+      setInput((current) => `${current} ${clean}`.trim());
+      return;
+    }
+
+    const wake = extractWakeCommand(clean, jarvis.settings.wakeWord);
+    if (wake.heard) {
+      if (wake.command) {
+        awakeUntilRef.current = 0;
+        void runCommand(wake.command);
+      } else {
+        awakeUntilRef.current = Date.now() + 10_000;
+        speakResponse(jarvis.settings.language === 'ar' ? 'معاك.' : 'Yes?', jarvis.settings.language);
+      }
+      return;
+    }
+
+    if (awakeUntilRef.current > Date.now()) {
+      awakeUntilRef.current = 0;
+      void runCommand(clean);
+    }
+  }
+
   const voice = useLiveVoice({
     language: jarvis.settings.language,
-    onFinal: (text) => setInput((current) => `${current} ${text}`.trim()),
+    onFinal: handleVoiceFinal,
   });
+
+  useEffect(() => {
+    if (!jarvis.settings.handsFreeEnabled) {
+      autoStartAttemptedRef.current = false;
+      return;
+    }
+    if (!voice.isReady || autoStartAttemptedRef.current) return;
+    if (voice.state !== 'IDLE' && voice.state !== 'ERROR') return;
+
+    autoStartAttemptedRef.current = true;
+    void voice.start();
+  }, [jarvis.settings.handsFreeEnabled, voice.isReady, voice.state, voice.start]);
 
   const orbState = useMemo<OrbState>(() => {
     if (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING') return 'LISTENING';
@@ -30,18 +101,7 @@ export default function CoachScreen() {
   }, [busy, jarvis.modelState.status, voice.state]);
 
   async function send() {
-    if (!input.trim() || busy) return;
-    setBusy(true);
-    setResponse('');
-    try {
-      const result = await jarvis.ask(input, mode, (token) => setResponse((current) => current + token));
-      setResponse(result.text);
-      if (jarvis.settings.autoSpeak) speakResponse(result.text, jarvis.settings.language);
-    } catch (error) {
-      Alert.alert('JARVIS error', humanizeError(errorMessage(error)));
-    } finally {
-      setBusy(false);
-    }
+    await runCommand(input);
   }
 
   const voiceProgress = Math.max(0, Math.min(100, Math.round((voice.downloadProgress ?? 0) * 100)));
@@ -49,7 +109,7 @@ export default function CoachScreen() {
   return (
     <Screen>
       <Title>JARVIS</Title>
-      <AppText muted>Local-first assistant · ROG Phone build 0.2</AppText>
+      <AppText muted>Voice-first personal AI · ROG Phone build 0.4</AppText>
       <JarvisOrb state={orbState} />
 
       <Card title="Runtime">
@@ -73,13 +133,21 @@ export default function CoachScreen() {
       <Card title="Voice engine">
         <AppText>State: {voice.state}</AppText>
         <AppText>Local STT: {voice.isReady ? 'READY' : `PREPARING · ${voiceProgress}%`}</AppText>
-        <AppText muted>Voice resources are cached locally after the first successful preparation. The microphone stops when this session stops or the app backgrounds.</AppText>
+        <AppText>Wake word: {jarvis.settings.wakeWord}</AppText>
+        <AppText muted>
+          {jarvis.settings.handsFreeEnabled
+            ? 'Hands-free is ON. Say “Jarvis” followed by a command, or say “Jarvis” and speak the command within 10 seconds.'
+            : 'Hands-free is OFF. Use Start voice when you want to dictate.'}
+        </AppText>
+        <AppText muted>
+          On Android, an active hands-free session uses a visible foreground microphone service so it can remain active while the app is minimized.
+        </AppText>
         {voice.error ? <AppText muted>Voice error: {voice.error}</AppText> : null}
       </Card>
 
       <Card title="Ask JARVIS">
-        <Field value={input} onChangeText={setInput} placeholder="Type or use visible voice input…" multiline />
-        {voice.transcript ? <AppText muted>Voice: {voice.transcript}</AppText> : null}
+        <Field value={input} onChangeText={setInput} placeholder="Say “Jarvis…” or type a command…" multiline />
+        {voice.transcript ? <AppText muted>Heard: {voice.transcript}</AppText> : null}
         <Row>
           <Button title={busy ? 'Thinking…' : 'Send'} onPress={() => void send()} disabled={busy || !input.trim()} />
           {busy ? <Button title="Stop generation" onPress={() => void jarvis.stopGeneration()} /> : null}
