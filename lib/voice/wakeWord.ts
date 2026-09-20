@@ -15,8 +15,9 @@ export interface WakeWordResult {
 }
 
 /**
- * Finds the owner wake word and returns only the command spoken after it.
- * English is case-insensitive and a few common Arabic spellings are accepted.
+ * Accepts the wake word only at the start of the utterance, optionally after
+ * a short greeting such as "hey" or Arabic "يا". This prevents ordinary
+ * sentences that merely mention JARVIS from triggering actions.
  */
 export function extractWakeCommand(text: string, preferredWakeWord = 'jarvis'): WakeWordResult {
   const source = text.trim();
@@ -25,12 +26,15 @@ export function extractWakeCommand(text: string, preferredWakeWord = 'jarvis'): 
   const candidates = [preferredWakeWord.trim(), ...DEFAULT_WAKE_WORDS].filter(Boolean);
 
   for (const candidate of [...new Set(candidates)]) {
-    const pattern = new RegExp(escapeRegExp(candidate), 'iu');
+    const pattern = new RegExp(
+      `^(?:(?:hey|hi)\\s+|يا\\s+)?${escapeRegExp(candidate)}(?=$|[\\s,:;.!?،؟-])`,
+      'iu',
+    );
     const match = pattern.exec(source);
-    if (!match || match.index === undefined) continue;
+    if (!match) continue;
 
     const after = source
-      .slice(match.index + match[0].length)
+      .slice(match[0].length)
       .replace(/^[\s,:;.!?،؟-]+/u, '')
       .trim();
 
