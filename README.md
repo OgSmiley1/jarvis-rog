@@ -1,6 +1,6 @@
 # JARVIS ROG
 
-> **Current source candidate: Build 0.3.0.** See `docs/BUILD_PROGRESS_0.3.0.md`, `docs/ONLINE_MODELS.md`, and `.claude/JARVIS_STATE.md` for verified work, blocked build gates, and the exact next command.
+> **Current source candidate: Build 0.4.0 hands-free audit branch.** See `docs/PHONE_SETUP.md`, `docs/ACCEPTANCE_TESTS.md`, and `.claude/JARVIS_STATE.md` for the current build and device-validation gates.
 
 A local-first Android personal assistant starter/upgrade pack for **ASUS ROG Phone 8 Pro**, designed to be merged into the existing **Local Jarvis Coach** project rather than blindly replacing validated code.
 
@@ -12,7 +12,7 @@ A local-first Android personal assistant starter/upgrade pack for **ASUS ROG Pho
 - Fast / Deep / Create / Code profiles
 - Owner-approved bounded memory
 - SQLite conversations + projects + continuity
-- Visible local voice session with on-device STT architecture
+- On-device STT with wake-word command flow and Android microphone foreground service
 - Device TTS
 - Safe structured tools
 - Optional authenticated Termux bridge
@@ -22,7 +22,7 @@ A local-first Android personal assistant starter/upgrade pack for **ASUS ROG Pho
 
 This is a **source pack and Claude Code handoff**. It contains runnable core code, tests, scripts, schemas, a safe Termux bridge, and acceptance documents. It is intended to be applied to the existing repository after Claude audits that repository at its current checkpoint.
 
-It deliberately does **not** fake physical-device validation. Hardware-only work such as Shizuku, Android Assistant role, MediaProjection screen capture, and OEM-specific ROG integration is staged behind capability detection and must be completed/tested on the actual phone.
+It deliberately does **not** fake physical-device validation. Android Assistant integration and the Termux bridge are now present in source; Shizuku, MediaProjection screen capture, and OEM-specific ROG behavior still require later capability work and real-phone validation.
 
 ## Quick start for Claude Code
 
@@ -54,9 +54,9 @@ Termux is optional. The assistant remains useful without it.
 
 ```bash
 cd termux
-chmod +x install.sh start.sh stop.sh
 ./install.sh
 ./start.sh
+python test_bridge.py
 ```
 
 Copy the generated bridge secret into **Settings → Termux bridge secret** inside JARVIS. The bridge binds only to `127.0.0.1` and exposes an allowlist of actions. There is intentionally no generic `exec_shell` API.
@@ -69,7 +69,7 @@ Begin with a smaller multilingual quantized model and measure actual load time, 
 
 ## Privacy model
 
-- No permanent hidden microphone.
+- Hands-free microphone use is explicit, permission-gated, and backed by a visible Android foreground service.
 - No passive third-party message scraping.
 - No silent screen capture.
 - Persistent memory is owner-approved and deletable.
