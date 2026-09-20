@@ -11,7 +11,9 @@ pkg install -y python git
 
 cd "$(dirname "$0")"
 JARVIS_TERMUX_DIR="$(pwd)"
-python -m venv .venv
+if [ ! -d .venv ]; then
+  python -m venv .venv
+fi
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
