@@ -40,6 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         androidFSTypes: ['microphone'],
       },
     ],
+    './plugins/withJarvisAssistant',
     [
       'llama.rn',
       {
