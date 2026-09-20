@@ -1,0 +1,12 @@
+{
+  "name": "expo-thermal-status",
+  "version": "1.0.0",
+  "description": "Bridges android.os.PowerManager.getCurrentThermalStatus() for JARVIS runtime planning. Local Expo module, not published.",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "expo-modules-core": "*"
+  }
+}
