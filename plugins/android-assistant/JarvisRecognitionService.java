@@ -5,21 +5,18 @@ import android.os.RemoteException;
 import android.speech.RecognitionService;
 import android.speech.SpeechRecognizer;
 
-import com.app.localjarviscoach.MainActivity;
-
+/**
+ * Framework-required recognizer declaration for the selected VoiceInteractionService.
+ *
+ * JARVIS performs its real on-device STT inside the React Native app using
+ * ExecuTorch/Whisper. This service therefore reports that framework speech
+ * recognition is unavailable instead of launching MainActivity or pretending
+ * to return recognition results. The VoiceInteractionSession owns assistant
+ * invocation and launches the app exactly once.
+ */
 public class JarvisRecognitionService extends RecognitionService {
   @Override
   protected void onStartListening(Intent recognizerIntent, Callback listener) {
-    Intent launch = new Intent(this, MainActivity.class);
-    launch.setAction(Intent.ACTION_MAIN);
-    launch.putExtra("jarvis_assistant_launch", true);
-    launch.addFlags(
-      Intent.FLAG_ACTIVITY_NEW_TASK
-        | Intent.FLAG_ACTIVITY_SINGLE_TOP
-        | Intent.FLAG_ACTIVITY_CLEAR_TOP
-    );
-    startActivity(launch);
-
     try {
       listener.error(SpeechRecognizer.ERROR_CLIENT);
     } catch (RemoteException ignored) {
