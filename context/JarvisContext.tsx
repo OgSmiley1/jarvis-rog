@@ -18,12 +18,19 @@ import { buildMessages } from '@/lib/inference/promptBuilder';
 import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
-import * as runtime from '@/lib/inference/standaloneModel';
+type RuntimeModule = typeof import('@/lib/inference/standaloneModel');
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { executeToolWithAudit } from '@/lib/tools/execution';
 import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
+
+let runtimePromise: Promise<RuntimeModule> | null = null;
+
+function getRuntime(): Promise<RuntimeModule> {
+  if (!runtimePromise) runtimePromise = import('@/lib/inference/standaloneModel');
+  return runtimePromise;
+}
 
 export type StepStatus = ProjectStep['status'];
 
@@ -84,7 +91,6 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       setSettings(storedSettings);
       setMemories(storedMemories);
       setProjects(storedProjects);
-      setModelState(runtime.getModelRuntimeState());
       setInitError(undefined);
     } catch (error) {
       setInitError(error instanceof Error ? error.message : String(error));
@@ -104,12 +110,17 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     await saveSettings(next);
   }, [settings]);
 
-  const validateModel = useCallback(async (path: string) => runtime.validateGguf(path), []);
+  const validateModel = useCallback(async (path: string) => {
+    const runtime = await getRuntime();
+    return runtime.validateGguf(path);
+  }, []);
 
   const loadModel = useCallback(async (selection?: { path: string; name: string }) => {
     const modelPath = selection?.path ?? settings.modelPath;
     const modelName = selection?.name ?? settings.modelName;
     if (!modelPath || !modelName) throw new Error('NO_MODEL_SELECTED');
+
+    const runtime = await getRuntime();
 
     if (settings.adaptiveRuntime) {
       // Size the runtime from what the device actually reports. Signals that
@@ -137,17 +148,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   }, [settings]);
 
   const unloadModel = useCallback(async () => {
+    const runtime = await getRuntime();
     await runtime.unloadLocalModel();
     setPowerReading(null);
     setActiveRuntimePlan(null);
     setModelState(runtime.getModelRuntimeState());
   }, []);
-
-  useEffect(() => {
-    if (!ready || modelState.status !== 'unloaded') return;
-    if (!settings.modelPath || !settings.modelName) return;
-    void loadModel().catch(() => undefined);
-  }, [ready, modelState.status, settings.modelPath, settings.modelName, loadModel]);
 
   const activeProject = projects.find((project) => project.status === 'active');
 
@@ -168,6 +174,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }
 
     if (looksLikeToolRequest(text) && modelState.status === 'ready') {
+      const runtime = await getRuntime();
       const allowedTools = [...listToolNames(), NO_TOOL];
       const planner = await runtime.runCompletion({
         messages: buildToolPlanningMessages(text, settings.language),
@@ -225,12 +232,14 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       conversation: boundedConversation,
       userMessage: text,
     });
+    const runtime = await getRuntime();
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
     return result;
   }, [activeProject, memories, modelState.status, settings.approvedMemoryEnabled, settings.language, settings.ownerProfile]);
 
   const stopGeneration = useCallback(async () => {
+    const runtime = await getRuntime();
     await runtime.stopGeneration();
   }, []);
 
