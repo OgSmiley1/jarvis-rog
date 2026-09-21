@@ -9,11 +9,6 @@ name: Build JARVIS ROG Android APK
 # An empty mapping is the manual trigger with no inputs.
 on:
   workflow_dispatch: {}
-  # One-shot trigger for the final arm64 physical-device validation build.
-  # This will be removed again as soon as Expo creates the run.
-  push:
-    branches:
-      - feat/handsfree-jarvis-rog
 
 jobs:
   build_android:
