@@ -3,7 +3,7 @@ set -euo pipefail
 
 PKG="com.app.localjarviscoach"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="jarvis-crash-\${STAMP}"
+OUT="jarvis-crash-${STAMP}"
 
 mkdir -p "$OUT"
 
