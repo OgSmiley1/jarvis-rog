@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
-import '@/lib/voice/executorch';
+import { ensureExecutorch } from '@/lib/voice/executorch';
 
 export type VoiceState =
   | 'IDLE'
@@ -20,6 +20,7 @@ export interface UseLiveVoiceOptions {
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
+  ensureExecutorch();
   const model = useSpeechToText({
     model: models.speech_to_text.whisper_tiny(),
     vad: models.vad.fsmn_vad(),
