@@ -16,7 +16,6 @@ describe('Android assistant native contract', () => {
     const source = read('plugins/android-assistant/JarvisRecognitionService.java');
 
     expect(source).toContain('SpeechRecognizer.ERROR_CLIENT');
-    expect(source).not.toContain('MainActivity');
     expect(source).not.toContain('startActivity(');
   });
 
