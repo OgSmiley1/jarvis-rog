@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APK="${1:-$HOME/Downloads/app-debug.apk}"
+APK="${1:-$HOME/Downloads/app-release.apk}"
 PACKAGE="com.app.localjarviscoach"
 command -v adb >/dev/null 2>&1 || { echo "adb not found"; exit 1; }
 adb start-server >/dev/null

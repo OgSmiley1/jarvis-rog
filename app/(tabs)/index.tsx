@@ -96,18 +96,19 @@ export default function CoachScreen() {
     onFinal: handleVoiceFinal,
     shouldAcceptAudio: () => !speakingRef.current,
   });
+  const { isReady: voiceReady, state: voiceState, start: startVoice } = voice;
 
   useEffect(() => {
     if (!jarvis.settings.handsFreeEnabled) {
       autoStartAttemptedRef.current = false;
       return;
     }
-    if (!voice.isReady || autoStartAttemptedRef.current) return;
-    if (voice.state !== 'IDLE' && voice.state !== 'ERROR') return;
+    if (!voiceReady || autoStartAttemptedRef.current) return;
+    if (voiceState !== 'IDLE' && voiceState !== 'ERROR') return;
 
     autoStartAttemptedRef.current = true;
-    void voice.start();
-  }, [jarvis.settings.handsFreeEnabled, voice.isReady, voice.state, voice.start]);
+    void startVoice();
+  }, [jarvis.settings.handsFreeEnabled, voiceReady, voiceState, startVoice]);
 
   const orbState = useMemo<OrbState>(() => {
     if (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING') return 'LISTENING';

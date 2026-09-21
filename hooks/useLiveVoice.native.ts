@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
+import '@/lib/voice/executorch';
 
 export type VoiceState =
   | 'IDLE'
