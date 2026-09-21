@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMMIT="\${1:-b9c88cb40f702cbf4b03bc50e672dfc673b7e284}"
+COMMIT="${1:-b9c88cb40f702cbf4b03bc50e672dfc673b7e284}"
 PKG="com.app.localjarviscoach"
-OUT_DIR="\${PWD}/artifacts/rog-validation"
-TMP_DIR="\${OUT_DIR}/tmp"
+OUT_DIR="${PWD}/artifacts/rog-validation"
+TMP_DIR="${OUT_DIR}/tmp"
 mkdir -p "$OUT_DIR" "$TMP_DIR"
 
 need() {
@@ -62,12 +62,12 @@ rm -f "$TMP_DIR"/*.apk
 )
 
 APK="$(find "$TMP_DIR" -maxdepth 2 -type f -name '*.apk' -print -quit)"
-if [ -z "\${APK:-}" ] || [ ! -f "$APK" ]; then
+if [ -z "${APK:-}" ] || [ ! -f "$APK" ]; then
   echo "EAS download completed but no APK was found."
   exit 3
 fi
 
-FINAL_APK="$OUT_DIR/JARVIS-ROG-\${COMMIT:0:12}.apk"
+FINAL_APK="$OUT_DIR/JARVIS-ROG-${COMMIT:0:12}.apk"
 cp "$APK" "$FINAL_APK"
 
 echo "== APK integrity =="
