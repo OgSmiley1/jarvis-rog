@@ -452,17 +452,34 @@ import. This does not affect Metro/Gradle, only `tsc`'s type-check walk.
 
 ## NEXT EXACT ACTION
 
-1. **Watch the EAS build.** PR #2 merged to `main`; the push-triggered EAS
-   workflow is building `android/preview` in Expo's cloud now. Check
-   https://expo.dev under `@smiley007s-team/smiley` for the APK link.
+Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across
+Sessions 1–3 is on `main` now: the jniLibs postinstall fix, Arabic directive,
+schema versioning, GBNF grammar, adaptive runtime planning, and the
+PowerManager thermal bridge. The owner also pushed `c6c1868` directly to
+`main` between the two merges, adding explicit `expo-linking` and
+`react-native-worklets` dependencies (an `expo install --check` style
+alignment) — merged cleanly, re-verified locally alongside everything else
+(check/lint/test/smoke/prebuild/autolinking all pass together).
+
+**Note for whoever picks this up next:** a separate ChatGPT session was also
+pointed at this project and had reconstructed a stale Build-0.3.0-era source
+pack after its own workspace was pruned — that pack does **not** contain any
+of Sessions 2–3's work (thermal bridge, GBNF grammar, schema versioning,
+Arabic, the jniLibs fix). The owner was told not to import it. `main` on
+GitHub is the single source of truth; do not let any reconstructed/offline
+pack overwrite it.
+
+1. **Watch the EAS build.** The push from PR #3's merge re-triggered the
+   `android/preview` EAS workflow in Expo's cloud. Check https://expo.dev
+   under `@smiley007s-team/smiley` for the APK link. This session has no EAS
+   credentials, so it cannot check this itself — confirm from the dashboard.
 2. **Owner (in parallel, optional):** clear the account-level GitHub Actions
    block (billing page first) to restore the credential-free CI path. No
    longer the only route to an APK, so this is not blocking.
-3. Merge the follow-up PR carrying the thermal bridge (Session 3 above) once
-   it is opened, so the next EAS build includes it.
-4. Download the APK and install it on the ROG Phone 8 Pro.
-5. Execute `docs/ACCEPTANCE_TESTS.md` and record observed results only,
-   including whether Settings now shows a real thermal reading.
+3. Download the APK and install it on the ROG Phone 8 Pro.
+4. Execute `docs/ACCEPTANCE_TESTS.md` and record observed results only,
+   including whether Settings now shows a real thermal reading (not
+   "no thermal reading yet") and whether GPU acceleration is active.
 
 ## GITHUB ANDROID VERIFICATION WORKFLOW
 
