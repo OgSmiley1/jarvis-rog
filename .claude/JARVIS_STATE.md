@@ -343,11 +343,13 @@ owner-controlled `adaptiveRuntime` setting, default on.
 charging state (expo-battery), total RAM (expo-device). Both autolink for
 Android; prebuild stays clean.
 
-**Thermal status is still unavailable** and is reported as such in Settings.
-`PowerManager.getCurrentThermalStatus()` is not bridged by React Native and
-needs a small native module. Battery temperature is deliberately NOT
-substituted: it measures the pack, not the SoC, and lags the Snapdragon badly
-under load. Do not claim thermal adaptation is live until that bridge exists.
+**Thermal status was unavailable as of Session 2** and was reported as such in
+Settings. `PowerManager.getCurrentThermalStatus()` was not bridged by React
+Native and needed a small native module. Battery temperature was deliberately
+NOT substituted: it measures the pack, not the SoC, and lags the Snapdragon
+badly under load. **The bridge now exists — see SESSION 3 below —** but has
+not yet been exercised on the physical ROG Phone; do not claim thermal
+adaptation is *proven* until that reading is observed in Settings on-device.
 
 The Settings runtime card now shows the plan the loaded context was **actually
 built with**, its tier and reason, whether a thermal reading was present, the
@@ -375,21 +377,65 @@ No autonomous LLM tool-execution loop was added. Planning returns a validated
 call; execution still goes through the existing audited router and its
 confirmation policy.
 
+## SESSION 3 — cross-checked the ChatGPT-authored source pack, closed the thermal-bridge gap
+
+Audited `JARVIS_ROG_ALL_CODE.md` / `CLAUDE_HANDOFF.md` (the Build 0.3.0
+reference pack the owner had generated externally) against the live
+repository file-by-file. Every file it lists already exists in the working
+tree; nothing from that pack is missing or silently dropped. No duplicate or
+competing implementation was found — `lib/inference/standaloneModel.native.ts`
+is the single real `llama.rn` call path, already wired to `thermalPlan.ts` and
+`lib/tools/grammar.ts` from Session 2. Everything added since (thermal
+planning, schema versioning, GBNF grammar, the device power reader) is
+additive on top of that pack, not a parallel rewrite.
+
+### PowerManager thermal bridge — the gap flagged in Session 2, now closed
+
+Added `modules/expo-thermal-status/`, a local Expo Module (autolinked from
+`./modules` per Expo's default `nativeModulesDir`, so it survives
+`expo prebuild --clean` without editing generated `android/` files directly).
+It exposes exactly one native fact: `android.os.PowerManager
+.getCurrentThermalStatus()` (API 29+, no permission required). Below API 29,
+or when the system service is absent, it returns `undefined` — never a
+guessed value.
+
+`lib/device/powerState.ts` now calls it and feeds a real `thermalStatus` into
+`planRuntime()`, so the five-tier adaptive runtime built in Session 2 has a
+live signal instead of always falling through to "no thermal reading yet".
+
+Verified in this session:
+- `pnpm check` / `pnpm lint` / `pnpm test` (76 tests) / `pnpm smoke`: all pass.
+- `npx expo prebuild --platform android --clean --no-install`: clean, no warnings.
+- `npx expo-modules-autolinking resolve --platform android`: confirms the
+  module is discovered with the correct `sourceDir` and native class
+  (`expo.modules.thermalstatus.ExpoThermalStatusModule`) — the same resolver
+  `settings.gradle`'s `expoAutolinking.useExpoModules()` calls at build time.
+
+**Not yet verified:** the Kotlin actually compiling under Gradle (this
+sandbox cannot reach `dl.google.com`) and a real on-device thermal reading.
+Both are EAS/physical-device checks, not code-review items — confirm the
+Settings runtime card shows a non-"no thermal reading yet" reason string
+after installing this build on the ROG Phone.
+
+Also excluded `modules/**` from `tsconfig.json`'s root `include` (kept
+resolvable via `import` from elsewhere): pnpm's isolated `node_modules`
+layout meant `tsc` resolved the local module's own source path directly
+instead of through its symlink, breaking its internal `expo-modules-core`
+import. This does not affect Metro/Gradle, only `tsc`'s type-check walk.
+
 ## NEXT EXACT ACTION
 
-1. **Merge PR #2 into `main`.** This is now the fastest route to an APK. The
-   EAS workflow definition is valid again, its push trigger targets `main`, and
-   EAS builds in Expo's cloud, so it does not need a GitHub runner. Watch the
-   build at https://expo.dev under `@smiley007s-team/smiley`.
-2. **Owner (in parallel):** clear the account-level GitHub Actions block
-   (billing page first). This restores the credential-free verification
-   pipeline, but it is no longer the only path to an APK.
-2. Re-run "JARVIS ROG Android Build". It should now pass every gate, since all
-   of them were verified locally this session.
-3. Download the `JARVIS-ROG-debug-APK` artifact and install it on the ROG
-   Phone 8 Pro.
-4. Execute `docs/ACCEPTANCE_TESTS.md` and record observed results only.
-5. Then wire the `PowerManager` thermal bridge into `planRuntime()`.
+1. **Watch the EAS build.** PR #2 merged to `main`; the push-triggered EAS
+   workflow is building `android/preview` in Expo's cloud now. Check
+   https://expo.dev under `@smiley007s-team/smiley` for the APK link.
+2. **Owner (in parallel, optional):** clear the account-level GitHub Actions
+   block (billing page first) to restore the credential-free CI path. No
+   longer the only route to an APK, so this is not blocking.
+3. Merge the follow-up PR carrying the thermal bridge (Session 3 above) once
+   it is opened, so the next EAS build includes it.
+4. Download the APK and install it on the ROG Phone 8 Pro.
+5. Execute `docs/ACCEPTANCE_TESTS.md` and record observed results only,
+   including whether Settings now shows a real thermal reading.
 
 ## GITHUB ANDROID VERIFICATION WORKFLOW
 

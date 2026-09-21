@@ -10,8 +10,9 @@
 
 import * as Battery from 'expo-battery';
 import * as Device from 'expo-device';
+import { getCurrentThermalStatus, isThermalStatusSupported } from 'expo-thermal-status';
 import { Platform } from 'react-native';
-import type { DevicePowerState } from '@/lib/inference/thermalPlan';
+import { ThermalStatus, type DevicePowerState } from '@/lib/inference/thermalPlan';
 
 export interface PowerStateReading {
   state: DevicePowerState;
@@ -23,21 +24,35 @@ const BYTES_PER_GIB = 1024 ** 3;
 
 /**
  * Android's own throttling verdict lives on
- * `PowerManager.getCurrentThermalStatus()` (API 29+). React Native does not
- * bridge it, and neither expo-battery nor expo-device exposes it, so reading it
- * requires a small native module.
+ * `PowerManager.getCurrentThermalStatus()` (API 29+), bridged by the local
+ * `expo-thermal-status` module under `modules/`.
  *
  * Battery temperature is deliberately NOT used as a stand-in: it measures the
  * pack, not the SoC, and on the ROG Phone 8 Pro it lags the Snapdragon by a
  * wide margin under load. Substituting it would mean throttling on a number
  * that does not describe the thing being throttled.
  */
-const THERMAL_UNAVAILABLE =
-  'Thermal status needs a native PowerManager bridge (Stage 2); no reading is being substituted.';
+function readThermalStatus(unavailable: string[]): ThermalStatus | undefined {
+  if (!isThermalStatusSupported()) {
+    unavailable.push('Thermal status unsupported: needs Android 10 (API 29) or newer.');
+    return undefined;
+  }
+
+  const raw = getCurrentThermalStatus();
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < ThermalStatus.None || raw > ThermalStatus.Shutdown) {
+    unavailable.push('Thermal status unreadable from PowerManager.');
+    return undefined;
+  }
+
+  return raw as ThermalStatus;
+}
 
 export async function readDevicePowerState(): Promise<PowerStateReading> {
   const state: DevicePowerState = {};
-  const unavailable: string[] = [THERMAL_UNAVAILABLE];
+  const unavailable: string[] = [];
+
+  const thermalStatus = readThermalStatus(unavailable);
+  if (thermalStatus !== undefined) state.thermalStatus = thermalStatus;
 
   try {
     const level = await Battery.getBatteryLevelAsync();
