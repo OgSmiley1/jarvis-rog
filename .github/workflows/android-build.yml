@@ -118,6 +118,12 @@ jobs:
           fi
           echo "Bundled inference libraries:"
           echo "$LIBS"
+          for LIB in libreact-native-executorch.so libexecutorch.so libreact-native-audio-api.so; do
+            if ! unzip -Z1 "$APK" | grep -Fx "lib/arm64-v8a/$LIB" > /dev/null; then
+              echo "::error::Missing voice runtime library: $LIB"
+              exit 1
+            fi
+          done
 
       - name: Upload JARVIS APK
         uses: actions/upload-artifact@v4

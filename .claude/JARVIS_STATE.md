@@ -6,7 +6,9 @@
 > `docs/BUILD_VERIFICATION_2026-09-21.md` for current evidence. Missing GitHub logs
 > do not establish an account-level failure. The currently accessible Expo
 > project differs from the project configured in this repository.
-> Local Android compilation is being checked without requiring an EAS subscription.
+> Local Android compilation was interrupted by cancelled network approval;
+> the offline fallback confirmed that build dependencies are still missing.
+> No APK was produced. Restore approved downloads or original Expo access to resume.
 > Source checks and prebuild are not APK or device acceptance.
 
 > **AUDIT UPDATE — 2026-09-20**

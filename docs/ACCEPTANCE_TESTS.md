@@ -11,10 +11,12 @@ broken build would still have passed.
 
 | # | Test | Pass condition | Fails if |
 |---|---|---|---|
-| 0.1 | Inference engine present | `unzip -Z1 app-debug.apk \| grep '^lib/arm64-v8a/librnllama'` lists at least one library. | No match. The APK would install and launch with local inference dead. |
+| 0.1 | Inference engine present | `unzip -Z1 app-release.apk \| grep '^lib/arm64-v8a/librnllama'` lists at least one library. | No match. The APK would install and launch with local inference dead. |
 | 0.2 | Target ABI | The APK contains `lib/arm64-v8a/`. | Only other ABIs present. |
 | 0.3 | Acceleration declared | `AndroidManifest.xml` declares `libOpenCL.so` and `libcdsprpc.so`. | Absent. |
 | 0.4 | APK identity | sha256 of the installed file matches the artifact that CI or EAS produced. | Any mismatch: you are not testing the built APK. |
+| 0.5 | Standalone JavaScript | `assets/index.android.bundle` exists inside the APK. | Missing bundle; app depends on a development server. |
+| 0.6 | Voice runtime present | arm64 `libreact-native-executorch.so`, `libexecutorch.so`, and `libreact-native-audio-api.so` exist inside the APK. | Missing speech or recorder native library. |
 
 ## 1. Launch and model lifecycle
 

@@ -40,3 +40,25 @@ Baseline: PR #4, `feat/handsfree-jarvis-rog`, commit
 
 APK compilation, artifact inspection, and physical ROG device acceptance are
 separate gates. None of the checks above proves those gates have passed.
+
+## Final build attempt and remaining blocker
+
+The fixes above were pushed as `cfb5be124694e9dc744e368b19b0672b92b660bf`.
+GitHub run `35605326440` again reports failure without exposed execution steps.
+
+The local online Gradle invocation stopped with this execution-environment error:
+
+```text
+Unified exec process failed: network approval was cancelled before a decision was returned
+```
+
+An offline retry reused 1,096 already downloaded Maven files. It progressed to
+configuring `:react-native-executorch`, then failed because additional build
+dependencies were not cached. The unedited offline Gradle output is in
+`build-logs/android-offline-2026-09-21.txt`. This diagnoses the **local offline
+attempt only**, not the original GitHub or EAS result.
+
+No APK has been produced or installed in this verification session. Resume by
+restoring approved dependency downloads, or by providing access to the original
+Expo project. Keep the downloaded SDK and Gradle cache to avoid repeating setup.
+Do not mark physical-device tests passed or merge on the strength of source tests.
