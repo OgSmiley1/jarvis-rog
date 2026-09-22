@@ -51,6 +51,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify Audio API startup-crash backport
+        run: |
+          SRC="node_modules/react-native-audio-api/android/src/main/java/com/swmansion/audioapi/AudioAPIModule.kt"
+          grep -F 'context.assertOnJSQueueThread()' "$SRC"
+          grep -F 'mHybridData = initHybrid(workletsModule, jsContext, jsCallInvokerHolder)' "$SRC"
+          if grep -F 'mHybridData = initHybrid(workletsModule, reactContext.javaScriptContextHolder!!.get(), jsCallInvokerHolder)' "$SRC"; then
+            echo "::error::Vulnerable react-native-audio-api constructor-time initHybrid call is still present."
+            exit 1
+          fi
+
       # llama.rn ships its arm64 inference libraries via a postinstall download
       # rather than inside the npm tarball. pnpm blocks lifecycle scripts by
       # default, and when that download is skipped CMake silently omits every
