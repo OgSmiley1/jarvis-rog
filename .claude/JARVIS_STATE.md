@@ -1,5 +1,27 @@
 # JARVIS ROG — LIVE BUILD STATE
 
+> **DEVICE CRASH ROOT CAUSE + FIX — 2026-09-22**
+>
+> Physical ROG logcat identified the startup crash exactly:
+> `react-native-audio-api 0.9.3` constructs `AudioAPIModule` before the JS runtime is ready,
+> causing `AudioAPIModule.initHybrid()` to throw a NullPointerException on startup.
+> This is the same upstream defect fixed by Software Mansion PR #971 by moving
+> `initHybrid` into `install()` and asserting the JS queue thread.
+>
+> JARVIS now backports that upstream native fix deterministically from
+> `scripts/patch-react-native-audio-api.mjs` via the root `postinstall` hook.
+> CI verifies the patched native source before continuing. The local LLM,
+> memory, Android Assistant, tools, Termux bridge, and hands-free design were not removed.
+>
+> Startup hardening remains: the lightweight app shell paints before heavy
+> AI/audio imports, but the real JARVIS runtime starts automatically immediately
+> afterwards, and an already-configured GGUF still auto-loads.
+>
+> **Current gate:** build a new arm64 release APK from the current
+> `feat/handsfree-jarvis-rog` head, install that exact APK, then re-run cold launch.
+> Do not reinstall or validate the older `b9c88cb` APK; it contains the confirmed
+> crashing Audio API initialization path.
+>
 > **VERIFICATION UPDATE — 2026-09-21**
 >
 > Continue from `feat/handsfree-jarvis-rog`; see
