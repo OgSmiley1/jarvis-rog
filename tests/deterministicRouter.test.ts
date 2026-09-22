@@ -40,6 +40,24 @@ describe('deterministic tool routing', () => {
     expect(route?.call.arguments).toEqual({ package: 'com.whatsapp' });
   });
 
+  it('routes the camera directly', () => {
+    expect(routeDeterministicTool('Jarvis open camera')?.call.tool).toBe('device.open_camera');
+  });
+
+  it('routes dialer without placing a call', () => {
+    const route = routeDeterministicTool('Jarvis call +971501234567');
+    expect(route?.call.tool).toBe('device.open_dialer');
+    expect(route?.call.arguments).toEqual({ number: '+971501234567' });
+  });
+
+  it('routes SMS composer without sending', () => {
+    expect(routeDeterministicTool('Jarvis open messages')?.call.tool).toBe('device.compose_sms');
+  });
+
+  it('routes Wi-Fi settings', () => {
+    expect(routeDeterministicTool('Jarvis open wifi settings')?.call.tool).toBe('device.open_wifi_settings');
+  });
+
   it('leaves ordinary requests for reasoning', () => {
     expect(routeDeterministicTool('help me plan my week')).toBeNull();
   });
