@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { AppText, Button, Card, Screen, Title } from '@/components/Ui';
 import { useJarvis } from '@/context/JarvisContext';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -9,7 +9,7 @@ export default function CoachBootstrapScreen() {
   const [loading, setLoading] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string>();
 
-  async function startRuntime() {
+  const startRuntime = useCallback(async () => {
     if (loading || RuntimeScreen) return;
     setLoading(true);
     setRuntimeError(undefined);
@@ -21,30 +21,37 @@ export default function CoachBootstrapScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [loading, RuntimeScreen]);
+
+  useEffect(() => {
+    // Paint a lightweight shell first, then automatically start the real
+    // JARVIS runtime. This preserves hands-free startup while preventing
+    // heavy native AI/audio modules from being required during route evaluation.
+    const task = setTimeout(() => {
+      void startRuntime();
+    }, 0);
+    return () => clearTimeout(task);
+  }, [startRuntime]);
 
   if (RuntimeScreen) return <RuntimeScreen />;
 
   return (
     <Screen>
       <Title>JARVIS</Title>
-      <AppText muted>ROG Phone startup-safe shell · build 0.5 candidate</AppText>
+      <AppText muted>ROG Phone · starting local runtime…</AppText>
 
       <Card title="Core startup">
         <AppText>App shell: READY</AppText>
         <AppText>Local storage: {jarvis.initError ? 'ERROR' : 'READY'}</AppText>
-        <AppText>Model runtime: NOT LOADED</AppText>
-        <AppText muted>
-          AI, Whisper and microphone native engines are intentionally loaded only after this screen renders. This prevents a heavy native module from killing the process before JARVIS can show diagnostics.
-        </AppText>
-        {runtimeError ? <AppText muted>Runtime error: {runtimeError}</AppText> : null}
-        <Button title={loading ? 'Starting runtime…' : 'Start JARVIS runtime'} disabled={loading} onPress={() => void startRuntime()} />
-      </Card>
-
-      <Card title="Why this gate exists">
-        <AppText muted>
-          If this screen stays open but the app exits only after starting the runtime, the failure is isolated to the AI/audio native stack instead of the Android app shell.
-        </AppText>
+        <AppText>AI/voice runtime: {loading ? 'STARTING' : runtimeError ? 'ERROR' : 'QUEUED'}</AppText>
+        {runtimeError ? (
+          <>
+            <AppText muted>Runtime error: {runtimeError}</AppText>
+            <Button title="Retry JARVIS runtime" onPress={() => void startRuntime()} />
+          </>
+        ) : (
+          <AppText muted>JARVIS loads the local AI and voice stack immediately after the safe app shell is visible.</AppText>
+        )}
       </Card>
     </Screen>
   );
