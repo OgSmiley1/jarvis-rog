@@ -1,5 +1,65 @@
 # JARVIS ROG — LIVE BUILD STATE
 
+> **DEVICE CRASH ROOT CAUSE + FIX — 2026-09-22**
+>
+> Physical ROG logcat identified the startup crash exactly:
+> `react-native-audio-api 0.9.3` constructs `AudioAPIModule` before the JS runtime is ready,
+> causing `AudioAPIModule.initHybrid()` to throw a NullPointerException on startup.
+> This is the same upstream defect fixed by Software Mansion PR #971 by moving
+> `initHybrid` into `install()` and asserting the JS queue thread.
+>
+> JARVIS now backports that upstream native fix deterministically from
+> `scripts/patch-react-native-audio-api.mjs` via the root `postinstall` hook.
+> CI verifies the patched native source before continuing. The local LLM,
+> memory, Android Assistant, tools, Termux bridge, and hands-free design were not removed.
+>
+> Startup hardening remains: the lightweight app shell paints before heavy
+> AI/audio imports, but the real JARVIS runtime starts automatically immediately
+> afterwards, and an already-configured GGUF still auto-loads.
+>
+> **Current gate:** build a new arm64 release APK from the current
+> `feat/handsfree-jarvis-rog` head, install that exact APK, then re-run cold launch.
+> Do not reinstall or validate the older `b9c88cb` APK; it contains the confirmed
+> crashing Audio API initialization path.
+>
+> **VERIFICATION UPDATE — 2026-09-21**
+>
+> Continue from `feat/handsfree-jarvis-rog`; see
+> `docs/BUILD_VERIFICATION_2026-09-21.md` for current evidence. Missing GitHub logs
+> do not establish an account-level failure. The currently accessible Expo
+> project differs from the project configured in this repository.
+> Local Android compilation was interrupted by cancelled network approval;
+> the offline fallback confirmed that build dependencies are still missing.
+> No APK was produced. Restore approved downloads or original Expo access to resume.
+> Source checks and prebuild are not APK or device acceptance.
+
+> **AUDIT UPDATE — 2026-09-20**
+>
+> Current working branch: `feat/handsfree-jarvis-rog`.
+> Build target: **0.4.0** for `com.app.localjarviscoach`.
+> The older sections below are retained as historical evidence, but any statement
+> saying background voice or Android Assistant is "not implemented" is superseded
+> by this update.
+>
+> Current source now includes: microphone foreground-service configuration,
+> hands-free wake-word routing, local STT, local GGUF reasoning, Android
+> VoiceInteractionService/SessionService integration, bounded tool planning,
+> Maps/email intents, authenticated Termux actions, owner profile memory, and
+> local TTS. The Termux installer is repeatable, creates its secret with Python,
+> prepares a Termux:Boot startup script, and all tracked shell scripts are stored
+> executable in Git.
+>
+> Final audit fixes include: correct speech-recognition bind permission, safe
+> wake-word boundary matching, STT input muted while JARVIS speaks, truthful
+> loaded-runtime diagnostics, clean Termux bridge restarts, and corrected
+> hands-free acceptance tests.
+>
+> **Current gate:** run one clean EAS Android preview build from the final audited
+> branch, then install that exact APK on the physical ROG Phone 8 Pro and execute
+> `docs/ACCEPTANCE_TESTS.md`. Do not claim final device success before those
+> tests pass.
+
+
 ## CURRENT OBJECTIVE
 
 Produce a verified, installable Android APK for the ASUS ROG Phone 8 Pro while preserving the local-first JARVIS architecture and package ID `com.app.localjarviscoach`.

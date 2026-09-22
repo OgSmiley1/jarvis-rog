@@ -14,15 +14,17 @@ Requirements:
 
 ```bash
 corepack enable
-pnpm install
-npx expo install --fix
+pnpm install --frozen-lockfile
 pnpm verify
-npx expo prebuild --platform android --clean
+npx expo prebuild --platform android --clean --no-install
 cd android
-./gradlew assembleDebug
+./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 ```
 
-Install the resulting debug APK using the normal Android development workflow.
+Install `android/app/build/outputs/apk/release/app-release.apk`. This release
+variant bundles JavaScript and runs without Metro or a paid service. The generated
+Expo project uses its development signing key for this personal sideload build;
+it is not a Play Store signing setup. Keep the same signing key for updates.
 
 ## First launch
 
@@ -34,7 +36,10 @@ Install the resulting debug APK using the normal Android development workflow.
 6. Send a short English prompt.
 7. Send a short Arabic prompt.
 8. Turn on Airplane mode and repeat a local prompt.
-9. Test visible voice input and verify the Android microphone indicator stops after Stop/background.
+9. Allow the speech models to download once while online, then test offline voice.
+10. Press Stop and verify the Android microphone indicator disappears. With
+    hands-free listening enabled, background capture is intentional and uses a
+    microphone foreground-service notification.
 
 ## Model sizing
 

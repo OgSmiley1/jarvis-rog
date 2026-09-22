@@ -12,7 +12,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
-    permissions: ['INTERNET', 'RECORD_AUDIO', 'POST_NOTIFICATIONS'],
+    permissions: [
+      'INTERNET',
+      'RECORD_AUDIO',
+      'POST_NOTIFICATIONS',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_MICROPHONE',
+      'WAKE_LOCK',
+    ],
   },
   plugins: [
     'expo-router',
@@ -24,11 +31,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         iosBackgroundMode: false,
         iosMicrophonePermission: 'JARVIS uses the microphone only during a visible voice session you start.',
-        androidPermissions: ['android.permission.RECORD_AUDIO'],
-        androidForegroundService: false,
-        androidFSTypes: [],
+        androidPermissions: [
+          'android.permission.RECORD_AUDIO',
+          'android.permission.FOREGROUND_SERVICE',
+          'android.permission.FOREGROUND_SERVICE_MICROPHONE',
+        ],
+        androidForegroundService: true,
+        androidFSTypes: ['microphone'],
       },
     ],
+    './plugins/withJarvisAssistant',
     [
       'llama.rn',
       {

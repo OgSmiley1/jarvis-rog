@@ -3,7 +3,7 @@ import { Alert, Platform, Switch, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { useJarvis } from '@/context/JarvisContext';
-import { importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
+import { downloadRecommendedModel, importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
 import { eraseAllJarvisData, listRecentToolRuns } from '@/lib/storage/database';
 import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -16,8 +16,11 @@ export default function SettingsScreen() {
   const params = useLocalSearchParams<{ section?: string | string[] }>();
   const [termuxSecret, setTermuxSecretInput] = useState('');
   const [importing, setImporting] = useState(false);
+  const [modelDownloadProgress, setModelDownloadProgress] = useState<number | null>(null);
   const [termuxStatus, setTermuxStatus] = useState('Not checked');
   const [toolRuns, setToolRuns] = useState<ToolRun[]>([]);
+  const [ownerProfileDraft, setOwnerProfileDraft] = useState('');
+  const [wakeWordDraft, setWakeWordDraft] = useState('jarvis');
 
   const section = Array.isArray(params.section) ? params.section[0] : params.section;
 
@@ -29,26 +32,55 @@ export default function SettingsScreen() {
     void refreshDiagnostics();
   }, []);
 
+  useEffect(() => {
+    setOwnerProfileDraft(jarvis.settings.ownerProfile);
+    setWakeWordDraft(jarvis.settings.wakeWord);
+  }, [jarvis.settings.ownerProfile, jarvis.settings.wakeWord]);
+
+  async function validateAndSelectModel(
+    imported: { path: string; name: string; size: number },
+    successTitle: string,
+    autoLoad = false,
+  ) {
+    try {
+      if (Platform.OS === 'android') await jarvis.validateModel(imported.path);
+    } catch (error) {
+      removeImportedModel(imported.path);
+      throw new Error(`GGUF validation failed: ${errorMessage(error)}`);
+    }
+
+    await jarvis.updateSettings({ modelPath: imported.path, modelName: imported.name, modelSize: imported.size });
+    if (autoLoad) await jarvis.loadModel({ path: imported.path, name: imported.name });
+    Alert.alert(successTitle, `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB${autoLoad ? '\nJARVIS brain: READY' : ''}`);
+  }
+
   async function importModel() {
     if (importing) return;
     setImporting(true);
     try {
       const imported = await importGgufModel();
       if (!imported) return;
-
-      try {
-        if (Platform.OS === 'android') await jarvis.validateModel(imported.path);
-      } catch (error) {
-        removeImportedModel(imported.path);
-        throw new Error(`GGUF validation failed: ${errorMessage(error)}`);
-      }
-
-      await jarvis.updateSettings({ modelPath: imported.path, modelName: imported.name, modelSize: imported.size });
-      Alert.alert('Model imported and validated', `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB`);
+      await validateAndSelectModel(imported, 'Model imported and validated');
     } catch (error) {
       const code = errorMessage(error, 'MODEL_IMPORT_FAILED');
       Alert.alert('Import failed', humanizeError(code));
     } finally {
+      setImporting(false);
+    }
+  }
+
+  async function downloadFreeBrain() {
+    if (importing) return;
+    setImporting(true);
+    setModelDownloadProgress(0);
+    try {
+      const imported = await downloadRecommendedModel(setModelDownloadProgress);
+      await validateAndSelectModel(imported, 'Free local brain downloaded', true);
+    } catch (error) {
+      const code = errorMessage(error, 'MODEL_DOWNLOAD_FAILED');
+      Alert.alert('Download failed', humanizeError(code));
+    } finally {
+      setModelDownloadProgress(null);
       setImporting(false);
     }
   }
@@ -74,8 +106,16 @@ export default function SettingsScreen() {
       <Card title="Model">
         <AppText>{jarvis.settings.modelName ?? 'No GGUF selected'}</AppText>
         {jarvis.settings.modelSize ? <AppText muted>{(jarvis.settings.modelSize / 1024 / 1024).toFixed(1)} MB</AppText> : null}
+        {modelDownloadProgress !== null ? (
+          <AppText muted>Downloading free local brain: {Math.round(modelDownloadProgress * 100)}%</AppText>
+        ) : null}
         <Row>
-          <Button title={importing ? 'Importing…' : 'Import + validate GGUF'} disabled={importing} onPress={() => void importModel()} />
+          <Button
+            title={modelDownloadProgress !== null ? `Downloading… ${Math.round(modelDownloadProgress * 100)}%` : 'Download free local brain'}
+            disabled={importing}
+            onPress={() => void downloadFreeBrain()}
+          />
+          <Button title={importing ? 'Working…' : 'Import your GGUF'} disabled={importing} onPress={() => void importModel()} />
           <Button
             title="Load"
             disabled={!jarvis.settings.modelPath || jarvis.modelState.status === 'loading'}
@@ -165,7 +205,42 @@ export default function SettingsScreen() {
           <AppText>Auto speak responses</AppText>
           <Switch value={jarvis.settings.autoSpeak} onValueChange={(value) => void jarvis.updateSettings({ autoSpeak: value })} />
         </View>
-        <AppText muted>The microphone is used only during a visible session. Background microphone service is disabled in this build.</AppText>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>Hands-free Jarvis</AppText>
+          <Switch
+            value={jarvis.settings.handsFreeEnabled}
+            onValueChange={(value) => void jarvis.updateSettings({ handsFreeEnabled: value })}
+          />
+        </View>
+        <Field value={wakeWordDraft} onChangeText={setWakeWordDraft} placeholder="Wake word, e.g. Jarvis" />
+        <Button
+          title="Save wake word"
+          disabled={!wakeWordDraft.trim()}
+          onPress={() => void jarvis.updateSettings({ wakeWord: wakeWordDraft.trim() })}
+        />
+        <AppText muted>
+          When hands-free is on, JARVIS starts listening from the visible app and keeps that microphone session alive while the app is minimized using an Android foreground microphone service.
+        </AppText>
+      </Card>
+
+      <Card title="Owner profile">
+        <AppText muted>These preferences stay in JARVIS local settings and are included in its prompt so it understands how you want it to work and reply.</AppText>
+        <Field value={ownerProfileDraft} onChangeText={setOwnerProfileDraft} placeholder="Tell JARVIS how you work and what you prefer…" multiline />
+        <Button
+          title="Save owner profile"
+          disabled={!ownerProfileDraft.trim()}
+          onPress={() => void jarvis.updateSettings({ ownerProfile: ownerProfileDraft.trim() })}
+        />
+      </Card>
+
+      <Card title="Android assistant">
+        <AppText>
+          After installing the APK: Phone Settings → Apps → Default apps → Digital assistant app → choose JARVIS ROG.
+        </AppText>
+        <AppText muted>
+          This lets Android keep the assistant service available and lets the phone&apos;s assistant gesture / power-button shortcut invoke JARVIS.
+        </AppText>
+        <Button title="Open JARVIS Android settings" onPress={() => void jarvis.ask('open settings', 'fast')} />
       </Card>
 
       <Card title="Memory">

@@ -8,6 +8,9 @@ export interface JarvisSettings {
   defaultMode: IntelligenceMode;
   approvedMemoryEnabled: boolean;
   autoSpeak: boolean;
+  handsFreeEnabled: boolean;
+  wakeWord: string;
+  ownerProfile: string;
   contextSize: number;
   batchSize: number;
   threads: number;
