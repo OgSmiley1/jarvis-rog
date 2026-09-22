@@ -40,6 +40,62 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
   }
 
   if (
+    normalized === 'open camera' ||
+    normalized === 'camera' ||
+    normalized === 'افتح الكاميرا' ||
+    normalized === 'شغل الكاميرا'
+  ) {
+    return {
+      call: { id: createId('tool'), tool: 'device.open_camera', arguments: {} },
+      successMessage: 'Opened the camera.',
+    };
+  }
+
+  if (
+    normalized === 'open dialer' ||
+    normalized === 'open phone' ||
+    normalized === 'افتح الاتصال' ||
+    normalized === 'افتح الهاتف'
+  ) {
+    return {
+      call: { id: createId('tool'), tool: 'device.open_dialer', arguments: {} },
+      successMessage: 'Opened the dialer.',
+    };
+  }
+
+  const dialMatch = trimmed.match(/^(?:dial|call)\s+([+0-9 ()-]{3,40})$/i);
+  if (dialMatch?.[1]) {
+    return {
+      call: { id: createId('tool'), tool: 'device.open_dialer', arguments: { number: dialMatch[1].trim() } },
+      successMessage: `Opened the dialer for ${dialMatch[1].trim()}. Tap Call to place it.`,
+    };
+  }
+
+  if (
+    normalized === 'open messages' ||
+    normalized === 'open sms' ||
+    normalized === 'افتح الرسائل' ||
+    normalized === 'افتح المسجات'
+  ) {
+    return {
+      call: { id: createId('tool'), tool: 'device.compose_sms', arguments: {} },
+      successMessage: 'Opened the SMS composer.',
+    };
+  }
+
+  if (
+    normalized === 'open wifi settings' ||
+    normalized === 'wifi settings' ||
+    normalized === 'افتح إعدادات الواي فاي' ||
+    normalized === 'افتح اعدادات الواي فاي'
+  ) {
+    return {
+      call: { id: createId('tool'), tool: 'device.open_wifi_settings', arguments: {} },
+      successMessage: 'Opened Wi-Fi settings.',
+    };
+  }
+
+  if (
     normalized === 'open email' ||
     normalized === 'open mail' ||
     normalized === 'افتح الإيميل' ||
