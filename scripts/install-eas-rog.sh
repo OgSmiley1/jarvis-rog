@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMMIT="${1:-b9c88cb40f702cbf4b03bc50e672dfc673b7e284}"
+COMMIT="${1:-$(git rev-parse HEAD)}"
 PKG="com.app.localjarviscoach"
 OUT_DIR="${PWD}/artifacts/rog-validation"
 TMP_DIR="${OUT_DIR}/tmp"
