@@ -155,6 +155,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setModelState(runtime.getModelRuntimeState());
   }, []);
 
+  useEffect(() => {
+    if (!ready || modelState.status !== 'unloaded') return;
+    if (!settings.modelPath || !settings.modelName) return;
+    void loadModel().catch(() => undefined);
+  }, [ready, modelState.status, settings.modelPath, settings.modelName, loadModel]);
+
   const activeProject = projects.find((project) => project.status === 'active');
 
   const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = []) => {
