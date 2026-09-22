@@ -26,17 +26,22 @@ cd "$HOME/jarvis-rog"
 
 echo "== Checking Expo/EAS login =="
 if ! npx --yes eas-cli@latest whoami >/tmp/jarvis-eas-whoami.txt 2>&1; then
+  echo "Expo/EAS is not logged in on this phone."
+  echo "Opening the official browser login now..."
   echo
+  if ! npx --yes eas-cli@latest login --browser; then
+    echo
+    echo "FAIL: Expo browser login did not complete."
+    echo "Keep this Termux session open, finish login in the browser, then rerun:"
+    echo "  ./scripts/install-fixed-on-phone.sh"
+    exit 20
+  fi
+  echo
+  echo "Login completed. Verifying account..."
+  npx --yes eas-cli@latest whoami | tee /tmp/jarvis-eas-whoami.txt
+else
   cat /tmp/jarvis-eas-whoami.txt || true
-  echo
-  echo "Expo login is required once on this phone."
-  echo "Run:"
-  echo "  npx --yes eas-cli@latest login"
-  echo "Then rerun:"
-  echo "  ./scripts/install-fixed-on-phone.sh"
-  exit 20
 fi
-cat /tmp/jarvis-eas-whoami.txt || true
 
 echo "== Finding successful EAS Android build =="
 BUILD_JSON="$OUT_DIR/build-list.json"
