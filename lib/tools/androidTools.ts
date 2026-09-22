@@ -60,6 +60,57 @@ export const androidTools: ToolDefinition[] = [
     },
   },
   {
+    name: 'device.open_camera',
+    description: 'Open the Android camera in still-image mode. JARVIS does not capture or upload a photo by itself.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({}),
+    execute: async () => {
+      await Linking.sendIntent('android.media.action.STILL_IMAGE_CAMERA');
+      return { opened: true };
+    },
+  },
+  {
+    name: 'device.open_dialer',
+    description: 'Open the phone dialer with an optional number. This does not place the call.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({ number: z.string().max(40).optional() }),
+    execute: async ({ number }) => {
+      const cleaned = number?.trim();
+      const url = cleaned ? `tel:${encodeURIComponent(cleaned)}` : 'tel:';
+      await Linking.openURL(url);
+      return { opened: true, number: cleaned ?? null, callPlaced: false };
+    },
+  },
+  {
+    name: 'device.compose_sms',
+    description: 'Open the SMS composer with optional number and message. This never presses Send.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({
+      number: z.string().max(40).optional(),
+      body: z.string().max(5000).optional(),
+    }),
+    execute: async ({ number, body }) => {
+      const target = number?.trim() ?? '';
+      const query = body ? `?body=${encodeURIComponent(body)}` : '';
+      await Linking.openURL(`sms:${target}${query}`);
+      return { opened: true, number: target || null, sent: false };
+    },
+  },
+  {
+    name: 'device.open_wifi_settings',
+    description: 'Open Android Wi-Fi settings without changing connectivity automatically.',
+    target: 'ANDROID',
+    confirmation: 'none',
+    schema: z.object({}),
+    execute: async () => {
+      await Linking.sendIntent('android.settings.WIFI_SETTINGS');
+      return { opened: true };
+    },
+  },
+  {
     name: 'assistant.speak',
     description: 'Speak text using the device text-to-speech engine.',
     target: 'ANDROID',
