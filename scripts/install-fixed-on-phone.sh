@@ -24,15 +24,38 @@ need_pkg termux-open termux-tools
 
 cd "$HOME/jarvis-rog"
 
+echo "== Checking Expo/EAS login =="
+if ! npx --yes eas-cli@latest whoami >/tmp/jarvis-eas-whoami.txt 2>&1; then
+  echo
+  cat /tmp/jarvis-eas-whoami.txt || true
+  echo
+  echo "Expo login is required once on this phone."
+  echo "Run:"
+  echo "  npx --yes eas-cli@latest login"
+  echo "Then rerun:"
+  echo "  ./scripts/install-fixed-on-phone.sh"
+  exit 20
+fi
+cat /tmp/jarvis-eas-whoami.txt || true
+
 echo "== Finding successful EAS Android build =="
 BUILD_JSON="$OUT_DIR/build-list.json"
-npx --yes eas-cli@latest build:list \
+if ! npx --yes eas-cli@latest build:list \
   --platform android \
   --status finished \
   --git-commit-hash "$VALIDATION_COMMIT" \
   --limit 10 \
   --json \
-  --non-interactive > "$BUILD_JSON"
+  --non-interactive > "$BUILD_JSON" 2>"$OUT_DIR/build-list-error.txt"; then
+  echo
+  echo "FAIL: EAS build lookup failed."
+  cat "$OUT_DIR/build-list-error.txt" || true
+  echo
+  echo "Try these two commands:"
+  echo "  npx --yes eas-cli@latest whoami"
+  echo "  npx --yes eas-cli@latest build:list --platform android --status finished --limit 3"
+  exit 21
+fi
 
 BUILD_ID="$(node - "$BUILD_JSON" <<'NODE'
 const fs = require('fs');
