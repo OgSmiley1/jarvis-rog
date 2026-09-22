@@ -20,7 +20,6 @@ need_pkg() {
 need_pkg node nodejs-lts
 need_pkg npx nodejs-lts
 need_pkg unzip unzip
-need_pkg shasum perl
 need_pkg termux-open termux-tools
 
 cd "$HOME/jarvis-rog"
@@ -71,7 +70,11 @@ cp "$APK" "$FINAL_APK"
 echo
 echo "== APK integrity =="
 ls -lh "$FINAL_APK"
-shasum -a 256 "$FINAL_APK" | tee "$OUT_DIR/apk-sha256.txt"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum "$FINAL_APK" | tee "$OUT_DIR/apk-sha256.txt"
+else
+  shasum -a 256 "$FINAL_APK" | tee "$OUT_DIR/apk-sha256.txt"
+fi
 
 ABI_DIRS="$(unzip -Z1 "$FINAL_APK" | awk -F/ '/^lib\/[^/]+\// {print $2}' | sort -u)"
 echo "ABIs:"
