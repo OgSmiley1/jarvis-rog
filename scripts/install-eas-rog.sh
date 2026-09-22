@@ -149,6 +149,24 @@ adb shell uiautomator dump /sdcard/jarvis-window.xml >/dev/null 2>&1 || true
 adb pull /sdcard/jarvis-window.xml "$OUT_DIR/window.xml" >/dev/null 2>&1 || true
 adb exec-out screencap -p > "$OUT_DIR/jarvis-launch.png" || true
 
+if [ -f "$OUT_DIR/window.xml" ]; then
+  if grep -qi 'JARVIS' "$OUT_DIR/window.xml"; then
+    echo "UI: PASS — JARVIS text found in the rendered Android UI tree."
+  else
+    echo "UI: WARN — process is alive but JARVIS text was not found in the UI tree."
+  fi
+fi
+
+echo "== Performance snapshots =="
+adb shell dumpsys meminfo "$PKG" > "$OUT_DIR/meminfo.txt" 2>&1 || true
+adb shell dumpsys gfxinfo "$PKG" framestats > "$OUT_DIR/gfxinfo-framestats.txt" 2>&1 || true
+
+if grep -Eqi 'FATAL EXCEPTION|Process: com\.app\.localjarviscoach.*(has died|crash)|UnsatisfiedLinkError|SIGSEGV|SIGABRT' "$OUT_DIR/focus.txt"; then
+  echo "RUNTIME: FAIL — fatal signal detected after launch."
+  head -100 "$OUT_DIR/focus.txt" || true
+  exit 11
+fi
+
 echo
 echo "SUCCESS"
 echo "Exact EAS commit: $COMMIT"
