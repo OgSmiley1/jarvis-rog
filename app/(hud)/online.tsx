@@ -223,8 +223,8 @@ export default function OnlineScreen() {
           Puter handles browser authentication. JARVIS does not ask you to paste an OpenAI, Google, xAI or Anthropic API key.
         </AppText>
         <AppText muted>
-          If sign-in keeps spinning, tap Reset connection. Puter logs in through a pop-up window that this embedded view cannot
-          fully host yet, so the online hub is optional — your local brain answers without it, offline.
+          Connect opens Puter&apos;s sign-in on its own screen; finishing there signs this hub in. If anything gets stuck, tap
+          Reset connection. The online hub is optional — your local brain answers without it, offline.
         </AppText>
         {usage ? <AppText muted>{`Usage snapshot: ${usage.slice(0, 900)}`}</AppText> : null}
       </Card>
