@@ -568,6 +568,67 @@ Gradle cannot run. `api.expo.dev` is denied too, so EAS cannot be driven from
 this session either. The APK gate is unchanged: it is EAS or GitHub Actions,
 from the owner's side.
 
+## SESSION 4B — the voice became conversational, and the phone can now build its own APK
+
+### The APK dead end was a script bug, not only the runner block
+
+`scripts/install-fixed-on-phone.sh` could only **download** a finished EAS
+build, pinned to hardcoded commit `e6e0246`. No such build existed, so the
+script always failed with nothing the owner could do about it. Nothing in the
+repository ever *started* a build: `.eas/workflows/build-android.yml` is
+`workflow_dispatch: {}` — manual only, deliberately, to conserve build credits.
+So merging to `main` does **not** trigger an EAS build. Any note above saying
+it does is superseded.
+
+The script now builds the commit that is checked out
+(`eas build --platform android --profile preview --non-interactive --wait`),
+waits, then runs the existing integrity checks and installs. It runs from
+Termux on the owner's own network, so it depends on neither the blocked GitHub
+Actions runners nor any agent sandbox egress.
+
+It also names the account-access failure specifically. `app.config.ts` points
+at owner `smiley007s-team` / project `eda56376-…`; if the signed-in account
+cannot reach it, the script says so and offers `eas init --force` to build
+under the owner's own account instead. The package id is unchanged, so the APK
+installs over any previous build either way. Guarded by
+`tests/phoneInstallContract.test.ts` so it cannot regress to download-only.
+
+### Streaming speech — the largest free latency win
+
+JARVIS generated the whole answer and only then began speaking. On a 4B model
+writing six sentences, that is most of a minute of silence.
+
+`lib/voice/speechStream.ts` segments the token stream at sentence boundaries
+and speaks each finished sentence while the model writes the next. Time to
+first word drops from "the whole answer" to "the first sentence", and the voice
+then stays ahead of the generator. A sentence is released only once its
+terminator has actually arrived — nothing is predicted or faked.
+
+`speakQueued()` was added because `speakResponse()` calls `Speech.stop()`
+first, which would make each new segment silence the previous one. Handles
+decimals, abbreviations, `?!` runs, Arabic `؟`, unpunctuated run-ons, and
+strips markdown so it is not dictated aloud. Barge-in uses a **speech epoch**,
+so segments queued for an abandoned answer are dropped rather than resuming
+after the engine queue is cleared. 11 tests.
+
+### The HUD now holds a conversation
+
+It was calling `ask()` with no history, so every utterance was a cold start and
+"and tomorrow?" had nothing to attach to. `lib/hud/conversation.ts` keeps a
+bounded 12-message window, appended as pairs so history never holds a question
+with no answer. In-memory only — Chat records and approved memory remain the
+persistence layer. 7 tests.
+
+### Verified
+
+`pnpm check` 0 errors · `pnpm lint` exit 0 · `pnpm test` 26 files / 145 tests ·
+`pnpm smoke` 11 checks. Both embedded snippets in the shell script were
+executed directly (`bash -n`, and the JSON parser fed sample EAS output).
+
+**Still no APK from this environment, and still none attempted** — the egress
+block on `dl.google.com` and `api.expo.dev` is unchanged. What changed is that
+the owner now has one command that produces one.
+
 ## NEXT EXACT ACTION
 
 Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across

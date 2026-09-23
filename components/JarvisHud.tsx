@@ -6,12 +6,14 @@ import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { colors } from '@/components/theme';
 import { useJarvis } from '@/context/JarvisContext';
-import type { IntelligenceMode } from '@/lib/inference/types';
+import type { CompletionMessage, IntelligenceMode } from '@/lib/inference/types';
+import { appendExchange } from '@/lib/hud/conversation';
 import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
-import { speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
+import { SpeechStream } from '@/lib/voice/speechStream';
+import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -38,6 +40,10 @@ export default function JarvisHud() {
   const awakeUntilRef = useRef(0);
   const autoStartAttemptedRef = useRef(false);
   const speakingRef = useRef(false);
+  const historyRef = useRef<CompletionMessage[]>([]);
+  // Incremented on every halt and every new command, so segments belonging to
+  // an abandoned answer can never reach the speaker after the owner moved on.
+  const speechEpochRef = useRef(0);
 
   function speakJarvis(text: string) {
     speakingRef.current = true;
@@ -73,11 +79,44 @@ export default function JarvisHud() {
     setInput(command);
     setResponse('');
 
-    try {
-      const result = await jarvis.ask(command, mode, (token) => setResponse((current) => current + token));
-      setResponse(result.text);
+    const epoch = (speechEpochRef.current += 1);
+    const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
+    // Speak each sentence the moment it is complete, rather than waiting for
+    // the whole answer. A tool route returns one short string with nothing to
+    // stream, so it keeps the simple path.
+    const stream = voiceOut && !deterministic ? new SpeechStream() : null;
 
-      if (jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled) {
+    const say = (segments: string[]) => {
+      if (!stream || segments.length === 0 || speechEpochRef.current !== epoch) return;
+      speakingRef.current = true;
+      setSpeaking(true);
+      for (const segment of segments) {
+        void speakQueued(segment, jarvis.settings.language).then(() => {
+          // The last queued segment finishing is the end of JARVIS speaking —
+          // unless a newer answer has already taken over the speaker.
+          if (speechEpochRef.current !== epoch) return;
+          speakingRef.current = false;
+          setSpeaking(false);
+        });
+      }
+    };
+
+    try {
+      const result = await jarvis.ask(
+        command,
+        mode,
+        (token) => {
+          setResponse((current) => current + token);
+          if (stream) say(stream.push(token));
+        },
+        historyRef.current,
+      );
+      setResponse(result.text);
+      historyRef.current = appendExchange(historyRef.current, command, result.text);
+
+      if (stream) {
+        say(stream.flush());
+      } else if (voiceOut) {
         speakJarvis(result.text);
       }
     } catch (error) {
@@ -99,6 +138,10 @@ export default function JarvisHud() {
     speakingRef.current = false;
     setSpeaking(false);
     awakeUntilRef.current = 0;
+    // Retire the current answer's speech epoch first: segments already queued
+    // resolve into a stale epoch and are dropped instead of resuming after the
+    // engine's queue is cleared.
+    speechEpochRef.current += 1;
     void stopSpeaking();
     void jarvis.stopGeneration().catch(() => undefined);
     setResponse(haltAcknowledgement(jarvis.settings.language));

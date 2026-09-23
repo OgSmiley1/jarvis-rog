@@ -89,6 +89,56 @@ that case** — a tap while speaking or generating means stop, not "end my
 microphone session". A halt spoken while it is generating does reach the
 transcriber and stops the run before it is read out.
 
+## Speaking while it is still thinking
+
+The single largest latency win available at zero cost, and the reason a local
+assistant used to feel dead next to a hosted one.
+
+JARVIS previously generated the **entire** answer, then began speaking. On a 4B
+model writing six sentences on a phone, that is most of a minute of silence
+before the first word. `lib/voice/speechStream.ts` cuts the token stream at
+sentence boundaries and hands each finished sentence to TTS while the model is
+still writing the next one:
+
+- **Time to first word** falls from *the whole answer* to *the first sentence*.
+- The voice then stays ahead of the generator, because speaking a sentence
+  takes longer than generating one — so after the first sentence there is no
+  further waiting at all.
+- Nothing is faked. A sentence is released only once its terminator has
+  actually arrived in the stream.
+
+`speakQueued()` exists alongside `speakResponse()` because the latter calls
+`Speech.stop()` first — correct for one complete answer, fatal for a stream,
+where each new sentence would silence the previous one and the owner would hear
+only the last. The system engine keeps its own utterance queue, so successive
+segments play in order.
+
+Segmentation handles what actually breaks naive splitting: decimals and version
+numbers (`3.5`), abbreviations (`Dr.`), runs of terminators (`?!` is one
+boundary), Arabic punctuation (`؟`), and a model that forgets to punctuate at
+all — past 220 characters it releases at the last word break rather than
+waiting for a full stop that may never come. It also strips markdown, because
+models leak it even when told not to and "asterisk asterisk important" is the
+fastest way to make a voice assistant sound broken. 11 tests.
+
+Barge-in is wired through a **speech epoch**: halting increments it, so
+segments already queued for an abandoned answer resolve into a stale epoch and
+are dropped rather than resuming after the engine's queue is cleared.
+
+## It is a conversation, not a series of commands
+
+The HUD was calling `ask()` with **no history**, so every utterance was a cold
+start: "what's the weather in Ajman", then "and tomorrow?" produced an answer
+to "and tomorrow?" with nothing to attach it to. A voice assistant that cannot
+be followed up on is a command line you happen to shout at.
+
+`lib/hud/conversation.ts` keeps a bounded rolling window of the last 12
+messages, matching the Chat screen's. Exchanges are appended as a pair, so
+history can never hold a question with no answer — a dangling user turn makes
+the next prompt read as though JARVIS ignored it. It is in-memory only:
+anything worth keeping goes through the existing Chat records or approved
+memory, rather than a second persistence layer competing with SQLite. 7 tests.
+
 ## Fast path
 
 `lib/tools/deterministicRouter.ts` already resolved maps, app launches, the
@@ -128,7 +178,7 @@ Run against the real toolchain in this session, not asserted:
 | --- | --- |
 | `pnpm check` (tsc strict) | pass, 0 errors |
 | `pnpm lint` | pass, exit 0 |
-| `pnpm test` | pass, 23 files, 123 tests |
+| `pnpm test` | pass, 26 files, 145 tests |
 | `pnpm smoke` | pass, 11 checks |
 | `npx expo prebuild --platform android --clean` | pass, no warnings |
 | Generated manifest | both assistant services, `BIND_VOICE_INTERACTION`, `FOREGROUND_SERVICE_MICROPHONE` and both `res/xml` configs present |
