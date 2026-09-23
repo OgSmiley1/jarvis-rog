@@ -12,6 +12,7 @@ import { describeVoices, previewVoice, setVoicePreference } from '@/lib/voice/vo
 import { CloudBrainCard } from '@/components/CloudBrainCard';
 import { FloatingOrbCard } from '@/components/FloatingOrbCard';
 import { NeuralVoiceCard } from '@/components/NeuralVoiceCard';
+import { LiveTestCard } from '@/components/LiveTestCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -259,6 +260,8 @@ export default function SettingsScreen() {
       <FloatingOrbCard />
 
       <NeuralVoiceCard />
+
+      <LiveTestCard />
 
       <Card title="Voice quality">
         <AppText>

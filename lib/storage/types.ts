@@ -58,6 +58,12 @@ export interface JarvisSettings {
   neuralVoiceEnabled: boolean;
   /** Per-provider model overrides; unset uses the provider's default. */
   cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
+  /**
+   * Where the live test link posts: a private GitHub repository, and
+   * optionally an issue or PR number in it (unset opens one issue per
+   * session). The token is in the Android keystore, never here.
+   */
+  liveChannel?: { owner: string; repo: string; number?: number };
 }
 
 export interface MemoryRecord {

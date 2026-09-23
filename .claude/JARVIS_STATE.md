@@ -687,6 +687,32 @@ it. If the brain downloads but will not load, check this first.
 
 The next EAS build, on the latest head, is the compile check for all of these.
 
+Build `900e6cd8` (on `db35d19`) is that compile check; it was IN_PROGRESS at
+22:03 UTC on 23 Sep after a 38-minute queue.
+
+### Live test link (Session 6, after db35d19)
+
+The owner asked for a way for Claude to see device tests live. Design, from
+what both ends can actually reach: the sandbox reaches only GitHub (ntfy.sh,
+Slack hooks and httpbin are policy-denied), and the GitHub integration cannot
+create repositories (403), so the owner creates one private repo by hand.
+
+- `lib/telemetry/liveLog.ts` — in-memory ring buffer (400) of events; secrets
+  scrubbed by shape and by field name before recording.
+- `lib/telemetry/githubChannel.ts` — batches events into comments on a private
+  issue/PR; ≥8 s apart, 30-min session cap, honours retry-after / rate-limit
+  reset, keeps lines through network loss, stops on 401/403/404 with a fix.
+- `lib/telemetry/liveSession.ts` — the single link, status store for the HUD's
+  red ● LIVE badge (tap = stop) and the Settings card.
+- Token in the keystore (`jarvis.live.github.token`), fine-grained, one repo.
+- HUD records: heard, wake/ignored, ask (route), answer (source, ms, first
+  token ms), speak (engine), halt, brain/voice/HUD state, errors.
+- Guide: `docs/LIVE_TEST_LINK.md`. Tests: `tests/liveLink.test.ts` (13),
+  mutation-checked (min interval, backoff requeue).
+- Channel = PR #1 in `OgSmiley1/jarvis-live-tests`, so comments wake a
+  subscribed session; the cheap watcher is a Haiku session subscribed to it.
+  Waiting on the owner to create the repo.
+
 ## NEXT EXACT ACTION
 
 Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across
