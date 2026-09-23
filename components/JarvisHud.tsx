@@ -17,6 +17,7 @@ import { SpeechStream } from '@/lib/voice/speechStream';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
+import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 
 /**
@@ -50,8 +51,28 @@ export default function JarvisHud() {
   // Incremented on every halt and every new command, so segments belonging to
   // an abandoned answer can never reach the speaker after the owner moved on.
   const speechEpochRef = useRef(0);
+  // System-voice segments still queued for the current answer. JARVIS is only
+  // "done speaking" when this reaches zero: releasing on the first segment to
+  // finish reopened the microphone while later sentences were still playing,
+  // so JARVIS could transcribe its own voice.
+  const pendingSystemSegmentsRef = useRef(0);
+
+  // The on-device neural voice (Kokoro). English only; when it is not ready,
+  // not enabled, or the language is Arabic, the phone's own voice speaks.
+  const neural = useNeuralVoice({
+    enabled: jarvis.settings.neuralVoiceEnabled,
+    language: jarvis.settings.language,
+    onSpeakingChange: (speaking) => {
+      speakingRef.current = speaking;
+      setSpeaking(speaking);
+    },
+  });
 
   function speakJarvis(text: string) {
+    if (neural.isReady) {
+      neural.speakAll(text);
+      return;
+    }
     speakingRef.current = true;
     setSpeaking(true);
     const release = () => {
@@ -87,6 +108,13 @@ export default function JarvisHud() {
     setAnswerSource(undefined);
 
     const epoch = (speechEpochRef.current += 1);
+    // A new answer replaces whatever is still being said, rather than queueing
+    // behind it. Resetting the counter matters as much: segments from the old
+    // epoch return early without decrementing, so a stale count would never
+    // reach zero and JARVIS would stay "speaking" — microphone muted — forever.
+    pendingSystemSegmentsRef.current = 0;
+    neural.stop();
+    void stopSpeaking();
     const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
     // Speak each sentence the moment it is complete, rather than waiting for
     // the whole answer. A tool route returns one short string with nothing to
@@ -95,13 +123,21 @@ export default function JarvisHud() {
 
     const say = (segments: string[]) => {
       if (!stream || segments.length === 0 || speechEpochRef.current !== epoch) return;
+      if (neural.isReady) {
+        // Speaking state is reported by the neural queue itself.
+        for (const segment of segments) neural.enqueue(segment);
+        return;
+      }
       speakingRef.current = true;
       setSpeaking(true);
+      pendingSystemSegmentsRef.current += segments.length;
       for (const segment of segments) {
         void speakQueued(segment, jarvis.settings.language).then(() => {
-          // The last queued segment finishing is the end of JARVIS speaking —
-          // unless a newer answer has already taken over the speaker.
+          // A newer answer, or a halt, has already taken over the speaker.
           if (speechEpochRef.current !== epoch) return;
+          pendingSystemSegmentsRef.current -= 1;
+          if (pendingSystemSegmentsRef.current > 0) return;
+          pendingSystemSegmentsRef.current = 0;
           speakingRef.current = false;
           setSpeaking(false);
         });
@@ -155,6 +191,8 @@ export default function JarvisHud() {
     // resolve into a stale epoch and are dropped instead of resuming after the
     // engine's queue is cleared.
     speechEpochRef.current += 1;
+    pendingSystemSegmentsRef.current = 0;
+    neural.stop();
     void stopSpeaking();
     void jarvis.stopGeneration().catch(() => undefined);
     setResponse(haltAcknowledgement(jarvis.settings.language));

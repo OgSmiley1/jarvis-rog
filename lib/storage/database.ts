@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   // Off by default: enabling it lets a question leave the phone.
   cloudFallbackEnabled: false,
   floatingOrbEnabled: false,
+  // Off by default: 351 MB should never start downloading on mobile data unasked.
+  neuralVoiceEnabled: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

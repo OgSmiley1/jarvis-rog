@@ -50,6 +50,12 @@ export interface JarvisSettings {
    * owner has granted "Display over other apps"; JARVIS never assumes it.
    */
   floatingOrbEnabled: boolean;
+  /**
+   * Speak English replies with Kokoro, an on-device neural voice (British,
+   * "Daniel"). About 351 MB, downloaded once when switched on. Arabic keeps
+   * the phone's best voice: Kokoro has no Arabic model.
+   */
+  neuralVoiceEnabled: boolean;
   /** Per-provider model overrides; unset uses the provider's default. */
   cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
 }

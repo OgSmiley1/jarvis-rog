@@ -162,6 +162,44 @@ down because it garbles at speed, a neural voice sits just under natural pace,
 and Arabic keeps natural pitch because lowering it muddies the emphatic
 consonants.
 
+### A genuinely neural voice: Kokoro, on-device
+
+Picking the best system voice improves things, but the ceiling is whatever
+the phone ships. `react-native-executorch` — already in the app for speech
+recognition — also ships **Kokoro**, a neural TTS model, so a human-sounding
+voice needed no new native code and no new dependency.
+
+- **British male, "Daniel"** (`models.text_to_speech.kokoro.en_gb.daniel()`),
+  the closest match in the library to the JARVIS register. Runs fully on the
+  phone at Kokoro's native 24 kHz (`kSamplingRate` in the library's
+  `kokoro/Constants.h`), played through `react-native-audio-api`, also
+  already in the app.
+- **Opt-in, ~351 MB**, measured from the Hugging Face repository at the exact
+  version pinned (synthesizer 272.4 MB, duration predictor 62.4 MB, en-GB
+  phonemizer 15.9 MB, voice 0.5 MB). `preventLoad` keeps it from downloading
+  until the owner switches it on.
+- **English only.** Kokoro has no Arabic voice. Arabic replies keep the
+  phone's best voice from `voiceCatalog.ts`, and Settings says so.
+- **Loaded once.** The model lives in the HUD, which stays mounted under
+  every sheet; Settings reads its status through
+  `lib/voice/neuralVoiceStore.ts` rather than loading a second copy.
+
+`lib/voice/neuralSpeechQueue.ts` does the scheduling, and is pure so it is
+tested off-device (9 cases): Kokoro's `forward` throws when already busy, so
+synthesis is strictly one sentence at a time; the next sentence is
+synthesised while the current one plays; clips are scheduled back to back on
+the audio clock so there are no gaps or overlaps; a sentence that fails to
+synthesise is spoken by the system voice instead, so it never goes silent;
+and barge-in stops queued text, in-flight synthesis and playing audio, with
+any synthesis that lands after "stop" discarded.
+
+**Bug fixed on the way in:** with the system voice, every streamed sentence
+reset "speaking" to false as it finished, so the microphone reopened while
+later sentences were still playing and JARVIS could transcribe itself. The
+HUD now counts pending sentences and only releases the microphone when the
+last one ends — and resets that count when a new answer starts, since an
+abandoned answer's sentences never decrement it.
+
 ### Writing for the ear
 
 A neural voice reading a bulleted essay still sounds like a machine, because

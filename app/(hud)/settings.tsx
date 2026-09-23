@@ -11,6 +11,7 @@ import { formatPerformance } from '@/lib/inference/performance';
 import { describeVoices, previewVoice, setVoicePreference } from '@/lib/voice/voiceResponse';
 import { CloudBrainCard } from '@/components/CloudBrainCard';
 import { FloatingOrbCard } from '@/components/FloatingOrbCard';
+import { NeuralVoiceCard } from '@/components/NeuralVoiceCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -256,6 +257,8 @@ export default function SettingsScreen() {
       <CloudBrainCard />
 
       <FloatingOrbCard />
+
+      <NeuralVoiceCard />
 
       <Card title="Voice quality">
         <AppText>
