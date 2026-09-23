@@ -1,4 +1,5 @@
 import * as Speech from 'expo-speech';
+import { prosodyFor, rankVoices, selectVoice, type DeviceVoice, type RankedVoice } from './voiceCatalog';
 
 export type VoiceLanguage = 'en' | 'ar';
 
@@ -8,20 +9,90 @@ export interface SpeakResponseOptions {
   onError?: (error: Error) => void;
 }
 
+export interface VoicePreference {
+  /** Allow Google's server-synthesised voices. Best quality, needs internet. */
+  allowNetwork?: boolean;
+  /** An identifier the owner pinned in Settings. */
+  preferredIdentifier?: string;
+}
+
 export function ttsLanguage(language: VoiceLanguage): string {
   return language === 'ar' ? 'ar-001' : 'en-GB';
 }
 
-async function preferredSystemVoice(language: VoiceLanguage): Promise<string | undefined> {
+let preference: VoicePreference = {};
+let voiceCache: DeviceVoice[] | null = null;
+let lastChosen: { language: VoiceLanguage; chosen: RankedVoice | undefined } | null = null;
+
+/** Settings writes the owner's choice here; speech reads it on the next call. */
+export function setVoicePreference(next: VoicePreference): void {
+  preference = next;
+  lastChosen = null;
+}
+
+/** Enumerate once per process: the platform call is slow and the list is static. */
+async function deviceVoices(refresh = false): Promise<DeviceVoice[]> {
+  if (voiceCache && !refresh) return voiceCache;
   try {
     const voices = await Speech.getAvailableVoicesAsync();
-    const wantedPrefix = language === 'ar' ? 'ar' : 'en-gb';
-    const candidates = voices.filter((voice) => voice.language.toLowerCase().startsWith(wantedPrefix));
-    const enhanced = candidates.find((voice) => String(voice.quality).toLowerCase() === 'enhanced');
-    return (enhanced ?? candidates[0])?.identifier;
+    voiceCache = voices.map((voice) => ({
+      identifier: voice.identifier,
+      name: voice.name,
+      quality: String(voice.quality),
+      language: voice.language,
+    }));
   } catch {
-    return undefined;
+    // Enumeration can fail before the TTS engine has bound. Cache nothing, so
+    // the next call retries rather than pinning an empty list.
+    return [];
   }
+  return voiceCache;
+}
+
+async function chooseVoice(language: VoiceLanguage): Promise<RankedVoice | undefined> {
+  if (lastChosen?.language === language) return lastChosen.chosen;
+  const chosen = selectVoice(await deviceVoices(), { language, ...preference });
+  lastChosen = { language, chosen };
+  return chosen;
+}
+
+/**
+ * What Settings displays: the voice actually in use and the alternatives, as
+ * the device reported them. Never a claim about a voice that is not installed.
+ */
+export async function describeVoices(language: VoiceLanguage): Promise<{
+  chosen?: RankedVoice;
+  candidates: RankedVoice[];
+}> {
+  const voices = await deviceVoices(true);
+  lastChosen = null;
+  return {
+    chosen: await chooseVoice(language),
+    candidates: rankVoices(voices, { language, ...preference }),
+  };
+}
+
+/** Speak one short line so the owner can hear a voice before pinning it. */
+export async function previewVoice(identifier: string, language: VoiceLanguage): Promise<void> {
+  await Speech.stop();
+  const voices = await deviceVoices();
+  const voice = voices.find((candidate) => candidate.identifier === identifier);
+  const { rate, pitch } = prosodyFor(voice, language);
+  const sample = language === 'ar'
+    ? 'مساء الخير يا سمايلي. الأنظمة جاهزة.'
+    : 'Good evening, Smiley. All systems are ready.';
+
+  await new Promise<void>((resolve) => {
+    Speech.speak(sample, {
+      language: ttsLanguage(language),
+      voice: identifier,
+      rate,
+      pitch,
+      onDone: () => resolve(),
+      onStopped: () => resolve(),
+      onError: () => resolve(),
+    });
+  });
 }
 
 export async function speakResponse(
@@ -33,14 +104,15 @@ export async function speakResponse(
   if (!clean) throw new Error('TTS_EMPTY_TEXT');
 
   await Speech.stop();
-  const voice = await preferredSystemVoice(language);
+  const chosen = await chooseVoice(language);
+  const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve, reject) => {
     Speech.speak(clean, {
       language: ttsLanguage(language),
-      ...(voice ? { voice } : {}),
-      rate: language === 'en' ? 0.94 : 0.98,
-      pitch: language === 'en' ? 0.92 : 1.0,
+      ...(chosen ? { voice: chosen.voice.identifier } : {}),
+      rate,
+      pitch,
       onStart: options.onStart,
       onDone: () => {
         options.onDone?.();
@@ -79,14 +151,15 @@ export async function speakQueued(
   const clean = text.trim();
   if (!clean) return;
 
-  const voice = await preferredSystemVoice(language);
+  const chosen = await chooseVoice(language);
+  const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve) => {
     Speech.speak(clean, {
       language: ttsLanguage(language),
-      ...(voice ? { voice } : {}),
-      rate: language === 'en' ? 0.94 : 0.98,
-      pitch: language === 'en' ? 0.92 : 1.0,
+      ...(chosen ? { voice: chosen.voice.identifier } : {}),
+      rate,
+      pitch,
       onStart: options.onStart,
       onDone: () => {
         options.onDone?.();

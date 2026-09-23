@@ -24,6 +24,7 @@ import { executeToolWithAudit } from '@/lib/tools/execution';
 import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
+import { setVoicePreference } from '@/lib/voice/voiceResponse';
 
 let runtimePromise: Promise<RuntimeModule> | null = null;
 
@@ -60,7 +61,18 @@ type ContextValue = {
   loadModel: (selection?: { path: string; name: string }) => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
-  ask: (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation?: CompletionMessage[]) => Promise<{ text: string; metrics: RuntimeMetrics }>;
+  /**
+   * `options.spoken` tells the prompt builder the answer will be read aloud,
+   * which changes how it is written (short spoken sentences, no markdown) but
+   * not what it says. The HUD sets it; typed Chat does not.
+   */
+  ask: (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation?: CompletionMessage[],
+    options?: { spoken?: boolean },
+  ) => Promise<{ text: string; metrics: RuntimeMetrics }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -103,6 +115,16 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
+
+  useEffect(() => {
+    // The voice choice has to reach the speech layer at launch, not only when
+    // the owner happens to open Settings — otherwise the first thing JARVIS
+    // says after a cold start uses whatever the platform picks by default.
+    setVoicePreference({
+      allowNetwork: settings.ttsAllowNetworkVoice,
+      preferredIdentifier: settings.ttsVoiceId,
+    });
+  }, [settings.ttsAllowNetworkVoice, settings.ttsVoiceId]);
 
   const updateSettings = useCallback(async (patch: Partial<JarvisSettings>) => {
     const next = { ...settings, ...patch };
@@ -163,7 +185,13 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const activeProject = projects.find((project) => project.status === 'active');
 
-  const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = []) => {
+  const ask = useCallback(async (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation: CompletionMessage[] = [],
+    options: { spoken?: boolean } = {},
+  ) => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
     const deterministic = routeDeterministicTool(text);
@@ -237,6 +265,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       memoryContext,
       conversation: boundedConversation,
       userMessage: text,
+      spoken: options.spoken ?? false,
     });
     const runtime = await getRuntime();
     const result = await runtime.runCompletion({ messages, mode, onToken });

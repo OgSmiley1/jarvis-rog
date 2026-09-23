@@ -28,6 +28,9 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   gpuLayers: 99,
   adaptiveRuntime: true,
   onlineFreeOnly: true,
+  // Off by default: a network voice sounds better but stops working the moment
+  // the phone loses signal, and JARVIS is local-first.
+  ttsAllowNetworkVoice: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

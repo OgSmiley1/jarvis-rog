@@ -110,6 +110,11 @@ export default function JarvisHud() {
           if (stream) say(stream.push(token));
         },
         historyRef.current,
+        // When the answer is going to be read aloud, it has to be written to
+        // be heard: short spoken sentences, no markdown for the synthesiser to
+        // stumble over. A neural voice reading a bulleted essay still sounds
+        // like a machine.
+        { spoken: voiceOut },
       );
       setResponse(result.text);
       historyRef.current = appendExchange(historyRef.current, command, result.text);

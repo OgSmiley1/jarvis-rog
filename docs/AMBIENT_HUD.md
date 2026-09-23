@@ -125,6 +125,57 @@ Barge-in is wired through a **speech epoch**: halting increments it, so
 segments already queued for an abandoned answer resolve into a stale epoch and
 are dropped rather than resuming after the engine's queue is cleared.
 
+## Not sounding like a robot
+
+Two separate problems, and the voice engine is only one of them.
+
+### Picking the right voice
+
+The old selection was `find(quality === 'Enhanced') ?? candidates[0]`. On
+Android that is close to random: the platform reports `quality` as `Default`
+for almost everything, **including Google's good neural voices**, so the filter
+almost never matched and the fallback took whatever was enumerated first —
+frequently the compact eSpeak-class voice that was the reason JARVIS sounded
+synthetic.
+
+What actually distinguishes the voices on the device is the identifier.
+Google's engine names its neural voices `<lang>-x-<abc>-<local|network>`
+(`en-gb-x-rjs-local`, `ar-xa-x-arc-local`). A bare `en-GB-language`, or
+anything from `espeak`/`pico`/`svox`, is the old formant synthesiser.
+
+`lib/voice/voiceCatalog.ts` scores every installed voice on identifier shape,
+engine, locale and reported quality, then picks the best. It is pure, so the
+ranking is tested off-device against a realistic snapshot of what an Android
+phone enumerates — including the case that caused the bug, where a `Default`
+neural voice must beat an `Enhanced` basic one. 12 tests.
+
+`-network` voices are synthesised on Google's servers and sound the best, but
+they need connectivity and add a round trip before JARVIS starts speaking. This
+is a local-first assistant, so they rank **below** on-device neural voices
+unless the owner turns them on in Settings.
+
+Settings shows the voice actually in use, why it was chosen, and the ranked
+alternatives — each with a **Hear it** button and a **Pin** button. A pinned
+voice that is later uninstalled falls back to ranking rather than silently
+staying selected. Prosody follows the voice family: the legacy engine is slowed
+down because it garbles at speed, a neural voice sits just under natural pace,
+and Arabic keeps natural pitch because lowering it muddies the emphatic
+consonants.
+
+### Writing for the ear
+
+A neural voice reading a bulleted essay still sounds like a machine, because
+nobody talks in headings and numbered lists.
+
+When an answer is going to be spoken, `spokenStyleDirective()` tells the model
+to write it the way a person speaks: short sentences, contractions, three
+sentences at most unless detail was asked for, no markup, no dictated URLs or
+file paths, and the answer first rather than a restatement of the question.
+
+It applies **only** when voice output is on. Typed answers in Chat keep their
+structure, tables and code blocks — the directive changes how a reply is
+written, never what it says.
+
 ## It is a conversation, not a series of commands
 
 The HUD was calling `ask()` with **no history**, so every utterance was a cold

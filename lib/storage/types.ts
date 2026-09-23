@@ -26,6 +26,18 @@ export interface JarvisSettings {
   modelSize?: number;
   onlineFreeOnly: boolean;
   onlineModelId?: string;
+  /**
+   * A specific system voice the owner pinned in Settings. When unset, JARVIS
+   * ranks the installed voices and picks the best neural one for the language.
+   * If a pinned voice is later uninstalled, ranking takes over again.
+   */
+  ttsVoiceId?: string;
+  /**
+   * Allow Google's server-synthesised `-network` voices. They sound the best
+   * but need internet and add round-trip latency, so a local-first assistant
+   * leaves this off by default.
+   */
+  ttsAllowNetworkVoice: boolean;
 }
 
 export interface MemoryRecord {

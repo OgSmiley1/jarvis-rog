@@ -8,6 +8,7 @@ import { eraseAllJarvisData, listRecentToolRuns } from '@/lib/storage/database';
 import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { formatPerformance } from '@/lib/inference/performance';
+import { describeVoices, previewVoice, setVoicePreference } from '@/lib/voice/voiceResponse';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -21,6 +22,8 @@ export default function SettingsScreen() {
   const [toolRuns, setToolRuns] = useState<ToolRun[]>([]);
   const [ownerProfileDraft, setOwnerProfileDraft] = useState('');
   const [wakeWordDraft, setWakeWordDraft] = useState('jarvis');
+  const [voiceReport, setVoiceReport] = useState<Awaited<ReturnType<typeof describeVoices>>>();
+  const [loadingVoices, setLoadingVoices] = useState(false);
 
   const section = Array.isArray(params.section) ? params.section[0] : params.section;
 
@@ -36,6 +39,28 @@ export default function SettingsScreen() {
     setOwnerProfileDraft(jarvis.settings.ownerProfile);
     setWakeWordDraft(jarvis.settings.wakeWord);
   }, [jarvis.settings.ownerProfile, jarvis.settings.wakeWord]);
+
+  async function refreshVoices() {
+    setLoadingVoices(true);
+    try {
+      setVoiceReport(await describeVoices(jarvis.settings.language));
+    } catch (error) {
+      Alert.alert('Voices unavailable', humanizeError(errorMessage(error)));
+    } finally {
+      setLoadingVoices(false);
+    }
+  }
+
+  useEffect(() => {
+    // Push the owner's choice into the speech layer whenever it changes, then
+    // re-read the device so this card shows what will actually be spoken with,
+    // not what was chosen under the previous preference.
+    setVoicePreference({
+      allowNetwork: jarvis.settings.ttsAllowNetworkVoice,
+      preferredIdentifier: jarvis.settings.ttsVoiceId,
+    });
+    describeVoices(jarvis.settings.language).then(setVoiceReport).catch(() => undefined);
+  }, [jarvis.settings.ttsAllowNetworkVoice, jarvis.settings.ttsVoiceId, jarvis.settings.language]);
 
   async function validateAndSelectModel(
     imported: { path: string; name: string; size: number },
@@ -221,6 +246,70 @@ export default function SettingsScreen() {
         <AppText muted>
           When hands-free is on, JARVIS starts listening from the visible app and keeps that microphone session alive while the app is minimized using an Android foreground microphone service.
         </AppText>
+      </Card>
+
+      <Card title="Voice quality">
+        <AppText>
+          In use: {voiceReport?.chosen ? `${voiceReport.chosen.voice.name}` : 'Not selected yet'}
+        </AppText>
+        <AppText muted>
+          {voiceReport?.chosen
+            ? `${voiceReport.chosen.voice.identifier} — ${voiceReport.chosen.reason}`
+            : 'Tap Refresh to read the voices installed on this phone.'}
+        </AppText>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>Use online voices when available</AppText>
+          <Switch
+            value={jarvis.settings.ttsAllowNetworkVoice}
+            onValueChange={(value) => void jarvis.updateSettings({ ttsAllowNetworkVoice: value })}
+          />
+        </View>
+        <AppText muted>
+          Google&apos;s network voices are the most natural, but they are synthesised on a server: they need internet and add
+          delay before JARVIS starts speaking. Off keeps every reply on-device.
+        </AppText>
+
+        <Row>
+          <Button title={loadingVoices ? 'Reading…' : 'Refresh voices'} disabled={loadingVoices} onPress={() => void refreshVoices()} />
+          {voiceReport?.chosen ? (
+            <Button
+              title="Hear it"
+              onPress={() => void previewVoice(voiceReport.chosen!.voice.identifier, jarvis.settings.language)}
+            />
+          ) : null}
+          {jarvis.settings.ttsVoiceId ? (
+            <Button title="Unpin" onPress={() => void jarvis.updateSettings({ ttsVoiceId: undefined })} />
+          ) : null}
+        </Row>
+
+        {voiceReport?.candidates.length ? (
+          <>
+            <AppText muted>
+              Installed voices for {jarvis.settings.language === 'ar' ? 'Arabic' : 'English'}, best first. Tap one to hear it,
+              then pin it to keep it.
+            </AppText>
+            {voiceReport.candidates.slice(0, 6).map((candidate) => (
+              <Row key={candidate.voice.identifier}>
+                <Button
+                  title={`▶ ${candidate.voice.name}`}
+                  onPress={() => void previewVoice(candidate.voice.identifier, jarvis.settings.language)}
+                />
+                <Button
+                  title={jarvis.settings.ttsVoiceId === candidate.voice.identifier ? 'Pinned' : 'Pin'}
+                  disabled={jarvis.settings.ttsVoiceId === candidate.voice.identifier}
+                  onPress={() => void jarvis.updateSettings({ ttsVoiceId: candidate.voice.identifier })}
+                />
+              </Row>
+            ))}
+          </>
+        ) : voiceReport ? (
+          <AppText muted>
+            This phone reports no {jarvis.settings.language === 'ar' ? 'Arabic' : 'English'} voice. Install Google
+            Text-to-Speech, then open Android Settings → System → Languages → Text-to-speech output and download the voice
+            data.
+          </AppText>
+        ) : null}
       </Card>
 
       <Card title="Owner profile">
