@@ -26,6 +26,14 @@ describe('phone-only build and install contract', () => {
     expect(script).toContain('arm64-v8a');
   });
 
+  it('requires the exact engine bridges the Snapdragon 8 Gen 3 loads', () => {
+    // withFastAndroidBuild narrows the JNI bridges; if the primary or the
+    // generic fallback went missing, the APK would install and the brain
+    // would silently fail to load.
+    expect(script).toContain('librnllama_jni_v8_2_dotprod_i8mm_hexagon_opencl.so');
+    expect(script).toContain("'lib/arm64-v8a/librnllama_jni.so'");
+  });
+
   it('explains the account-access failure instead of reporting a build error', () => {
     expect(script).toMatch(/account not found/i);
     // `$EAS` expands to the pinned eas-cli invocation at runtime.

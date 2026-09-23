@@ -629,6 +629,64 @@ executed directly (`bash -n`, and the JSON parser fed sample EAS output).
 block on `dl.google.com` and `api.expo.dev` is unchanged. What changed is that
 the owner now has one command that produces one.
 
+## SESSION 5 — a real APK from this branch, and the 45-minute wall measured and beaten
+
+### EAS was reachable all along — through the Expo connector
+
+Session 4 recorded that EAS could not be driven from here because
+`api.expo.dev` is denied to the sandbox shell. That was true of the shell and
+wrong as a conclusion: the Expo MCP connector reaches EAS through a different
+path. `build_list`, `build_run`, `build_info`, `build_logs` and `build_cancel`
+all work. Two finished APKs already existed in the project (`e6e0246`,
+`b9c88cb`); the owner installed `e6e0246` and sent screenshots.
+
+### What the owner's device test showed (Build e6e0246)
+
+No startup crash (the AudioAPIModule NPE backport holds on hardware); local
+STT READY; orb LISTENING with the mic indicator lit — and `Model: Not
+selected`, so JARVIS heard everything and answered nothing. Every tab icon
+rendered as a missing-glyph box. Puter sign-in spun forever. All acted on in
+08dc9b5 (see its commit message).
+
+### Why builds died at 45 minutes — measured per Gradle task
+
+| Build | ABIs | ccache | Gradle | llama.rn | Result |
+| --- | --- | --- | --- | --- | --- |
+| 7 cancelled | all 4 | miss | 39.9 min (still compiling) | — | killed at 45 |
+| `b9c88cb` | arm64 | miss | 37.0 min | 19.1 min | ~5 min spare |
+| `e6e0246` | arm64 | hit | 17.2 min | 0.4 min | fine |
+| **`bc77eace` (08dc9b5)** | **arm64** | **miss** | **18.3 min** | **3.8 min** | **20.1 min total** |
+
+`bc77eace` is a **cold** build ("No cache found for this key") — exactly the
+case that used to die — and finished with ~25 minutes to spare. The log
+confirms `Building rnllama variants:
+rnllama_v8_2_dotprod_i8mm_hexagon_opencl,rnllama_v8_2_dotprod_i8mm,rnllama`,
+zero armeabi-v7a/x86 compilation, the llama.rn jniLibs postinstall ran, the JS
+bundle was created, the audio-api patch applied, `BUILD SUCCESSFUL`, no
+`FAILURE`.
+
+**APK:** https://expo.dev/artifacts/eas/_FJQv4viVLNAgwyC903-xZ9w8Ol1D_pfR0mkWydnjHw.apk
+(expires 2026-10-07).
+
+**Not proven from the log:** that the three llama.rn JNI bridges are inside
+the APK — Gradle does not print CMake target names. The evidence points that
+way (the variant line, 3.8 min of llama.rn compilation), and the phone-side
+installer now requires `librnllama_jni_v8_2_dotprod_i8mm_hexagon_opencl.so`
+and `librnllama_jni.so` by exact name, so the first on-device install settles
+it. If the brain downloads but will not load, check this first.
+
+### Built after 08dc9b5, not yet in any APK
+
+- `fd40587` cloud brain fallback (Cerebras → Groq → Gemini), opt-in, keys in
+  the keystore.
+- `e23e9d2` floating orb over other apps — native Kotlin, never compiled yet.
+- `36ca223` Kokoro on-device neural voice (British male), 351 MB opt-in; and
+  two microphone-release bugs in the streaming speech path.
+- `46f3c5e` Puter popup sign-in relay, built from puter.js 2.6.3's real
+  protocol; Reset now remounts the bridge instead of reloading the stuck page.
+
+The next EAS build, on the latest head, is the compile check for all of these.
+
 ## NEXT EXACT ACTION
 
 Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across

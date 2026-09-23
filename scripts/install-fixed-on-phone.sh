@@ -208,6 +208,21 @@ unzip -Z1 "$FINAL_APK" | grep '^lib/arm64-v8a/librnllama' >/dev/null || {
   exit 6
 }
 
+# The engine is two layers: the prebuilt librnllama_* libraries, and the JNI
+# bridges built during the EAS build. withFastAndroidBuild narrows the bridges
+# to the chain RNLlama.java walks on a Snapdragon 8 Gen 3. If the first one or
+# the generic fallback were missing, the model would fail to load on the phone
+# while the APK still installed cleanly — so require them by exact name.
+for bridge in \
+  'lib/arm64-v8a/librnllama_jni_v8_2_dotprod_i8mm_hexagon_opencl.so' \
+  'lib/arm64-v8a/librnllama_jni.so'
+do
+  unzip -Z1 "$FINAL_APK" | grep -Fx "$bridge" >/dev/null || {
+    echo "FAIL: missing $bridge — the local brain could not load on this phone."
+    exit 7
+  }
+done
+
 echo "APK integrity: PASS"
 echo
 echo "Opening Android package installer..."
