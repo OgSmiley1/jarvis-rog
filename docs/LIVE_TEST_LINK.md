@@ -23,7 +23,9 @@ One line per event, for example:
 
 Also: HUD state changes, brain load/ready/error, microphone state and errors, halts,
 voice-engine failures. Your words and JARVIS's replies are included — that is the
-point — which is why the channel must be a **private** repository. Anything that
+point — so anyone who can see the channel repository can read them. The owner
+chose to keep `jarvis-live-tests` public; make it private in its settings if that
+changes. Anything that
 looks like an API key (GitHub, Groq, Cerebras, Gemini, OpenAI, Hugging Face) is
 replaced with `[redacted]` before it is recorded, and fields named key/token/secret
 are never sent.
@@ -35,20 +37,16 @@ lines wait and are delivered when it is back.
 Without any of this set up, **Share log** in the same card sends the last 400
 events through Android's share sheet — paste it into the chat.
 
-## One-time setup (about 3 minutes)
+## One-time setup (done, except the token)
 
-1. **Create the private channel repository** — on github.com: New repository →
-   name `jarvis-live-tests` → **Private** → tick *Add a README* → Create.
-   (Claude's GitHub app cannot create repositories for you, so this one step is by hand.)
-2. **Tell Claude "channel ready".** Claude attaches the repository, opens pull
-   request #1 in it as the channel, and subscribes a watcher to it.
-3. **Make a token** — in JARVIS: Settings → Live test link → **Make a token**.
-   Repository access: *Only select repositories* → `jarvis-live-tests`.
-   Permissions: **Issues: Read and write**, **Pull requests: Read and write**.
-   Generate, copy.
-4. In the same card: paste the token → **Save token** (it goes to the Android
-   keystore and is never shown again). Channel `OgSmiley1/jarvis-live-tests`,
-   number `1`.
+Channel: `OgSmiley1/jarvis-live-tests`, pull request #1 (created 23 Sep 2026).
+The app uses it by default. A Haiku watcher session is subscribed to it.
+
+**Token** — in JARVIS: Settings → Live test link → **Make a token**.
+Repository access: *Only select repositories* → `jarvis-live-tests`.
+Permissions: **Issues: Read and write**, **Pull requests: Read and write**.
+Generate, copy, paste into the card → **Save token** (it goes to the Android
+keystore and is never shown again).
 
 ## Each test
 

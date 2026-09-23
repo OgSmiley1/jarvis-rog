@@ -109,8 +109,8 @@ export function LiveTestCard() {
     <Card title="Live test link">
       <AppText muted>
         While on, what JARVIS hears, answers, says and fails at is posted to a private GitHub channel every few seconds, so
-        Claude can follow your test live. It includes your words and JARVIS&apos;s replies — use a PRIVATE repository. API
-        keys are scrubbed before anything is sent. Ends itself after 30 minutes.
+        Claude can follow your test live. It includes your words and JARVIS&apos;s replies, so anyone who can see the channel
+        repository can read them. API keys are scrubbed before anything is sent. Ends itself after 30 minutes.
       </AppText>
       <AppText>Status: {stateLine}</AppText>
       {status.dropped ? <AppText muted>{status.dropped} lines dropped while offline.</AppText> : null}

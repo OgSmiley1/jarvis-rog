@@ -25,4 +25,7 @@ export async function clearLiveToken(): Promise<void> {
 export const DEFAULT_LIVE_CHANNEL: { owner: string; repo: string; number?: number } = {
   owner: 'OgSmiley1',
   repo: 'jarvis-live-tests',
+  // PR #1 there is the channel: comments on a pull request wake the
+  // subscribed watcher session; comments on a plain issue would not.
+  number: 1,
 };
