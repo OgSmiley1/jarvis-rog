@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   ttsAllowNetworkVoice: false,
   // Off by default: enabling it lets a question leave the phone.
   cloudFallbackEnabled: false,
+  floatingOrbEnabled: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

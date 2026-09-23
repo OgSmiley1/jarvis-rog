@@ -25,6 +25,7 @@ import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
 import { setVoicePreference } from '@/lib/voice/voiceResponse';
+import { canDrawOverlays, showFloatingOrb } from '@/lib/device/overlay';
 import { downloadRecommendedModel, removeImportedModel, type ImportedModel } from '@/lib/inference/modelImport';
 import { Platform } from 'react-native';
 import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
@@ -149,6 +150,14 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       preferredIdentifier: settings.ttsVoiceId,
     });
   }, [settings.ttsAllowNetworkVoice, settings.ttsVoiceId]);
+
+  useEffect(() => {
+    // Bring the floating orb back after a restart if the owner left it on.
+    // canDrawOverlays() is re-checked because the permission can be revoked
+    // in Android settings while JARVIS is not running.
+    if (!ready || !settings.floatingOrbEnabled) return;
+    if (canDrawOverlays()) showFloatingOrb();
+  }, [ready, settings.floatingOrbEnabled]);
 
   const updateSettings = useCallback(async (patch: Partial<JarvisSettings>) => {
     const next = { ...settings, ...patch };

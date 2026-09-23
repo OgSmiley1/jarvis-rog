@@ -211,15 +211,43 @@ off to `MainActivity`. With the tab bar gone, **that hand-off now lands on the
 orb** rather than on a workspace grid — the ambient entry point came for free
 from the navigation change, with no new native code.
 
-A true floating overlay drawn on top of other apps
-(`TYPE_APPLICATION_OVERLAY` + `SYSTEM_ALERT_WINDOW`) is a different mechanism
-and is **not implemented**. It would need a new Kotlin Expo module alongside
-`modules/expo-thermal-status/`, a runtime `Settings.canDrawOverlays` consent
-flow, and its own foreground service. It is deliberately deferred until an APK
-from this branch has been produced and validated: the repository already
-carries unverified native surface (the assistant services, the thermal bridge),
-and adding more before any of it has compiled on a real toolchain would make a
-failure harder to localise, not easier.
+## The floating orb over other apps
+
+`modules/expo-jarvis-overlay/` draws a small arc-reactor orb over every other
+app — games, maps, anything. Tap it and JARVIS comes to the front; drag it and
+it snaps to the nearest screen edge.
+
+It was deferred until a native change could actually be compiled. That
+changed when EAS became reachable through the Expo connector, and the one
+existing local module, `expo-thermal-status`, was confirmed from the real EAS
+log to compile on Expo's servers. The overlay follows that module's structure
+exactly.
+
+- **A native View, not React.** Rendering React in a system overlay needs a
+  second React root with its own JS lifecycle, roughly doubling memory while
+  the orb idles over a game. The orb is a few hundred bytes of Canvas drawing
+  and one animator.
+- **A foreground service** (`specialUse`), because a plain service is killed
+  within about a minute of the app leaving the screen. Its notification is the
+  off switch: *Hide orb* stops it.
+- **Never assumes the permission.** "Display over other apps" is granted in
+  Android's own settings; JARVIS opens that screen and re-checks the result
+  whenever it returns to the foreground. The service re-checks before every
+  attach, because the permission can be revoked while it runs.
+- **Never steals input.** The window is `FLAG_NOT_FOCUSABLE`, so the keyboard
+  and a game's touches stay with the app underneath.
+- **Autolinked from `./modules`, not added to `package.json`.** A dependency
+  would change the lockfile and bust the EAS compile cache — the exact
+  mechanism that pushed earlier builds into the 45-minute limit.
+
+`tests/overlayContract.test.ts` guards the mistakes that would compile and
+only fail on the phone: a manifest service no class implements, a missing
+permission, mismatched module names across the bridge, and the Android 14
+requirement that the manifest and `startForeground()` agree on the service
+type.
+
+**Not yet verified:** the Kotlin compiling under Gradle, and the orb on the
+device. Both happen on the next EAS build from this branch.
 
 ## Verified for this change
 

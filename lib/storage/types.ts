@@ -45,6 +45,11 @@ export interface JarvisSettings {
    * keys themselves are in the Android keystore, never in these settings.
    */
   cloudFallbackEnabled: boolean;
+  /**
+   * Keep the floating JARVIS orb over other apps. Only takes effect once the
+   * owner has granted "Display over other apps"; JARVIS never assumes it.
+   */
+  floatingOrbEnabled: boolean;
   /** Per-provider model overrides; unset uses the provider's default. */
   cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
 }
