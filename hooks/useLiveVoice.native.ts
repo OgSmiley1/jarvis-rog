@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
+import { ensureExecutorch } from '@/lib/voice/executorch';
 
 export type VoiceState =
   | 'IDLE'
@@ -15,9 +16,11 @@ export type VoiceState =
 export interface UseLiveVoiceOptions {
   language: 'auto' | 'en' | 'ar';
   onFinal?: (text: string) => void;
+  shouldAcceptAudio?: () => boolean;
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
+  ensureExecutorch();
   const model = useSpeechToText({
     model: models.speech_to_text.whisper_tiny(),
     vad: models.vad.fsmn_vad(),
@@ -91,6 +94,15 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       return;
     }
 
+    if (Platform.Version >= 33) {
+      try {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      } catch {
+        // Notification permission is helpful for the visible foreground-service
+        // notification, but a denial must not fake a microphone failure.
+      }
+    }
+
     const stt = modelRef.current;
     if (!stt.isReady) {
       setError(stt.error?.message ?? 'Local speech model is not ready yet.');
@@ -106,7 +118,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     runningRef.current = true;
 
     recorder.onAudioReady((chunk) => {
-      if (runningRef.current && sessionRef.current === session) {
+      if (
+        runningRef.current &&
+        sessionRef.current === session &&
+        (optionsRef.current.shouldAcceptAudio?.() ?? true)
+      ) {
         stt.streamInsert(chunk.buffer.getChannelData(0));
       }
     });
@@ -168,11 +184,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') void stop();
-    });
+    // Keep the active recorder alive when the app is backgrounded. On Android
+    // the react-native-audio-api recorder is backed by a microphone foreground
+    // service (configured in app.config.ts), so the session can continue while
+    // the app is minimized. We still release the microphone when this hook is
+    // actually unmounted or the owner stops the session.
     return () => {
-      subscription.remove();
       void stop();
     };
   }, [stop]);
