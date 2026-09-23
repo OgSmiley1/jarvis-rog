@@ -1,6 +1,6 @@
 # JARVIS ROG
 
-> **Current source candidate: Build 0.4.0 hands-free audit branch.** See `docs/PHONE_SETUP.md`, `docs/ACCEPTANCE_TESTS.md`, and `.claude/JARVIS_STATE.md` for the current build and device-validation gates.
+> **Current source candidate: Build 0.4.0 hands-free audit branch, now on the ambient HUD.** See `docs/AMBIENT_HUD.md` for the single-screen interface, and `docs/PHONE_SETUP.md`, `docs/ACCEPTANCE_TESTS.md`, and `.claude/JARVIS_STATE.md` for the current build and device-validation gates.
 
 A local-first Android personal assistant starter/upgrade pack for **ASUS ROG Phone 8 Pro**, designed to be merged into the existing **Local Jarvis Coach** project rather than blindly replacing validated code.
 
@@ -8,6 +8,7 @@ A local-first Android personal assistant starter/upgrade pack for **ASUS ROG Pho
 
 - Android package: `com.app.localjarviscoach`
 - Expo SDK 54 / React Native 0.81 / React 19 / TypeScript
+- One ambient voice HUD, not a tab bar (see `docs/AMBIENT_HUD.md`)
 - Local GGUF inference with `llama.rn`
 - Fast / Deep / Create / Code profiles
 - Owner-approved bounded memory

@@ -3,6 +3,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 import { ensureExecutorch } from '@/lib/voice/executorch';
+import { levelFromFrame } from '@/lib/voice/audioLevel';
 
 export type VoiceState =
   | 'IDLE'
@@ -37,6 +38,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Measured microphone level for the HUD ring. Held in a ref and published on
+  // an interval: audio frames arrive every 100 ms, and re-rendering the tree
+  // that often would compete with token streaming for the JS thread.
+  const levelRef = useRef(0);
+  const [level, setLevel] = useState(0);
 
   const stop = useCallback(async () => {
     const recorder = recorderRef.current;
@@ -69,6 +75,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
 
     recorderRef.current = null;
     consumerRef.current = null;
+    levelRef.current = 0;
+    setLevel(0);
     setState('IDLE');
   }, []);
 
@@ -123,7 +131,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         sessionRef.current === session &&
         (optionsRef.current.shouldAcceptAudio?.() ?? true)
       ) {
-        stt.streamInsert(chunk.buffer.getChannelData(0));
+        const frame = chunk.buffer.getChannelData(0);
+        levelRef.current = levelFromFrame(frame, levelRef.current);
+        stt.streamInsert(frame);
+      } else {
+        // Suppressed audio (JARVIS is speaking) must not drive the ring.
+        levelRef.current = 0;
       }
     });
 
@@ -184,6 +197,21 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   }, []);
 
   useEffect(() => {
+    // Publish the measured level while a session is live. Outside a session
+    // there is no reading, and the HUD shows a resting orb rather than silence
+    // it did not measure.
+    if (state !== 'LISTENING' && state !== 'TRANSCRIBING') {
+      setLevel(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setLevel((current) => (Math.abs(current - levelRef.current) < 0.02 ? current : levelRef.current));
+    }, 100);
+    return () => clearInterval(timer);
+  }, [state]);
+
+  useEffect(() => {
     // Keep the active recorder alive when the app is backgrounded. On Android
     // the react-native-audio-api recorder is backed by a microphone foreground
     // service (configured in app.config.ts), so the session can continue while
@@ -198,6 +226,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     state,
     transcript,
     error,
+    /** Measured microphone level, 0..1. Zero whenever no session is capturing. */
+    level,
     isReady: model.isReady,
     downloadProgress: model.downloadProgress,
     start,

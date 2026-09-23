@@ -9,6 +9,12 @@ const KNOWN_APPS: Record<string, string> = {
   chrome: 'com.android.chrome',
   photos: 'com.google.android.apps.photos',
   'google photos': 'com.google.android.apps.photos',
+  spotify: 'com.spotify.music',
+  telegram: 'org.telegram.messenger',
+  instagram: 'com.instagram.android',
+  // ASUS ships Armoury Crate on the ROG Phone; it is where game/thermal
+  // profiles live, so it is worth a direct word rather than a tool plan.
+  'armoury crate': 'com.asus.gamecenter',
 };
 
 export interface DeterministicToolRoute {

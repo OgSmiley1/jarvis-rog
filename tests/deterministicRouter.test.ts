@@ -40,6 +40,11 @@ describe('deterministic tool routing', () => {
     expect(route?.call.arguments).toEqual({ package: 'com.whatsapp' });
   });
 
+  it('routes the media and ROG apps the owner asks for by name', () => {
+    expect(routeDeterministicTool('Jarvis launch Spotify')?.call.arguments).toEqual({ package: 'com.spotify.music' });
+    expect(routeDeterministicTool('open armoury crate')?.call.arguments).toEqual({ package: 'com.asus.gamecenter' });
+  });
+
   it('routes the camera directly', () => {
     expect(routeDeterministicTool('Jarvis open camera')?.call.tool).toBe('device.open_camera');
   });

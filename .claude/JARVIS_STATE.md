@@ -483,6 +483,91 @@ layout meant `tsc` resolved the local module's own source path directly
 instead of through its symlink, breaking its internal `expo-modules-core`
 import. This does not affect Metro/Gradle, only `tsc`'s type-check walk.
 
+## SESSION 4 — the two branches were merged, and the eight tabs became one ambient HUD
+
+### Merge first, build second
+
+`main` carried Sessions 1–3 (jniLibs fix, Arabic directive, schema versioning,
+GBNF grammar, adaptive runtime, thermal bridge). PR #4
+(`feat/handsfree-jarvis-rog`, open and draft) carried the hands-free work: wake
+word, microphone foreground service, the native
+`VoiceInteractionService`/`RecognitionService` assistant registration, the
+constrained tool planner, the Qwen3-4B one-tap download, the
+`react-native-audio-api` startup-crash backport, and the ROG install scripts
+including `scripts/install-fixed-on-phone.sh`.
+
+Neither branch was a superset of the other. `origin/feat/handsfree-jarvis-rog`
+was merged into this branch — **cleanly, zero conflicts** — before any new work
+started, so nothing from either line was stranded. This branch is the only
+place both now exist.
+
+### The interface
+
+The eight-tab bar (Coach · Chat · AI Hub · Projects · Memory · Understand ·
+Reflect · Settings) is gone. There is one screen: the orb. Every former tab is
+still a route and is reachable as a sheet from the HUD drawer. The route group
+was renamed `app/(tabs)` → `app/(hud)` — group names do not affect URLs, so
+every existing `router.push` and deep link still resolves — and its `_layout`
+is a `Stack` rather than `Tabs`.
+
+`components/CoachRuntimeScreen.tsx` → `components/JarvisHud.tsx`. The
+hands-free wake loop, the self-listening suppression and the voice session
+lifecycle inside it are PR #4's, unchanged; only the presentation is new.
+**There is no second runtime screen.**
+
+Full rationale, file map and honest limits: `docs/AMBIENT_HUD.md`.
+
+### The orb reports measurements, not animation
+
+`components/JarvisOrb.tsx` is an animated arc reactor whose core is scaled by
+**measured microphone RMS** (`lib/voice/audioLevel.ts`), taken from the PCM
+frames the recorder actually delivered. No capturing session means level 0 and
+a resting orb; frames dropped by the self-listening guard also read 0, so the
+orb never shows JARVIS reacting to its own voice.
+
+`lib/hud/hudState.ts` derives the one word under the orb. `unloaded` reads
+OFFLINE and `loading` reads PREPARING — there is no optimistic READY — and the
+status strip reports acceleration only as `modelState.gpu` / `reasonNoGPU`
+actually reported it.
+
+Built from `Animated` and native-driver transforms only: no SVG, no Skia, no
+Reanimated, no new dependency, and no contention with token streaming on the JS
+thread. Rotation stops under `AccessibilityInfo.isReduceMotionEnabled()`.
+
+### Barge-in
+
+`lib/voice/bargeIn.ts` matches a whole-utterance halt in English or Arabic and
+the HUD stops TTS and generation directly, with no model call. Matching is
+narrow on purpose — "stop the car at the roundabout" is a question. While
+JARVIS is *speaking*, its own frames are discarded by design, so a spoken halt
+cannot be heard in that window: **tapping the orb is the barge-in there**.
+Spoken halts do reach the transcriber while it is generating.
+
+### Deliberately not done
+
+A floating `TYPE_APPLICATION_OVERLAY` orb drawn over other apps. It needs a new
+Kotlin Expo module, a `Settings.canDrawOverlays` consent flow and its own
+foreground service. This repository already carries native surface that has not
+yet survived a verified device launch; adding more before this branch produces
+an installable APK would make a failure harder to localise. The Android assist
+gesture already opens the HUD, because the hand-off in
+`JarvisVoiceInteractionSession` lands on `MainActivity`, which is now the orb.
+
+### Verified this session
+
+`pnpm check` 0 errors · `pnpm lint` exit 0 · `pnpm test` 23 files / 123 tests ·
+`pnpm smoke` 11 checks · `npx expo prebuild --platform android --clean` clean,
+no warnings. The generated manifest carries both assistant services,
+`BIND_VOICE_INTERACTION`, `FOREGROUND_SERVICE_MICROPHONE` and both `res/xml`
+configs, so PR #4's native registration survived the merge.
+
+**No APK was produced here, and none was attempted.** `dl.google.com` was
+re-tested this session and is denied at the CONNECT by this environment's
+egress policy (HTTP 403), so no Android SDK or AGP artifact can be fetched and
+Gradle cannot run. `api.expo.dev` is denied too, so EAS cannot be driven from
+this session either. The APK gate is unchanged: it is EAS or GitHub Actions,
+from the owner's side.
+
 ## NEXT EXACT ACTION
 
 Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across

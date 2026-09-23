@@ -14,7 +14,7 @@ export default function CoachBootstrapScreen() {
     setLoading(true);
     setRuntimeError(undefined);
     try {
-      const module = await import('@/components/CoachRuntimeScreen');
+      const module = await import('@/components/JarvisHud');
       setRuntimeScreen(() => module.default);
     } catch (error) {
       setRuntimeError(humanizeError(errorMessage(error, 'RUNTIME_START_FAILED')));

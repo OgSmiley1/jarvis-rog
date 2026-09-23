@@ -12,11 +12,18 @@ describe('startup safety contract', () => {
     expect(provider).toContain("import('@/lib/inference/standaloneModel')");
   });
 
-  it('keeps the initial coach route free of the heavy voice hook', () => {
-    const route = read('app/(tabs)/index.tsx');
+  it('keeps the initial HUD route free of the heavy voice hook', () => {
+    const route = read('app/(hud)/index.tsx');
 
     expect(route).not.toContain("from '@/hooks/useLiveVoice'");
-    expect(route).toContain("import('@/components/CoachRuntimeScreen')");
+    expect(route).toContain("import('@/components/JarvisHud')");
+  });
+
+  it('serves the workspaces from a stack, with no tab bar left to render', () => {
+    const layout = read('app/(hud)/_layout.tsx');
+
+    expect(layout).toContain('Stack');
+    expect(layout).not.toContain('Tabs');
   });
 
   it('initializes ExecuTorch only when the voice runtime mounts', () => {
