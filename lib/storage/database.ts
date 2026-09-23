@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   // Off by default: a network voice sounds better but stops working the moment
   // the phone loses signal, and JARVIS is local-first.
   ttsAllowNetworkVoice: false,
+  // Off by default: enabling it lets a question leave the phone.
+  cloudFallbackEnabled: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

@@ -38,6 +38,12 @@ export interface HudSignals {
   /** 0..1 while the STT weights download, undefined when not measured. */
   sttProgress?: number;
   language: HudLanguage;
+  /**
+   * The cloud brain is switched on and has at least one key. When true, JARVIS
+   * can answer even with no local model — so it must not claim otherwise.
+   * Optional so existing callers keep their behaviour.
+   */
+  cloudReady?: boolean;
 }
 
 export interface HudPresentation {
@@ -84,9 +90,12 @@ export function deriveHudState(signals: HudSignals): HudState {
   if (signals.speaking) return 'SPEAKING';
   if (signals.generating) return 'THINKING';
   if (signals.voiceState === 'LISTENING' || signals.voiceState === 'TRANSCRIBING') return 'LISTENING';
-  if (signals.modelStatus === 'error') return 'ERROR';
   if (signals.modelStatus === 'loading') return 'PREPARING';
   if (signals.modelStatus === 'ready') return 'READY';
+  // No local brain, but the cloud one can answer: that is a working
+  // assistant, and calling it OFFLINE or ERROR would be false.
+  if (signals.cloudReady) return 'READY';
+  if (signals.modelStatus === 'error') return 'ERROR';
   return 'OFFLINE';
 }
 
@@ -99,7 +108,7 @@ export function describeHud(signals: HudSignals): HudPresentation {
   const detail = ((): string => {
     // Listening with no brain is the state the owner actually hit on the
     // device. It must not read like a working assistant waiting for its cue.
-    if (state === 'LISTENING' && needsBrain) {
+    if (state === 'LISTENING' && needsBrain && !signals.cloudReady) {
       return pick(
         language,
         'I can hear you, but no brain is loaded yet — so I cannot answer. Tap Download below.',
@@ -127,6 +136,13 @@ export function describeHud(signals: HudSignals): HudPresentation {
       case 'PREPARING':
         return pick(language, 'Loading the local model into memory.', 'يحمّل النموذج المحلي في الذاكرة.');
       case 'READY':
+        if (needsBrain && signals.cloudReady) {
+          return pick(
+            language,
+            'Answering through the cloud until the local brain is downloaded. Questions leave the phone.',
+            'أجيب عبر السحابة حتى يُنزَّل العقل المحلي. الأسئلة تغادر الهاتف.',
+          );
+        }
         if (!signals.sttReady) {
           const percent = typeof signals.sttProgress === 'number'
             ? ` · ${Math.max(0, Math.min(100, Math.round(signals.sttProgress * 100)))}%`

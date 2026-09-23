@@ -38,6 +38,15 @@ export interface JarvisSettings {
    * leaves this off by default.
    */
   ttsAllowNetworkVoice: boolean;
+  /**
+   * Answer through the owner's free cloud keys (Cerebras → Groq → Gemini)
+   * when the local model is not loaded. Off by default: turning it on means a
+   * question can leave the phone, and that has to be the owner's choice. The
+   * keys themselves are in the Android keystore, never in these settings.
+   */
+  cloudFallbackEnabled: boolean;
+  /** Per-provider model overrides; unset uses the provider's default. */
+  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
 }
 
 export interface MemoryRecord {

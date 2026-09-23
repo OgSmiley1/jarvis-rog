@@ -70,6 +70,26 @@ describe('HUD state derivation', () => {
     expect(describeHud({ ...base, modelStatus: 'ready' }).needsBrain).toBe(false);
   });
 
+  it('reports a working assistant when the cloud brain can answer', () => {
+    const hud = describeHud({ ...base, modelStatus: 'unloaded', cloudReady: true });
+    expect(hud.state).toBe('READY');
+    // The local brain is still offered: the cloud is a stopgap, not the goal.
+    expect(hud.needsBrain).toBe(true);
+    expect(hud.detail).toMatch(/cloud/i);
+    expect(hud.detail).toMatch(/leave the phone/i);
+  });
+
+  it('does not tell the owner it cannot answer when the cloud brain can', () => {
+    const hud = describeHud({ ...base, modelStatus: 'unloaded', voiceState: 'LISTENING', cloudReady: true });
+    expect(hud.detail).not.toMatch(/cannot answer/i);
+  });
+
+  it('prefers a loaded local brain over the cloud in what it reports', () => {
+    const hud = describeHud({ ...base, modelStatus: 'ready', cloudReady: true });
+    expect(hud.needsBrain).toBe(false);
+    expect(hud.detail).not.toMatch(/cloud/i);
+  });
+
   it('points at the one-tap download instead of a file import', () => {
     const hud = describeHud({ ...base, modelStatus: 'unloaded' });
     expect(hud.detail).toMatch(/one tap/i);

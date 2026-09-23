@@ -5,7 +5,8 @@ import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { colors } from '@/components/theme';
-import { useJarvis } from '@/context/JarvisContext';
+import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
+import { providerById } from '@/lib/online/cloudBrain';
 import type { CompletionMessage, IntelligenceMode } from '@/lib/inference/types';
 import { appendExchange } from '@/lib/hud/conversation';
 import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
@@ -39,6 +40,9 @@ export default function JarvisHud() {
   const [speaking, setSpeaking] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainProgress, setBrainProgress] = useState<number | null>(null);
+  // Which brain produced the last answer — shown so the owner always knows
+  // whether a reply stayed on the phone.
+  const [answerSource, setAnswerSource] = useState<AnswerSource>();
   const awakeUntilRef = useRef(0);
   const autoStartAttemptedRef = useRef(false);
   const speakingRef = useRef(false);
@@ -80,6 +84,7 @@ export default function JarvisHud() {
     setToolRunning(deterministic);
     setInput(command);
     setResponse('');
+    setAnswerSource(undefined);
 
     const epoch = (speechEpochRef.current += 1);
     const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
@@ -119,6 +124,7 @@ export default function JarvisHud() {
         { spoken: voiceOut },
       );
       setResponse(result.text);
+      setAnswerSource(result.source);
       historyRef.current = appendExchange(historyRef.current, command, result.text);
 
       if (stream) {
@@ -224,8 +230,10 @@ export default function JarvisHud() {
         sttReady: voice.isReady,
         sttProgress: voice.downloadProgress,
         language: jarvis.settings.language,
+        cloudReady: jarvis.cloudReady,
       }),
     [
+      jarvis.cloudReady,
       busy,
       jarvis.modelState.status,
       jarvis.settings.handsFreeEnabled,
@@ -348,6 +356,7 @@ export default function JarvisHud() {
       {response ? (
         <ScrollView style={styles.responseWrap} contentContainerStyle={styles.responseContent}>
           <Text style={styles.responseText}>{response}</Text>
+          {answerSource ? <Text style={styles.sourceLabel}>{describeSource(answerSource, arabic)}</Text> : null}
           <Row>
             <Button title={arabic ? 'انطق' : 'Speak'} onPress={() => speakJarvis(response)} />
             <Button
@@ -409,6 +418,7 @@ const styles = StyleSheet.create({
   responseContent: { paddingHorizontal: 18, paddingBottom: 12, gap: 12 },
   responseText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   metrics: { color: colors.muted, fontSize: 11 },
+  sourceLabel: { color: colors.muted, fontSize: 11, letterSpacing: 0.6 },
   brainButton: {
     alignSelf: 'stretch',
     borderWidth: 1,
@@ -426,3 +436,10 @@ const styles = StyleSheet.create({
   brainTrack: { alignSelf: 'stretch', height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8, overflow: 'hidden' },
   brainFill: { height: 4, backgroundColor: colors.accent },
 });
+
+function describeSource(source: AnswerSource, arabic: boolean): string {
+  if (source === 'local') return arabic ? 'على الجهاز · لم يغادر الهاتف' : 'On-device · never left the phone';
+  if (source === 'tool') return arabic ? 'أداة مدققة' : 'Audited tool';
+  const provider = providerById(source.slice('cloud:'.length) as Parameters<typeof providerById>[0]);
+  return arabic ? `عبر ${provider.name} · غادر الهاتف` : `Via ${provider.name} · left the phone`;
+}

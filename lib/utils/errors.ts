@@ -5,8 +5,17 @@ export function errorMessage(error: unknown, fallback = 'UNKNOWN_ERROR'): string
 }
 
 export function humanizeError(code: string): string {
+  // The cloud brain reports every provider it tried; keep that detail, but
+  // lead with what the owner can do about it.
+  if (code.startsWith('CLOUD_ALL_FAILED:')) {
+    return `No cloud brain answered —${code.slice('CLOUD_ALL_FAILED:'.length)}. Check the keys in Settings, or download the local brain so JARVIS does not need the internet.`;
+  }
+
   const known: Record<string, string> = {
-    MODEL_NOT_LOADED: 'Load a GGUF model before asking JARVIS to reason.',    NO_MODEL_SELECTED: 'Import a GGUF model first.',
+    MODEL_NOT_LOADED: 'No brain is loaded yet. Tap "Download JARVIS brain" on the main screen, or add a free cloud key in Settings.',
+    CLOUD_NO_KEYS: 'The cloud brain is on, but no provider key is saved. Add a free Groq, Cerebras or Gemini key in Settings.',
+    CLOUD_KEY_EMPTY: 'Paste the key before saving it.',
+    NO_MODEL_SELECTED: 'Import a GGUF model first.',
     MODEL_EXTENSION_INVALID: 'The selected file is not a .gguf model.',
     MODEL_COPY_VERIFICATION_FAILED: 'The model copy could not be verified.',
     MODEL_INSUFFICIENT_STORAGE: 'Free some storage space first. The recommended local brain needs about 3.5 GB free.',

@@ -27,6 +27,14 @@ import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/
 import { setVoicePreference } from '@/lib/voice/voiceResponse';
 import { downloadRecommendedModel, removeImportedModel, type ImportedModel } from '@/lib/inference/modelImport';
 import { Platform } from 'react-native';
+import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
+import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
+
+/**
+ * Which brain produced an answer. Shown on the HUD, so the owner always knows
+ * whether a reply stayed on the phone or went to a cloud provider.
+ */
+export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
 
 let runtimePromise: Promise<RuntimeModule> | null = null;
 
@@ -69,6 +77,12 @@ type ContextValue = {
    * the HUD both use this, so there is exactly one implementation of it.
    */
   installRecommendedModel: (onProgress?: (progress: number) => void) => Promise<ImportedModel>;
+  /** Cloud providers with a key stored in the keystore. Never the keys themselves. */
+  cloudProviders: CloudProviderId[];
+  /** True when the cloud brain is switched on and at least one key is stored. */
+  cloudReady: boolean;
+  saveCloudKey: (id: CloudProviderId, key: string) => Promise<void>;
+  removeCloudKey: (id: CloudProviderId) => Promise<void>;
   /**
    * `options.spoken` tells the prompt builder the answer will be read aloud,
    * which changes how it is written (short spoken sentences, no markdown) but
@@ -80,7 +94,7 @@ type ContextValue = {
     onToken?: (token: string) => void,
     conversation?: CompletionMessage[],
     options?: { spoken?: boolean },
-  ) => Promise<{ text: string; metrics: RuntimeMetrics }>;
+  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -100,6 +114,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [lastMetrics, setLastMetrics] = useState<RuntimeMetrics>();
   const [powerReading, setPowerReading] = useState<PowerStateReading | null>(null);
   const [activeRuntimePlan, setActiveRuntimePlan] = useState<RuntimePlan | null>(null);
+  const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -111,6 +126,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       setSettings(storedSettings);
       setMemories(storedMemories);
       setProjects(storedProjects);
+      setCloudProviders(await cloudProvidersWithKeys().catch(() => []));
       setInitError(undefined);
     } catch (error) {
       setInitError(error instanceof Error ? error.message : String(error));
@@ -199,6 +215,18 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     return imported;
   }, [loadModel, settings]);
 
+  const saveCloudKey = useCallback(async (id: CloudProviderId, key: string) => {
+    await setCloudKey(id, key);
+    setCloudProviders(await cloudProvidersWithKeys());
+  }, []);
+
+  const removeCloudKey = useCallback(async (id: CloudProviderId) => {
+    await clearCloudKey(id);
+    setCloudProviders(await cloudProvidersWithKeys());
+  }, []);
+
+  const cloudReady = settings.cloudFallbackEnabled && cloudProviders.length > 0;
+
   const unloadModel = useCallback(async () => {
     const runtime = await getRuntime();
     await runtime.unloadLocalModel();
@@ -234,7 +262,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       const dataSuffix = deterministic.call.tool === 'termux.system_status'
         ? `\n${JSON.stringify(toolResult.data, null, 2)}`
         : '';
-      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics };
+      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics, source: 'tool' as AnswerSource };
     }
 
     if (looksLikeToolRequest(text) && modelState.status === 'ready') {
@@ -264,7 +292,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           const dataSuffix = toolResult.data === undefined
             ? ''
             : `\n${JSON.stringify(toolResult.data, null, 2)}`;
-          return { text: `${summary}${dataSuffix}`, metrics: planner.metrics };
+          return { text: `${summary}${dataSuffix}`, metrics: planner.metrics, source: 'tool' as AnswerSource };
         }
       } catch (error) {
         if (error instanceof Error && error.message === 'CONFIRMATION_REQUIRED') throw error;
@@ -297,11 +325,40 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       userMessage: text,
       spoken: options.spoken ?? false,
     });
+
+    // A loaded local brain always answers first. The cloud brain is only for
+    // when there is no local brain to ask — the exact state observed on the
+    // owner's ROG, where runCompletion threw MODEL_NOT_LOADED on every turn.
+    if (modelState.status !== 'ready' && settings.cloudFallbackEnabled) {
+      const answer = await askCloud({
+        messages,
+        mode,
+        keys: await readCloudKeys(),
+        models: settings.cloudModels,
+        fetchImpl: fetch as unknown as FetchLike,
+      });
+      // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
+      // goes through the same token callback, so the HUD's sentence-level
+      // speech handles it exactly as it handles the local brain.
+      onToken?.(answer.text);
+      setLastMetrics(answer.metrics);
+      return { text: answer.text, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
+    }
+
     const runtime = await getRuntime();
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
-    return result;
-  }, [activeProject, memories, modelState.status, settings.approvedMemoryEnabled, settings.language, settings.ownerProfile]);
+    return { ...result, source: 'local' as AnswerSource };
+  }, [
+    activeProject,
+    memories,
+    modelState.status,
+    settings.approvedMemoryEnabled,
+    settings.cloudFallbackEnabled,
+    settings.cloudModels,
+    settings.language,
+    settings.ownerProfile,
+  ]);
 
   const stopGeneration = useCallback(async () => {
     const runtime = await getRuntime();
@@ -428,6 +485,10 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     unloadModel,
     validateModel,
     installRecommendedModel,
+    cloudProviders,
+    cloudReady,
+    saveCloudKey,
+    removeCloudKey,
     ask,
     stopGeneration,
     saveMemory,
@@ -437,7 +498,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

@@ -9,6 +9,7 @@ import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { formatPerformance } from '@/lib/inference/performance';
 import { describeVoices, previewVoice, setVoicePreference } from '@/lib/voice/voiceResponse';
+import { CloudBrainCard } from '@/components/CloudBrainCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -250,6 +251,8 @@ export default function SettingsScreen() {
           When hands-free is on, JARVIS starts listening from the visible app and keeps that microphone session alive while the app is minimized using an Android foreground microphone service.
         </AppText>
       </Card>
+
+      <CloudBrainCard />
 
       <Card title="Voice quality">
         <AppText>
