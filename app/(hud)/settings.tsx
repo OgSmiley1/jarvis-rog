@@ -3,7 +3,7 @@ import { Alert, Platform, Switch, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { useJarvis } from '@/context/JarvisContext';
-import { downloadRecommendedModel, importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
+import { importGgufModel, removeImportedModel } from '@/lib/inference/modelImport';
 import { eraseAllJarvisData, listRecentToolRuns } from '@/lib/storage/database';
 import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -99,8 +99,11 @@ export default function SettingsScreen() {
     setImporting(true);
     setModelDownloadProgress(0);
     try {
-      const imported = await downloadRecommendedModel(setModelDownloadProgress);
-      await validateAndSelectModel(imported, 'Free local brain downloaded', true);
+      const imported = await jarvis.installRecommendedModel(setModelDownloadProgress);
+      Alert.alert(
+        'Free local brain downloaded',
+        `${imported.name}\n${(imported.size / 1024 / 1024).toFixed(1)} MB\nJARVIS brain: READY`,
+      );
     } catch (error) {
       const code = errorMessage(error, 'MODEL_DOWNLOAD_FAILED');
       Alert.alert('Download failed', humanizeError(code));
@@ -292,7 +295,7 @@ export default function SettingsScreen() {
             {voiceReport.candidates.slice(0, 6).map((candidate) => (
               <Row key={candidate.voice.identifier}>
                 <Button
-                  title={`▶ ${candidate.voice.name}`}
+                  title={`Hear ${candidate.voice.name}`}
                   onPress={() => void previewVoice(candidate.voice.identifier, jarvis.settings.language)}
                 />
                 <Button

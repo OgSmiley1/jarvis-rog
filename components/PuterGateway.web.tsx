@@ -7,6 +7,7 @@ import type { PuterBridgeEvent } from '@/lib/online/types';
 export const PuterGateway = forwardRef<PuterGatewayHandle, { onEvent: (event: PuterBridgeEvent) => void }>(
   function PuterGatewayWeb({ onEvent }, ref) {
     useImperativeHandle(ref, () => ({
+      reset: () => undefined,
       refreshModels: () => onEvent({ type: 'bridge_error', payload: { message: 'Use the Android build for the embedded Puter gateway.' } }),
       refreshAuth: () => undefined,
       signOut: () => undefined,

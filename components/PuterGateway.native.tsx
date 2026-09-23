@@ -5,6 +5,19 @@ import { PUTER_BRIDGE_HTML } from '@/lib/online/puterBridgeHtml';
 import type { OnlineChatMessage, PuterBridgeEvent } from '@/lib/online/types';
 
 export interface PuterGatewayHandle {
+  /**
+   * Reload the bridge page from scratch.
+   *
+   * Puter's `auth.signIn()` is a popup login: it opens a second window and
+   * waits for that window to post the session back. With multiple windows
+   * unsupported, the sign-in page loads in place of the bridge instead, and
+   * when it finishes there is no opener left to report to — so the spinner
+   * never ends. Observed on the owner's ROG ("Signing in…", status stuck at
+   * signed_out). Every command below is injected into the bridge page, which
+   * is gone at that point, so none of them can recover it. Only a native
+   * reload can.
+   */
+  reset: () => void;
   refreshModels: () => void;
   refreshAuth: () => void;
   signOut: () => void;
@@ -35,6 +48,7 @@ export const PuterGateway = forwardRef<PuterGatewayHandle, Props>(function Puter
   };
 
   useImperativeHandle(ref, () => ({
+    reset: () => webRef.current?.reload(),
     refreshModels: () => send({ type: 'list_models', requestId: `models_${Date.now()}` }),
     refreshAuth: () => send({ type: 'auth_state', requestId: `auth_${Date.now()}` }),
     signOut: () => send({ type: 'sign_out', requestId: `signout_${Date.now()}` }),

@@ -41,6 +41,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     './plugins/withJarvisAssistant',
+    // Keeps cold EAS builds well inside the free tier's 45-minute limit.
+    './plugins/withFastAndroidBuild',
     [
       'llama.rn',
       {

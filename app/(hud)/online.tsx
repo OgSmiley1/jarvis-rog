@@ -217,9 +217,14 @@ export default function OnlineScreen() {
           <Button title="Refresh models" onPress={() => gateway.current?.refreshModels()} />
           <Button title="Usage" onPress={() => gateway.current?.getUsage()} />
           <Button title="Sign out" onPress={() => gateway.current?.signOut()} />
+          <Button title="Reset connection" onPress={() => gateway.current?.reset()} />
         </Row>
         <AppText muted>
           Puter handles browser authentication. JARVIS does not ask you to paste an OpenAI, Google, xAI or Anthropic API key.
+        </AppText>
+        <AppText muted>
+          If sign-in keeps spinning, tap Reset connection. Puter logs in through a pop-up window that this embedded view cannot
+          fully host yet, so the online hub is optional — your local brain answers without it, offline.
         </AppText>
         {usage ? <AppText muted>{`Usage snapshot: ${usage.slice(0, 900)}`}</AppText> : null}
       </Card>

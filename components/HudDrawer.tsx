@@ -45,7 +45,9 @@ export function HudDrawer({ language, children }: { language: 'auto' | 'en' | 'a
           accessibilityLabel={arabic ? 'الإعدادات' : 'Settings'}
           style={styles.gear}
         >
-          <Text style={styles.gearGlyph}>⚙</Text>
+          {/* A text label, not a glyph: on the owner's ROG every tab icon in
+              Build e6e0246 rendered as a missing-glyph box. Text cannot. */}
+          <Text style={styles.gearGlyph}>{arabic ? 'الإعدادات' : 'SETTINGS'}</Text>
         </Pressable>
       </View>
 
@@ -86,8 +88,8 @@ const styles = StyleSheet.create({
   handle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingRight: 12 },
   grip: { width: 34, height: 4, borderRadius: 2, backgroundColor: colors.border },
   handleText: { color: colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase' },
-  gear: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  gearGlyph: { color: colors.muted, fontSize: 20 },
+  gear: { minHeight: 40, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  gearGlyph: { color: colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 },
   chips: { gap: 8, paddingVertical: 4, paddingRight: 8 },
   chip: {
     borderWidth: 1,

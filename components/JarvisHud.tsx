@@ -37,6 +37,8 @@ export default function JarvisHud() {
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // null = not downloading; 0..1 = measured download progress.
+  const [brainProgress, setBrainProgress] = useState<number | null>(null);
   const awakeUntilRef = useRef(0);
   const autoStartAttemptedRef = useRef(false);
   const speakingRef = useRef(false);
@@ -237,6 +239,33 @@ export default function JarvisHud() {
     ],
   );
 
+  /**
+   * The one action that turns a listening-but-mute JARVIS into a working one.
+   * When a model is configured but failed to load, retrying the load is the
+   * right first move — re-downloading 2.5 GB would not fix an out-of-memory
+   * failure and would waste the owner's data.
+   */
+  async function installBrain() {
+    if (brainProgress !== null) return;
+    const hasConfiguredModel = Boolean(jarvis.settings.modelPath && jarvis.settings.modelName);
+
+    setBrainProgress(0);
+    try {
+      if (hasConfiguredModel && jarvis.modelState.status === 'error') {
+        await jarvis.loadModel();
+      } else {
+        await jarvis.installRecommendedModel(setBrainProgress);
+      }
+      const ready = arabic ? 'العقل جاهز. أنا معك.' : 'Brain loaded. I am ready.';
+      setResponse(ready);
+      if (jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled) speakJarvis(ready);
+    } catch (error) {
+      Alert.alert(arabic ? 'تعذّر تحميل العقل' : 'Could not load the brain', humanizeError(errorMessage(error)));
+    } finally {
+      setBrainProgress(null);
+    }
+  }
+
   function toggleVoice() {
     // Tapping the orb while JARVIS is talking or generating means "stop", not
     // "end my microphone session". It is the fastest gesture on the screen and
@@ -278,6 +307,34 @@ export default function JarvisHud() {
           </Text>
         ) : null}
         {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
+        {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
+          <Pressable
+            onPress={() => void installBrain()}
+            disabled={brainProgress !== null}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
+          >
+            <Text style={styles.brainTitle}>
+              {brainProgress !== null
+                ? arabic
+                  ? `جارٍ التنزيل ${Math.round(brainProgress * 100)}%`
+                  : `Downloading ${Math.round(brainProgress * 100)}%`
+                : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
+                  ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
+                  : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
+            </Text>
+            <Text style={styles.brainSub}>
+              {brainProgress !== null
+                ? arabic ? 'أبقِ التطبيق مفتوحًا. يمكنك قفل الشاشة.' : 'Keep the app open. You can lock the screen.'
+                : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
+            </Text>
+            {brainProgress !== null ? (
+              <View style={styles.brainTrack}>
+                <View style={[styles.brainFill, { width: `${Math.max(2, Math.round(brainProgress * 100))}%` }]} />
+              </View>
+            ) : null}
+          </Pressable>
+        ) : null}
         {jarvis.activeProject ? (
           <Pressable onPress={() => setInput(jarvis.activeProject?.nextAction ?? '')} style={styles.projectPill}>
             <Text style={styles.projectPillText} numberOfLines={1}>
@@ -352,4 +409,20 @@ const styles = StyleSheet.create({
   responseContent: { paddingHorizontal: 18, paddingBottom: 12, gap: 12 },
   responseText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   metrics: { color: colors.muted, fontSize: 11 },
+  brainButton: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: '#07212B',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    gap: 4,
+    alignItems: 'center',
+  },
+  brainPressed: { opacity: 0.8 },
+  brainTitle: { color: colors.accent, fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
+  brainSub: { color: colors.muted, fontSize: 12, textAlign: 'center' },
+  brainTrack: { alignSelf: 'stretch', height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8, overflow: 'hidden' },
+  brainFill: { height: 4, backgroundColor: colors.accent },
 });

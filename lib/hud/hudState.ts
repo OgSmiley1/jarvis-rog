@@ -46,6 +46,17 @@ export interface HudPresentation {
   headline: string;
   /** One line. What JARVIS is doing, or what it is waiting for. */
   detail: string;
+  /**
+   * True when no local model is loaded and none is on its way. The HUD shows
+   * a one-tap "download the brain" action whenever this is set.
+   *
+   * Observed on the owner's ROG Phone (Build e6e0246): the orb read LISTENING,
+   * speech recognition was READY, and `Model: Not selected`. JARVIS could hear
+   * every word and answer none of them, and nothing on the main screen said
+   * why. The fix to that lives on the main screen, not three taps into
+   * Settings.
+   */
+  needsBrain: boolean;
 }
 
 const HEADLINES: Record<HudState, { en: string; ar: string }> = {
@@ -83,8 +94,19 @@ export function describeHud(signals: HudSignals): HudPresentation {
   const state = deriveHudState(signals);
   const { language } = signals;
   const headline = pick(language, HEADLINES[state].en, HEADLINES[state].ar);
+  const needsBrain = signals.modelStatus === 'unloaded' || signals.modelStatus === 'error';
 
   const detail = ((): string => {
+    // Listening with no brain is the state the owner actually hit on the
+    // device. It must not read like a working assistant waiting for its cue.
+    if (state === 'LISTENING' && needsBrain) {
+      return pick(
+        language,
+        'I can hear you, but no brain is loaded yet — so I cannot answer. Tap Download below.',
+        'أسمعك، لكن لا يوجد عقل محمّل بعد — لذا لا أستطيع الرد. اضغط تنزيل بالأسفل.',
+      );
+    }
+
     switch (state) {
       case 'TOOL_RUNNING':
         return pick(language, 'Running an audited tool call.', 'ينفّذ أداة ضمن السجل المدقق.');
@@ -123,11 +145,15 @@ export function describeHud(signals: HudSignals): HudPresentation {
           : pick(language, 'Tap the orb to speak, or type below.', 'المس الكرة للتحدث، أو اكتب بالأسفل.');
       case 'OFFLINE':
       default:
-        return pick(language, 'No local model loaded yet. Open Settings to import a GGUF.', 'لا يوجد نموذج محلي محمّل. افتح الإعدادات لاستيراد ملف GGUF.');
+        return pick(
+          language,
+          'No brain loaded yet. One tap below downloads it — about 2.5 GB, free, and it runs fully offline after that.',
+          'لا يوجد عقل محمّل بعد. ضغطة واحدة بالأسفل تنزّله — حوالي 2.5 جيجابايت، مجانًا، ويعمل دون إنترنت بعدها.',
+        );
     }
   })();
 
-  return { state, headline, detail };
+  return { state, headline, detail, needsBrain };
 }
 
 /** True when tapping the orb should start a voice session rather than stop one. */

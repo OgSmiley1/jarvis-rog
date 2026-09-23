@@ -17,7 +17,6 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
   <div id="wrap">
     <div id="status">Loading Puter.js gateway…</div>
     <button id="connect">Connect Puter for keyless AI</button>
-    <button id="refresh" class="secondary">Refresh models</button>
     <div id="error"></div>
   </div>
 <script>
@@ -25,7 +24,6 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
   const status = document.getElementById('status');
   const errorBox = document.getElementById('error');
   const connect = document.getElementById('connect');
-  const refresh = document.getElementById('refresh');
 
   const post = (type, payload, requestId) => {
     try {
@@ -83,7 +81,6 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
     }
   });
 
-  refresh.addEventListener('click', () => listModels('manual-refresh'));
 
   window.__jarvisPuter = async (command) => {
     const requestId = command?.requestId;

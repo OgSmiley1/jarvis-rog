@@ -25,6 +25,8 @@ import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
 import { setVoicePreference } from '@/lib/voice/voiceResponse';
+import { downloadRecommendedModel, removeImportedModel, type ImportedModel } from '@/lib/inference/modelImport';
+import { Platform } from 'react-native';
 
 let runtimePromise: Promise<RuntimeModule> | null = null;
 
@@ -61,6 +63,12 @@ type ContextValue = {
   loadModel: (selection?: { path: string; name: string }) => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
+  /**
+   * Download the recommended free GGUF, validate it natively, select it and
+   * load it — the whole "give JARVIS a brain" path in one call. Settings and
+   * the HUD both use this, so there is exactly one implementation of it.
+   */
+  installRecommendedModel: (onProgress?: (progress: number) => void) => Promise<ImportedModel>;
   /**
    * `options.spoken` tells the prompt builder the answer will be read aloud,
    * which changes how it is written (short spoken sentences, no markdown) but
@@ -168,6 +176,28 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setActiveRuntimePlan(runtime.getActiveRuntimePlan());
     setModelState(state);
   }, [settings]);
+
+  const installRecommendedModel = useCallback(async (onProgress?: (progress: number) => void) => {
+    const imported = await downloadRecommendedModel(onProgress);
+
+    // Validate before selecting: a truncated download must never become the
+    // configured model, or every launch would try — and fail — to load it.
+    if (Platform.OS === 'android') {
+      try {
+        const runtime = await getRuntime();
+        await runtime.validateGguf(imported.path);
+      } catch (error) {
+        removeImportedModel(imported.path);
+        throw new Error(`GGUF validation failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    const next = { ...settings, modelPath: imported.path, modelName: imported.name, modelSize: imported.size };
+    setSettings(next);
+    await saveSettings(next);
+    await loadModel({ path: imported.path, name: imported.name });
+    return imported;
+  }, [loadModel, settings]);
 
   const unloadModel = useCallback(async () => {
     const runtime = await getRuntime();
@@ -397,6 +427,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     loadModel,
     unloadModel,
     validateModel,
+    installRecommendedModel,
     ask,
     stopGeneration,
     saveMemory,
@@ -406,7 +437,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

@@ -50,7 +50,30 @@ describe('HUD state derivation', () => {
   it('answers in Arabic when Arabic is selected', () => {
     const hud = describeHud({ ...base, language: 'ar', modelStatus: 'unloaded' });
     expect(hud.headline).toBe('غير متصل');
-    expect(hud.detail).toContain('GGUF');
+    expect(hud.detail).toContain('ضغطة واحدة');
+  });
+
+  it('never presents a brainless JARVIS as ready to help', () => {
+    // The exact state observed on the owner's ROG (Build e6e0246): speech
+    // recognition READY, orb LISTENING, `Model: Not selected`.
+    const hud = describeHud({ ...base, modelStatus: 'unloaded', voiceState: 'LISTENING', handsFree: true });
+    expect(hud.state).toBe('LISTENING');
+    expect(hud.needsBrain).toBe(true);
+    expect(hud.detail).toMatch(/cannot answer/i);
+    expect(hud.detail).not.toContain('Say “jarvis”');
+  });
+
+  it('offers the brain whenever none is loaded, and only then', () => {
+    expect(describeHud({ ...base, modelStatus: 'unloaded' }).needsBrain).toBe(true);
+    expect(describeHud({ ...base, modelStatus: 'error' }).needsBrain).toBe(true);
+    expect(describeHud({ ...base, modelStatus: 'loading' }).needsBrain).toBe(false);
+    expect(describeHud({ ...base, modelStatus: 'ready' }).needsBrain).toBe(false);
+  });
+
+  it('points at the one-tap download instead of a file import', () => {
+    const hud = describeHud({ ...base, modelStatus: 'unloaded' });
+    expect(hud.detail).toMatch(/one tap/i);
+    expect(hud.detail).not.toContain('GGUF');
   });
 
   it('starts a voice session from idle or error, and stops one otherwise', () => {
