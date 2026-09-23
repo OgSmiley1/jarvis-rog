@@ -687,8 +687,17 @@ it. If the brain downloads but will not load, check this first.
 
 The next EAS build, on the latest head, is the compile check for all of these.
 
-Build `900e6cd8` (on `db35d19`) is that compile check; it was IN_PROGRESS at
-22:03 UTC on 23 Sep after a 38-minute queue.
+Build `900e6cd8` (on `db35d19`) is that compile check — **FINISHED**
+22:04 UTC 23 Sep: 12.7 min running (38 min queue), Gradle `BUILD SUCCESSFUL in
+10m 55s` with a warm cache. `:expo-jarvis-overlay:compileReleaseKotlin` ran with
+zero `e:` errors — the floating orb's Kotlin compiles. Variants line present.
+APK: https://expo.dev/artifacts/eas/f6B2Km1heZMInvvdewwHI65nkZs9yZ4eS9P1MrqTskc.apk
+Next: `76094589` on `e6d1abd` (adds the live test link).
+
+`scripts/rog-setup.sh` (Termux, no PC): pairs with the phone's own Wireless
+debugging over 127.0.0.1, downloads + installs an APK (`install -r -g`),
+grants mic/notifications, overlay (appops), battery-optimisation exemption,
+background run, tries the ASSISTANT role, verifies, launches.
 
 ### Live test link (Session 6, after db35d19)
 
