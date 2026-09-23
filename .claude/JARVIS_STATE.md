@@ -692,7 +692,11 @@ Build `900e6cd8` (on `db35d19`) is that compile check — **FINISHED**
 10m 55s` with a warm cache. `:expo-jarvis-overlay:compileReleaseKotlin` ran with
 zero `e:` errors — the floating orb's Kotlin compiles. Variants line present.
 APK: https://expo.dev/artifacts/eas/f6B2Km1heZMInvvdewwHI65nkZs9yZ4eS9P1MrqTskc.apk
-Next: `76094589` on `e6d1abd` (adds the live test link).
+`76094589` on `e6d1abd` (adds the live test link) — **FINISHED** 22:40 UTC,
+13 min running after a 12-min queue, BUILD SUCCESSFUL, no Kotlin errors.
+APK: https://expo.dev/artifacts/eas/JPL392ziksfTM-FLfC8znI7WfFxgaYn4mmAMh5ScfUk.apk
+Haiku watcher v2 `session_012V9KpYDF4zXwvgiqLxuDbH` subscribed to
+jarvis-live-tests#1 (first watcher stuck on a permission prompt, archived).
 
 `scripts/rog-setup.sh` (Termux, no PC): pairs with the phone's own Wireless
 debugging over 127.0.0.1, downloads + installs an APK (`install -r -g`),
