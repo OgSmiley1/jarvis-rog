@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { CompletionMessage, IntelligenceMode, ModelRuntimeState, RuntimeMetrics } from '@/lib/inference/types';
 import type { JarvisProject, JarvisSettings, MemoryRecord, ProjectStep } from '@/lib/storage/types';
 import {
@@ -26,7 +26,16 @@ import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
 import { setVoicePreference } from '@/lib/voice/voiceResponse';
 import { canDrawOverlays, showFloatingOrb } from '@/lib/device/overlay';
-import { downloadRecommendedModel, removeImportedModel, type ImportedModel } from '@/lib/inference/modelImport';
+import { downloadRecommendedModel, type ImportedModel } from '@/lib/inference/modelImport';
+import type { DownloadView } from '@/lib/inference/brainPresence';
+import {
+  deleteModelFile,
+  downloadWithSystem,
+  findInstalledModel,
+  hasPendingSystemDownload,
+  hasSystemDownloader,
+} from '@/lib/inference/brainStore';
+import { recordLive } from '@/lib/telemetry/liveLog';
 import { Platform } from 'react-native';
 import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
@@ -73,11 +82,14 @@ type ContextValue = {
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
   /**
-   * Download the recommended free GGUF, validate it natively, select it and
-   * load it — the whole "give JARVIS a brain" path in one call. Settings and
-   * the HUD both use this, so there is exactly one implementation of it.
+   * Give JARVIS its brain in one call: load the file already on the phone if
+   * there is one; otherwise download the recommended GGUF (or attach to the
+   * download Android is already running), validate it, select it and load it.
+   * Settings and the HUD both use this, so there is exactly one implementation.
    */
   installRecommendedModel: (onProgress?: (progress: number) => void) => Promise<ImportedModel>;
+  /** The brain download in progress, or null. Survives the app being closed and reopened. */
+  brainDownload: DownloadView | null;
   /** Cloud providers with a key stored in the keystore. Never the keys themselves. */
   cloudProviders: CloudProviderId[];
   /** True when the cloud brain is switched on and at least one key is stored. */
@@ -116,6 +128,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [powerReading, setPowerReading] = useState<PowerStateReading | null>(null);
   const [activeRuntimePlan, setActiveRuntimePlan] = useState<RuntimePlan | null>(null);
   const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
+  const [brainDownload, setBrainDownload] = useState<DownloadView | null>(null);
+  const brainJob = useRef<Promise<ImportedModel> | null>(null);
+  const brainBootTried = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -176,52 +191,90 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (!modelPath || !modelName) throw new Error('NO_MODEL_SELECTED');
 
     const runtime = await getRuntime();
+    try {
+      if (settings.adaptiveRuntime) {
+        // Size the runtime from what the device actually reports. Signals that
+        // cannot be read stay undefined, and planRuntime treats them as
+        // "not measured" rather than as spare headroom.
+        const reading = await readDevicePowerState();
+        setPowerReading(reading);
+        const state = await runtime.loadLocalModel(modelPath, modelName, {
+          device: reading.state,
+        });
+        setActiveRuntimePlan(runtime.getActiveRuntimePlan());
+        setModelState(state);
+        return;
+      }
 
-    if (settings.adaptiveRuntime) {
-      // Size the runtime from what the device actually reports. Signals that
-      // cannot be read stay undefined, and planRuntime treats them as
-      // "not measured" rather than as spare headroom.
-      const reading = await readDevicePowerState();
-      setPowerReading(reading);
+      setPowerReading(null);
       const state = await runtime.loadLocalModel(modelPath, modelName, {
-        device: reading.state,
+        contextSize: settings.contextSize,
+        batchSize: settings.batchSize,
+        threads: settings.threads,
+        gpuLayers: settings.gpuLayers,
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
       setModelState(state);
-      return;
+    } catch (error) {
+      // Without this the HUD stays on "unloaded" and offers a fresh 2.5 GB
+      // download — which would delete the file that is already here.
+      const message = error instanceof Error ? error.message : String(error);
+      setModelState({ status: 'error', modelPath, modelName, error: message });
+      recordLive('brain', 'load failed', { raw: message, path: modelPath });
+      throw error;
     }
-
-    setPowerReading(null);
-    const state = await runtime.loadLocalModel(modelPath, modelName, {
-      contextSize: settings.contextSize,
-      batchSize: settings.batchSize,
-      threads: settings.threads,
-      gpuLayers: settings.gpuLayers,
-    });
-    setActiveRuntimePlan(runtime.getActiveRuntimePlan());
-    setModelState(state);
   }, [settings]);
 
-  const installRecommendedModel = useCallback(async (onProgress?: (progress: number) => void) => {
-    const imported = await downloadRecommendedModel(onProgress);
+  const installRecommendedModel = useCallback((onProgress?: (progress: number) => void) => {
+    if (brainJob.current) return brainJob.current;
+    const job = (async (): Promise<ImportedModel> => {
+      let model: ImportedModel | null = findInstalledModel({ path: settings.modelPath, name: settings.modelName });
+      if (model) {
+        recordLive('brain', 'found on phone', { path: model.path, size: model.size });
+      } else {
+        recordLive('brain', 'download started', { system: hasSystemDownloader() });
+        setBrainDownload({ progress: 0, done: false, failed: false });
+        try {
+          model = hasSystemDownloader()
+            ? await downloadWithSystem((view) => {
+                setBrainDownload(view);
+                if (view.progress !== null) onProgress?.(view.progress);
+              })
+            : await downloadRecommendedModel((progress) => {
+                setBrainDownload({ progress, done: false, failed: false });
+                onProgress?.(progress);
+              });
+        } finally {
+          setBrainDownload(null);
+        }
+        recordLive('brain', 'download finished', { path: model.path, size: model.size });
 
-    // Validate before selecting: a truncated download must never become the
-    // configured model, or every launch would try — and fail — to load it.
-    if (Platform.OS === 'android') {
-      try {
-        const runtime = await getRuntime();
-        await runtime.validateGguf(imported.path);
-      } catch (error) {
-        removeImportedModel(imported.path);
-        throw new Error(`GGUF validation failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Validate a fresh download before selecting it: a corrupt file must
+        // never become the configured model.
+        if (Platform.OS === 'android') {
+          try {
+            const runtime = await getRuntime();
+            await runtime.validateGguf(model.path);
+          } catch (error) {
+            deleteModelFile(model.path);
+            throw new Error(`GGUF validation failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
       }
-    }
 
-    const next = { ...settings, modelPath: imported.path, modelName: imported.name, modelSize: imported.size };
-    setSettings(next);
-    await saveSettings(next);
-    await loadModel({ path: imported.path, name: imported.name });
-    return imported;
+      if (settings.modelPath !== model.path || settings.modelName !== model.name) {
+        const next = { ...settings, modelPath: model.path, modelName: model.name, modelSize: model.size };
+        setSettings(next);
+        await saveSettings(next);
+      }
+      await loadModel({ path: model.path, name: model.name });
+      return model;
+    })();
+    brainJob.current = job;
+    void job.catch(() => undefined).finally(() => {
+      brainJob.current = null;
+    });
+    return job;
   }, [loadModel, settings]);
 
   const saveCloudKey = useCallback(async (id: CloudProviderId, key: string) => {
@@ -245,10 +298,25 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!ready || modelState.status !== 'unloaded') return;
-    if (!settings.modelPath || !settings.modelName) return;
-    void loadModel().catch(() => undefined);
-  }, [ready, modelState.status, settings.modelPath, settings.modelName, loadModel]);
+    // At launch: load the brain already on the phone, or pick the download
+    // Android kept running while JARVIS was closed back up. Never starts a
+    // new download on its own.
+    if (!ready || brainBootTried.current) return;
+    brainBootTried.current = true;
+    let present = false;
+    try {
+      present = Boolean(findInstalledModel({ path: settings.modelPath, name: settings.modelName })) || hasPendingSystemDownload();
+    } catch (error) {
+      recordLive('error', 'brain lookup failed', { raw: error instanceof Error ? error.message : String(error) });
+    }
+    if (!present) {
+      recordLive('brain', 'none on phone');
+      return;
+    }
+    void installRecommendedModel().catch((error) =>
+      recordLive('error', 'brain start failed', { raw: error instanceof Error ? error.message : String(error) }),
+    );
+  }, [ready, settings.modelPath, settings.modelName, installRecommendedModel]);
 
   const activeProject = projects.find((project) => project.status === 'active');
 
@@ -494,6 +562,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     unloadModel,
     validateModel,
     installRecommendedModel,
+    brainDownload,
     cloudProviders,
     cloudReady,
     saveCloudKey,
@@ -507,7 +576,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, brainDownload, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

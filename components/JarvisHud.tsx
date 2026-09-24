@@ -42,7 +42,7 @@ export default function JarvisHud() {
   const [toolRunning, setToolRunning] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
-  const [brainProgress, setBrainProgress] = useState<number | null>(null);
+  const [brainBusy, setBrainBusy] = useState(false);
   // Which brain produced the last answer — shown so the owner always knows
   // whether a reply stayed on the phone.
   const [answerSource, setAnswerSource] = useState<AnswerSource>();
@@ -348,22 +348,15 @@ export default function JarvisHud() {
 
   /**
    * The one action that turns a listening-but-mute JARVIS into a working one.
-   * When a model is configured but failed to load, retrying the load is the
-   * right first move — re-downloading 2.5 GB would not fix an out-of-memory
-   * failure and would waste the owner's data.
+   * The context decides what that means: load the brain already on the phone
+   * (a retry after a failed load), attach to Android's running download, or
+   * start one. It never deletes a model that is already here.
    */
   async function installBrain() {
-    if (brainProgress !== null) return;
-    const hasConfiguredModel = Boolean(jarvis.settings.modelPath && jarvis.settings.modelName);
-
-    setBrainProgress(0);
-    recordLive('brain', hasConfiguredModel && jarvis.modelState.status === 'error' ? 'retrying load' : 'download started');
+    if (brainBusy || jarvis.brainDownload) return;
+    setBrainBusy(true);
     try {
-      if (hasConfiguredModel && jarvis.modelState.status === 'error') {
-        await jarvis.loadModel();
-      } else {
-        await jarvis.installRecommendedModel(setBrainProgress);
-      }
+      await jarvis.installRecommendedModel();
       const ready = arabic ? 'العقل جاهز. أنا معك.' : 'Brain loaded. I am ready.';
       setResponse(ready);
       if (jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled) speakJarvis(ready);
@@ -371,7 +364,7 @@ export default function JarvisHud() {
       recordLive('error', 'brain install failed', { raw: errorMessage(error) });
       Alert.alert(arabic ? 'تعذّر تحميل العقل' : 'Could not load the brain', humanizeError(errorMessage(error)));
     } finally {
-      setBrainProgress(null);
+      setBrainBusy(false);
     }
   }
 
@@ -393,6 +386,9 @@ export default function JarvisHud() {
   }
 
   const arabic = jarvis.settings.language === 'ar';
+  const downloading = jarvis.brainDownload !== null;
+  const downloadPercent =
+    jarvis.brainDownload?.progress == null ? null : Math.round(jarvis.brainDownload.progress * 100);
   const modelName = jarvis.modelState.modelName ?? jarvis.settings.modelName ?? (arabic ? 'لا يوجد نموذج' : 'No model');
   const acceleration = jarvis.modelState.gpu
     ? arabic ? 'تسريع نشط' : 'Accelerated backend active'
@@ -431,27 +427,34 @@ export default function JarvisHud() {
         {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
           <Pressable
             onPress={() => void installBrain()}
-            disabled={brainProgress !== null}
+            disabled={downloading || brainBusy}
             accessibilityRole="button"
             style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
           >
             <Text style={styles.brainTitle}>
-              {brainProgress !== null
-                ? arabic
-                  ? `جارٍ التنزيل ${Math.round(brainProgress * 100)}%`
-                  : `Downloading ${Math.round(brainProgress * 100)}%`
-                : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
-                  ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
-                  : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
+              {downloading
+                ? downloadPercent === null
+                  ? arabic ? 'جارٍ بدء التنزيل…' : 'Starting download…'
+                  : arabic ? `جارٍ التنزيل ${downloadPercent}%` : `Downloading ${downloadPercent}%`
+                : brainBusy
+                  ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
+                  : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
+                    ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
+                    : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
             </Text>
             <Text style={styles.brainSub}>
-              {brainProgress !== null
-                ? arabic ? 'أبقِ التطبيق مفتوحًا. يمكنك قفل الشاشة.' : 'Keep the app open. You can lock the screen.'
-                : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
+              {downloading
+                ? jarvis.brainDownload?.note ??
+                  (arabic
+                    ? 'يمكنك مغادرة التطبيق — أندرويد يكمل التنزيل. التقدّم في الإشعارات.'
+                    : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
+                : jarvis.modelState.status === 'error' && jarvis.modelState.error
+                  ? jarvis.modelState.error
+                  : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
             </Text>
-            {brainProgress !== null ? (
+            {downloading ? (
               <View style={styles.brainTrack}>
-                <View style={[styles.brainFill, { width: `${Math.max(2, Math.round(brainProgress * 100))}%` }]} />
+                <View style={[styles.brainFill, { width: `${Math.max(2, downloadPercent ?? 0)}%` }]} />
               </View>
             ) : null}
           </Pressable>
