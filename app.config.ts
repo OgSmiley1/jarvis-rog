@@ -19,6 +19,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'FOREGROUND_SERVICE',
       'FOREGROUND_SERVICE_MICROPHONE',
       'WAKE_LOCK',
+      // Phone access (Settings → Phone access). Each is asked for separately.
+      'READ_CONTACTS',
+      'CALL_PHONE',
+      'READ_SMS',
+      'READ_CALL_LOG',
+      'READ_CALENDAR',
     ],
   },
   plugins: [

@@ -46,6 +46,13 @@ import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } fro
  */
 export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
 
+/** A phone tool's spoken sentence, when it returned one. */
+function toolSpeech(data: unknown): { speech: string; private: boolean } | null {
+  if (!data || typeof data !== 'object') return null;
+  const { speech, private: secret } = data as { speech?: unknown; private?: unknown };
+  return typeof speech === 'string' ? { speech, private: secret === true } : null;
+}
+
 let runtimePromise: Promise<RuntimeModule> | null = null;
 
 function getRuntime(): Promise<RuntimeModule> {
@@ -107,7 +114,7 @@ type ContextValue = {
     onToken?: (token: string) => void,
     conversation?: CompletionMessage[],
     options?: { spoken?: boolean },
-  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource }>;
+  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource; private?: boolean }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -336,6 +343,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       const metrics: RuntimeMetrics = { totalMs: performance.now() - startedAt };
       setLastMetrics(metrics);
       if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
+      const said = toolSpeech(toolResult.data);
+      if (said) return { text: said.speech, metrics, source: 'tool' as AnswerSource, private: said.private };
       const dataSuffix = deterministic.call.tool === 'termux.system_status'
         ? `\n${JSON.stringify(toolResult.data, null, 2)}`
         : '';
@@ -362,6 +371,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           setLastMetrics(planner.metrics);
 
           if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
+          const said = toolSpeech(toolResult.data);
+          if (said) return { text: said.speech, metrics: planner.metrics, source: 'tool' as AnswerSource, private: said.private };
 
           const summary = settings.language === 'ar'
             ? `تم تنفيذ ${planned.tool}.`

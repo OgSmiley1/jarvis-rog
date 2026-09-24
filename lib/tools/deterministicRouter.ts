@@ -1,22 +1,6 @@
 import type { JarvisToolCall } from './types';
 import { createId } from '@/lib/utils/ids';
 
-const KNOWN_APPS: Record<string, string> = {
-  gmail: 'com.google.android.gm',
-  email: 'com.google.android.gm',
-  youtube: 'com.google.android.youtube',
-  whatsapp: 'com.whatsapp',
-  chrome: 'com.android.chrome',
-  photos: 'com.google.android.apps.photos',
-  'google photos': 'com.google.android.apps.photos',
-  spotify: 'com.spotify.music',
-  telegram: 'org.telegram.messenger',
-  instagram: 'com.instagram.android',
-  // ASUS ships Armoury Crate on the ROG Phone; it is where game/thermal
-  // profiles live, so it is worth a direct word rather than a tool plan.
-  'armoury crate': 'com.asus.gamecenter',
-};
-
 export interface DeterministicToolRoute {
   call: JarvisToolCall;
   successMessage: string;
@@ -26,7 +10,79 @@ function stripWakeWord(text: string): string {
   return text
     .trim()
     .replace(/^(?:jarvis|جارفيس|جارفس|جارفز)[\s,:;.!?،؟-]*/iu, '')
+    .replace(/[\s.!?؟]+$/u, '')
     .trim();
+}
+
+const hasArabic = (text: string) => /[\u0600-\u06FF]/.test(text);
+
+function tool(name: string, args: Record<string, unknown>, successMessage = 'Done.'): DeterministicToolRoute {
+  return { call: { id: createId('tool'), tool: name, arguments: args }, successMessage };
+}
+
+/**
+ * The phone commands: messages, calls, calendar, battery, calling and texting
+ * a contact, web search. Each tool returns its own spoken sentence.
+ */
+function routePhone(trimmed: string, normalized: string): DeterministicToolRoute | null {
+  const lang = hasArabic(trimmed) ? 'ar' : 'en';
+
+  if (
+    /^(?:read|check|show)(?:\s+me)?\s+(?:my\s+)?(?:new\s+|latest\s+|recent\s+|unread\s+|last\s+)?(?:messages|texts|sms)$/.test(normalized) ||
+    /^(?:do\s+i\s+have\s+)?any\s+(?:new\s+)?(?:messages|texts)$/.test(normalized) ||
+    /^what\s+are\s+my\s+(?:messages|texts)$/.test(normalized) ||
+    /^(?:اقرأ|اقرا|اقري|شوف)\s+(?:لي\s+)?(?:ال)?(?:رسائل|رسايل|مسجات)/u.test(trimmed) ||
+    /عندي\s+(?:أي\s+|اي\s+)?(?:رسائل|رسايل|مسجات)/u.test(trimmed)
+  ) {
+    return tool('phone.read_messages', { lang });
+  }
+
+  if (/\bmissed\s+calls?\b/.test(normalized) || /مكالمات\s+(?:فائتة|فايتة|فائته|فايته)/u.test(trimmed)) {
+    return tool('phone.recent_calls', { missed: true, lang });
+  }
+  if (
+    /^(?:who\s+(?:called|rang)(?:\s+me)?|(?:show\s+(?:me\s+)?)?(?:my\s+)?(?:recent\s+calls|call\s+log|call\s+history|last\s+calls?))$/.test(normalized) ||
+    /^(?:مين|من)\s+(?:اتصل|دق|كلمني)/u.test(trimmed) ||
+    /سجل\s+المكالمات/u.test(trimmed)
+  ) {
+    return tool('phone.recent_calls', { missed: false, lang });
+  }
+
+  const calendar = normalized.match(
+    /^(?:what(?:'s|\s+is)\s+on\s+my\s+(?:calendar|schedule|agenda)|(?:show|read|check)\s+(?:me\s+)?my\s+(?:calendar|schedule|agenda|appointments|meetings)|my\s+(?:calendar|schedule|agenda|appointments|meetings)|what\s+do\s+i\s+have|do\s+i\s+have\s+(?:any\s+)?(?:meetings|appointments))(?:\s+(?:for\s+)?(today|tomorrow|this\s+week))?$/,
+  );
+  if (calendar) {
+    const when = calendar[1] ?? 'today';
+    return tool('phone.calendar', { span: when.startsWith('this') ? 'week' : when, lang });
+  }
+  if (/(?:جدولي|جدول\s+اليوم|مواعيدي|اجتماعاتي|التقويم)/u.test(trimmed)) {
+    const span = /(?:بكرة|بكره|غدا|غدًا|غداً|باچر|باكر)/u.test(trimmed) ? 'tomorrow' : /(?:الأسبوع|الاسبوع)/u.test(trimmed) ? 'week' : 'today';
+    return tool('phone.calendar', { span, lang });
+  }
+
+  if (
+    /^(?:(?:what(?:'s|\s+is)\s+(?:my\s+|the\s+)?)?battery(?:\s+(?:level|status|percentage))?|how\s+much\s+battery(?:\s+(?:do\s+i\s+have|is\s+left|left))?|am\s+i\s+charging)$/.test(normalized) ||
+    /^(?:كم\s+)?(?:البطارية|البطاريه|الشحن|الشحنة)(?:\s+كم)?$/u.test(trimmed)
+  ) {
+    return tool('phone.battery', { lang });
+  }
+
+  const call = trimmed.match(/^(?:call|dial|phone|ring)\s+(.+)$/i) ?? trimmed.match(/^(?:اتصل|اتّصل|كلم|كلّم|دق)\s+(?:على\s+|علي\s+|بـ\s*)?(.+)$/u);
+  if (call?.[1]) return tool('phone.call', { who: call[1].trim(), lang });
+
+  const text =
+    trimmed.match(/^(?:text|message|sms|send\s+(?:a\s+)?(?:text|message|sms)\s+to)\s+(.+?)(?:\s+(?:saying|that\s+says|and\s+say|say)\s+(.+))?$/i) ??
+    trimmed.match(/^(?:ارسل|أرسل|ابعث|راسل)\s+(?:رسالة\s+|رساله\s+|مسج\s+)?(?:إلى\s+|الى\s+)?(.+?)(?:\s+(?:وقل|قل|وقول|قول|يقول|تقول)\s+(.+))?$/u);
+  if (text?.[1]) {
+    return tool('phone.text', { who: text[1].trim(), ...(text[2] ? { body: text[2].trim() } : {}), lang });
+  }
+
+  const search =
+    trimmed.match(/^(?:search\s+(?:the\s+web\s+|google\s+)?for|google|look\s+up|search)\s+(.+)$/i) ??
+    trimmed.match(/^(?:ابحث|دور|دوّر)\s+(?:عن|على)\s+(.+)$/u);
+  if (search?.[1]) return tool('phone.web_search', { query: search[1].trim(), lang });
+
+  return null;
 }
 
 export function routeDeterministicTool(text: string): DeterministicToolRoute | null {
@@ -66,14 +122,6 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
     return {
       call: { id: createId('tool'), tool: 'device.open_dialer', arguments: {} },
       successMessage: 'Opened the dialer.',
-    };
-  }
-
-  const dialMatch = trimmed.match(/^(?:dial|call)\s+([+0-9 ()-]{3,40})$/i);
-  if (dialMatch?.[1]) {
-    return {
-      call: { id: createId('tool'), tool: 'device.open_dialer', arguments: { number: dialMatch[1].trim() } },
-      successMessage: `Opened the dialer for ${dialMatch[1].trim()}. Tap Call to place it.`,
     };
   }
 
@@ -139,17 +187,6 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
     };
   }
 
-  const englishApp = trimmed.match(/^(?:open|launch)\s+(?:the\s+)?(.+)$/i);
-  const arabicApp = trimmed.match(/^(?:افتح|شغل)\s+(.+)$/u);
-  const requestedApp = (englishApp?.[1] ?? arabicApp?.[1])?.trim().toLowerCase();
-  const packageName = requestedApp ? KNOWN_APPS[requestedApp] : undefined;
-  if (packageName) {
-    return {
-      call: { id: createId('tool'), tool: 'termux.app_open', arguments: { package: packageName } },
-      successMessage: `Opened ${requestedApp}.`,
-    };
-  }
-
   const urlMatch = trimmed.match(/^(?:open|افتح)\s+(https?:\/\/\S+)$/i);
   if (urlMatch?.[1]) {
     return {
@@ -157,6 +194,15 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
       successMessage: `Opened ${urlMatch[1]}`,
     };
   }
+
+  const phoneRoute = routePhone(trimmed, normalized);
+  if (phoneRoute) return phoneRoute;
+
+  // Any installed app, matched by name on the phone itself.
+  const englishApp = trimmed.match(/^(?:open|launch|start)\s+(?:the\s+)?(.+?)(?:\s+app)?$/i);
+  const arabicApp = trimmed.match(/^(?:افتح|شغل|شغّل)\s+(?:تطبيق\s+)?(.+)$/u);
+  const requestedApp = (englishApp?.[1] ?? arabicApp?.[1])?.trim();
+  if (requestedApp) return tool('phone.open_app', { name: requestedApp, lang: hasArabic(trimmed) ? 'ar' : 'en' });
 
   if (normalized === 'termux status' || normalized === 'حالة termux') {
     return {

@@ -54,7 +54,10 @@ ok()   { echo "  OK    $1"; }
 skip() { echo "  SKIP  $1 — $2"; }
 
 echo "== Granting permissions =="
-for perm in android.permission.RECORD_AUDIO android.permission.POST_NOTIFICATIONS; do
+# adb installs whitelist restricted permissions (SMS, call log), so pm grant works for them here.
+for perm in android.permission.RECORD_AUDIO android.permission.POST_NOTIFICATIONS \
+  android.permission.READ_CONTACTS android.permission.CALL_PHONE android.permission.READ_SMS \
+  android.permission.READ_CALL_LOG android.permission.READ_CALENDAR; do
   if adb shell pm grant "$PKG" "$perm" 2>/dev/null; then ok "$perm"; else skip "$perm" "not requested by this build"; fi
 done
 
@@ -74,7 +77,7 @@ else
 fi
 
 echo "== Verifying =="
-adb shell dumpsys package "$PKG" | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS" | grep -o "android.permission.[A-Z_]*: granted=[a-z]*" | sort -u || true
+adb shell dumpsys package "$PKG" | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|CALL_PHONE|READ_SMS|READ_CALL_LOG|READ_CALENDAR" | grep -o "android.permission.[A-Z_]*: granted=[a-z]*" | sort -u || true
 echo "  overlay: $(adb shell appops get "$PKG" SYSTEM_ALERT_WINDOW | tr -d '\r')"
 adb shell dumpsys deviceidle whitelist | grep -q "$PKG" && echo "  battery: exempt" || echo "  battery: optimised"
 

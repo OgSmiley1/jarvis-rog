@@ -70,8 +70,8 @@ export default function JarvisHud() {
     },
   });
 
-  function speakJarvis(text: string) {
-    recordLive('speak', text, { engine: neural.isReady ? 'neural' : 'system' });
+  function speakJarvis(text: string, secret = false) {
+    recordLive('speak', secret ? '[private phone data]' : text, { engine: neural.isReady ? 'neural' : 'system' });
     if (neural.isReady) {
       neural.speakAll(text);
       return;
@@ -175,19 +175,23 @@ export default function JarvisHud() {
       );
       setResponse(result.text);
       setAnswerSource(result.source);
-      recordLive('answer', result.text, {
+      // Messages, calls, contacts and calendar never reach the live log
+      // (a public repository) or the conversation history sent to a brain.
+      recordLive('answer', result.private ? '[private phone data]' : result.text, {
         source: result.source,
         ms: Date.now() - askedAt,
         firstTokenMs: firstTokenAt ? firstTokenAt - askedAt : null,
         chars: result.text.length,
         voice: stream ? 'streamed' : voiceOut ? 'whole' : 'off',
       });
-      historyRef.current = appendExchange(historyRef.current, command, result.text);
+      if (!result.private) historyRef.current = appendExchange(historyRef.current, command, result.text);
 
-      if (stream) {
+      // A tool the local brain chose returns its sentence whole, with no
+      // tokens streamed — speak it whole rather than flushing an empty stream.
+      if (stream && firstTokenAt) {
         say(stream.flush());
       } else if (voiceOut) {
-        speakJarvis(result.text);
+        speakJarvis(result.text, result.private);
       }
     } catch (error) {
       const message = humanizeError(errorMessage(error));

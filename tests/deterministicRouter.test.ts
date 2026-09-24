@@ -28,31 +28,30 @@ describe('deterministic tool routing', () => {
     expect(route?.call.arguments).toEqual({ query: 'دبي مول' });
   });
 
-  it('routes common app-open commands through the safe Termux launcher', () => {
+  it('opens any installed app by name, on the phone itself', () => {
     const route = routeDeterministicTool('Jarvis open YouTube');
-    expect(route?.call.tool).toBe('termux.app_open');
-    expect(route?.call.arguments).toEqual({ package: 'com.google.android.youtube' });
+    expect(route?.call.tool).toBe('phone.open_app');
+    expect(route?.call.arguments).toEqual({ name: 'YouTube', lang: 'en' });
   });
 
   it('routes Arabic app-open commands', () => {
-    const route = routeDeterministicTool('جارفس افتح whatsapp');
-    expect(route?.call.tool).toBe('termux.app_open');
-    expect(route?.call.arguments).toEqual({ package: 'com.whatsapp' });
+    const route = routeDeterministicTool('جارفس افتح واتساب');
+    expect(route?.call.tool).toBe('phone.open_app');
+    expect(route?.call.arguments).toEqual({ name: 'واتساب', lang: 'ar' });
   });
 
-  it('routes the media and ROG apps the owner asks for by name', () => {
-    expect(routeDeterministicTool('Jarvis launch Spotify')?.call.arguments).toEqual({ package: 'com.spotify.music' });
-    expect(routeDeterministicTool('open armoury crate')?.call.arguments).toEqual({ package: 'com.asus.gamecenter' });
+  it('drops a trailing "app" and punctuation from the name', () => {
+    expect(routeDeterministicTool('Jarvis, launch the Spotify app.')?.call.arguments).toEqual({ name: 'Spotify', lang: 'en' });
   });
 
   it('routes the camera directly', () => {
     expect(routeDeterministicTool('Jarvis open camera')?.call.tool).toBe('device.open_camera');
   });
 
-  it('routes dialer without placing a call', () => {
+  it('calls a number', () => {
     const route = routeDeterministicTool('Jarvis call +971501234567');
-    expect(route?.call.tool).toBe('device.open_dialer');
-    expect(route?.call.arguments).toEqual({ number: '+971501234567' });
+    expect(route?.call.tool).toBe('phone.call');
+    expect(route?.call.arguments).toEqual({ who: '+971501234567', lang: 'en' });
   });
 
   it('routes SMS composer without sending', () => {

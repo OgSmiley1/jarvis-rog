@@ -13,6 +13,7 @@ import { CloudBrainCard } from '@/components/CloudBrainCard';
 import { FloatingOrbCard } from '@/components/FloatingOrbCard';
 import { NeuralVoiceCard } from '@/components/NeuralVoiceCard';
 import { LiveTestCard } from '@/components/LiveTestCard';
+import { PhoneAccessCard } from '@/components/PhoneAccessCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -258,6 +259,8 @@ export default function SettingsScreen() {
       <CloudBrainCard />
 
       <FloatingOrbCard />
+
+      <PhoneAccessCard />
 
       <NeuralVoiceCard />
 
