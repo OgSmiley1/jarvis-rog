@@ -18,6 +18,7 @@ import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceRespo
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
+import { useChargeReminder } from '@/hooks/useChargeReminder';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
@@ -68,6 +69,13 @@ export default function JarvisHud() {
       speakingRef.current = speaking;
       setSpeaking(speaking);
     },
+  });
+
+  useChargeReminder({
+    enabled: jarvis.settings.chargeReminderEnabled,
+    threshold: jarvis.settings.chargeReminderLevel,
+    language: jarvis.settings.language === 'ar' ? 'ar' : 'en',
+    speak: (text) => speakJarvis(text),
   });
 
   function speakJarvis(text: string, secret = false) {

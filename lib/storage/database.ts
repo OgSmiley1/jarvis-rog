@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   floatingOrbEnabled: false,
   // Off by default: 351 MB should never start downloading on mobile data unasked.
   neuralVoiceEnabled: false,
+  chargeReminderEnabled: true,
+  chargeReminderLevel: 0.2,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

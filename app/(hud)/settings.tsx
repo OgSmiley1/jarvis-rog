@@ -262,6 +262,29 @@ export default function SettingsScreen() {
 
       <PhoneAccessCard />
 
+      <Card title="Charge reminder">
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>Remind me to charge</AppText>
+          <Switch
+            value={jarvis.settings.chargeReminderEnabled}
+            onValueChange={(value) => void jarvis.updateSettings({ chargeReminderEnabled: value })}
+          />
+        </View>
+        <Row>
+          {[0.15, 0.2, 0.3].map((level) => (
+            <Button
+              key={level}
+              title={`${Math.round(level * 100)}%${jarvis.settings.chargeReminderLevel === level ? ' ✓' : ''}`}
+              onPress={() => void jarvis.updateSettings({ chargeReminderLevel: level })}
+            />
+          ))}
+        </Row>
+        <AppText muted>
+          A notification at this level, another at 10%, and one when charging reaches 100%. Spoken aloud too when JARVIS is
+          on screen. Works while JARVIS is running, including in the background with hands-free or the floating orb on.
+        </AppText>
+      </Card>
+
       <NeuralVoiceCard />
 
       <LiveTestCard />

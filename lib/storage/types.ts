@@ -56,6 +56,10 @@ export interface JarvisSettings {
    * the phone's best voice: Kokoro has no Arabic model.
    */
   neuralVoiceEnabled: boolean;
+  /** Remind the owner to charge (notification, and spoken when on screen). */
+  chargeReminderEnabled: boolean;
+  /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */
+  chargeReminderLevel: number;
   /** Per-provider model overrides; unset uses the provider's default. */
   cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
   /**
