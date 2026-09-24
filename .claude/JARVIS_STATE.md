@@ -891,3 +891,18 @@ JARVIS is not “alive” because the UI opens. It is alive when a real APK on t
 - and pass the documented acceptance gates.
 
 Until those are observed, report the remaining gap truthfully.
+
+## SESSION 6 — brain survives, phone control, charge reminder (24 Sep 2026)
+
+Owner report: the brain downloaded yesterday asked to download again; a
+download restarted from 0% after leaving the app. Causes and fixes in f2e9bbb.
+Owner asked for Muse-style phone control (f151636) and a charge reminder
+(82f9772).
+
+Build `bc047ad7` on `82f9772` — **FINISHED** 18:58 UTC (queued 56 min on the
+free tier, ran 14 min), BUILD SUCCESSFUL, zero Kotlin errors; both new local
+modules (expo-jarvis-brain, expo-jarvis-phone) compiled.
+APK: https://expo.dev/artifacts/eas/WikoiqX3Gkuuis1YzK-vCCAcrKMJUPvNDxDB6H1pyS4.apk
+Not yet verified on the device: DownloadManager survival, the permission
+prompts (SMS/call log are restricted for browser installs), app-list
+visibility, reminder notifications.
