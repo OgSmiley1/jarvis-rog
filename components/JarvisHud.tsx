@@ -117,9 +117,14 @@ export default function JarvisHud() {
     const deterministic = Boolean(routeDeterministicTool(command));
     const askedAt = Date.now();
     let firstTokenAt = 0;
+    let firstSpeechAt = 0;
+    const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
+    // A spoken question gets the fast profile: short, low-temperature, and the
+    // quickest to its first word. Deeper modes stay for typed work.
+    const turnMode: IntelligenceMode = voiceOut ? 'fast' : mode;
     recordLive('ask', command, {
       route: deterministic ? 'tool' : jarvis.modelState.status === 'ready' ? 'local' : jarvis.cloudReady ? 'cloud' : 'none',
-      mode,
+      mode: turnMode,
     });
 
     setBusy(true);
@@ -138,7 +143,6 @@ export default function JarvisHud() {
     pendingSystemSegmentsRef.current = 0;
     neural.stop();
     void stopSpeaking();
-    const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
     // Speak each sentence the moment it is complete, rather than waiting for
     // the whole answer. A tool route returns one short string with nothing to
     // stream, so it keeps the simple path.
@@ -146,6 +150,7 @@ export default function JarvisHud() {
 
     const say = (segments: string[]) => {
       if (!stream || segments.length === 0 || speechEpochRef.current !== epoch) return;
+      if (!firstSpeechAt) firstSpeechAt = Date.now();
       if (neural.isReady) {
         // Speaking state is reported by the neural queue itself.
         for (const segment of segments) neural.enqueue(segment);
@@ -170,7 +175,7 @@ export default function JarvisHud() {
     try {
       const result = await jarvis.ask(
         command,
-        mode,
+        turnMode,
         (token) => {
           if (!firstTokenAt) firstTokenAt = Date.now();
           setResponse((current) => current + token);
@@ -191,6 +196,9 @@ export default function JarvisHud() {
         source: result.source,
         ms: Date.now() - askedAt,
         firstTokenMs: firstTokenAt ? firstTokenAt - askedAt : null,
+        // When the first sentence was handed to the voice — the owner's
+        // "time to first word". Null for whole-answer (tool) speech.
+        firstSpeechMs: firstSpeechAt ? firstSpeechAt - askedAt : null,
         chars: result.text.length,
         voice: stream ? 'streamed' : voiceOut ? 'whole' : 'off',
       });
