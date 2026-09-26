@@ -37,6 +37,8 @@ import {
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { stripThinking } from '@/lib/voice/stripThinking';
+import { setBrainReader } from '@/lib/tools/utilityTools';
+import { shortModelName } from '@/lib/hud/dashboard';
 import { Platform } from 'react-native';
 import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
@@ -297,6 +299,15 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   }, []);
 
   const cloudReady = settings.cloudFallbackEnabled && cloudProviders.length > 0;
+
+  useEffect(() => {
+    // "System information" reports the brain as the app knows it right now.
+    setBrainReader(() => ({
+      brain:
+        modelState.status === 'ready' ? 'ready' : modelState.status === 'loading' ? 'loading' : cloudReady ? 'cloud' : 'none',
+      name: shortModelName(modelState.modelName ?? settings.modelName),
+    }));
+  }, [modelState.status, modelState.modelName, settings.modelName, cloudReady]);
 
   const unloadModel = useCallback(async () => {
     const runtime = await getRuntime();

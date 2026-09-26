@@ -1,5 +1,6 @@
 import type { JarvisToolCall } from './types';
 import { createId } from '@/lib/utils/ids';
+import { extractExpression } from '@/lib/utils/voiceMath';
 
 export interface DeterministicToolRoute {
   call: JarvisToolCall;
@@ -18,6 +19,67 @@ const hasArabic = (text: string) => /[\u0600-\u06FF]/.test(text);
 
 function tool(name: string, args: Record<string, unknown>, successMessage = 'Done.'): DeterministicToolRoute {
   return { call: { id: createId('tool'), tool: name, arguments: args }, successMessage };
+}
+
+const SITES: Record<string, { home: string; search: (q: string, ar: boolean) => string; name: string }> = {
+  google: { name: 'Google', home: 'https://www.google.com', search: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}` },
+  youtube: { name: 'YouTube', home: 'https://www.youtube.com', search: (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}` },
+  wikipedia: {
+    name: 'Wikipedia',
+    home: 'https://www.wikipedia.org',
+    search: (q, ar) => `https://${ar ? 'ar' : 'en'}.wikipedia.org/w/index.php?search=${encodeURIComponent(q)}`,
+  },
+};
+const SITE_ALIASES: Record<string, string> = { جوجل: 'google', قوقل: 'google', غوغل: 'google', يوتيوب: 'youtube', ويكيبيديا: 'wikipedia' };
+
+/** The video-2 basics: time, date, sums, system report, named websites and site searches. */
+function routeUtility(trimmed: string, normalized: string): DeterministicToolRoute | null {
+  const lang = hasArabic(trimmed) ? 'ar' : 'en';
+  const ar = lang === 'ar';
+
+  if (/^(?:what(?:'s|\s+is)\s+the\s+time\s+and\s+date|time\s+and\s+date)$/.test(normalized)) return tool('utility.time', { what: 'both', lang });
+  if (/^(?:what(?:'s|\s+is)\s+the\s+time|what\s+time\s+is\s+it|tell\s+me\s+the\s+time|the\s+time|time)$/.test(normalized) || /^(?:كم\s+الساع[ةه]|الساع[ةه]\s+كم)$/u.test(trimmed)) {
+    return tool('utility.time', { what: 'time', lang });
+  }
+  if (
+    /^(?:what(?:'s|\s+is)\s+(?:the\s+|today'?s\s+)?(?:date|day)(?:\s+today)?|what\s+day\s+is\s+(?:it|today)|today'?s\s+date|the\s+date|date)$/.test(normalized) ||
+    /^(?:ما\s+(?:هو\s+)?التاريخ|كم\s+التاريخ|التاريخ\s+اليوم|ايش\s+التاريخ|وش\s+التاريخ)$/u.test(trimmed)
+  ) {
+    return tool('utility.time', { what: 'date', lang });
+  }
+
+  if (
+    /^(?:give\s+me\s+(?:the\s+)?system\s+(?:information|info|status|report)|system\s+(?:information|info|status|report)|(?:phone|device)\s+(?:status|information|info|report)|how(?:'s|\s+is)\s+the\s+(?:phone|system))$/.test(normalized) ||
+    /^(?:أعطني\s+|اعطني\s+)?(?:معلومات|حالة)\s+(?:النظام|الجهاز|الهاتف|الجوال)$/u.test(trimmed)
+  ) {
+    return tool('utility.system_status', { lang });
+  }
+
+  const expression = extractExpression(trimmed);
+  if (expression) return tool('utility.calculate', { expression, lang });
+
+  const openSite = normalized.match(/^open\s+(google|youtube|wikipedia)(?:\s+website|\s+site|\s+in\s+(?:the\s+)?browser)$/);
+  if (openSite?.[1]) {
+    const site = SITES[openSite[1]]!;
+    return tool('device.open_url', { url: site.home }, `Opening ${site.name} in the browser.`);
+  }
+
+  const siteSearch =
+    normalized.match(/^(?:search(?:\s+for)?|look\s+up|find)\s+(.+?)\s+(?:on|in)\s+(google|youtube|wikipedia)$/) ??
+    trimmed.match(/^(?:ابحث|دور|دوّر)\s+(?:عن|على)\s+(.+?)\s+(?:في|على|ب)\s*(جوجل|قوقل|غوغل|يوتيوب|ويكيبيديا)$/u);
+  if (siteSearch?.[1] && siteSearch[2]) {
+    const key = SITE_ALIASES[siteSearch[2]] ?? siteSearch[2];
+    const site = SITES[key];
+    if (site) {
+      const query = siteSearch[1].trim();
+      return tool(
+        'device.open_url',
+        { url: site.search(query, ar) },
+        ar ? `أبحث عن ${query} في ${site.name}. (يحتاج إنترنت)` : `Searching ${site.name} for ${query}. That one needs the internet.`,
+      );
+    }
+  }
+  return null;
 }
 
 /** "What do you see?" — the only way the camera ever opens. */
@@ -210,6 +272,9 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
       successMessage: `Opened ${urlMatch[1]}`,
     };
   }
+
+  const utility = routeUtility(trimmed, normalized);
+  if (utility) return utility;
 
   const look = routeVision(trimmed, normalized);
   if (look) return look;

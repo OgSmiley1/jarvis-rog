@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
@@ -18,6 +18,7 @@ import { SpeechStream } from '@/lib/voice/speechStream';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { wakeGreeting } from '@/lib/hud/greeting';
+import { detectLanguageSwitch, isShareCommand, languageSwitchedReply } from '@/lib/hud/hudCommands';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
@@ -94,9 +95,10 @@ export default function JarvisHud() {
     return liveText(text, jarvis.settings.liveTranscriptsUntil, Date.now());
   }
 
-  function speakJarvis(text: string, secret = false) {
+  function speakJarvis(text: string, secret = false, language = jarvis.settings.language) {
     recordLive('speak', secret ? '[private phone data]' : said(text), { engine: neural.isReady ? 'neural' : 'system' });
-    if (neural.isReady) {
+    // Kokoro is English-only; anything else uses the phone's own voice for that language.
+    if (neural.isReady && language === 'en') {
       neural.speakAll(text);
       return;
     }
@@ -110,7 +112,7 @@ export default function JarvisHud() {
       recordLive('error', 'system voice failed', { error: error === undefined ? null : errorMessage(error) });
       release();
     };
-    void speakResponse(text, jarvis.settings.language, {
+    void speakResponse(text, language, {
       onDone: release,
       onError: failed,
     }).catch(failed);
@@ -127,6 +129,33 @@ export default function JarvisHud() {
     }
 
     if (busy) return;
+
+    const voiceReply = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
+
+    // App-level commands: they change JARVIS itself, so they never reach a brain.
+    const switchTo = detectLanguageSwitch(command);
+    if (switchTo) {
+      await jarvis.updateSettings({ language: switchTo });
+      const reply = languageSwitchedReply(switchTo);
+      recordLive('app', 'language switched', { to: switchTo });
+      setResponse(reply);
+      setInput('');
+      if (voiceReply) speakJarvis(reply, false, switchTo);
+      return;
+    }
+    if (isShareCommand(command)) {
+      setInput('');
+      if (!response.trim()) {
+        const nothing = arabic ? 'لا يوجد رد لمشاركته بعد.' : "There's no answer to share yet.";
+        setResponse(nothing);
+        if (voiceReply) speakJarvis(nothing);
+        return;
+      }
+      recordLive('app', 'share sheet opened');
+      // The owner picks the app in Android's share sheet; nothing is sent by itself.
+      await Share.share({ message: response });
+      return;
+    }
 
     // The deterministic router is the same function `ask` consults first, so
     // this reports the path the request will actually take rather than a guess.
