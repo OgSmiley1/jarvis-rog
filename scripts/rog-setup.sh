@@ -16,7 +16,7 @@ set -euo pipefail
 # you leave that screen.
 
 PKG="com.app.localjarviscoach"
-LATEST_APK="https://expo.dev/artifacts/eas/WikoiqX3Gkuuis1YzK-vCCAcrKMJUPvNDxDB6H1pyS4.apk"
+LATEST_APK="https://expo.dev/artifacts/eas/TuPqVdcTlMn77N8u3RwXi11W9upHMn__4J4r6MDFxZQ.apk"
 APK_URL="${1:-$LATEST_APK}"
 BRAIN_NAME="Qwen3-4B-Q4_K_M.gguf"
 BRAIN_URL="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/${BRAIN_NAME}?download=true"

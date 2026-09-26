@@ -928,4 +928,5 @@ Whisper labels "(Bell)", and System UI ANR'd while the brain loaded on GPU.
 (`getFormattedChat`, jinja on by default). Empirical check on the device
 still owed: the live log's ANSWER lines must contain no "<think>".
 
-Build `206bc03d` queued on 9ca8574.
+Build `206bc03d` on 9ca8574 — **FINISHED** 02:54 UTC (13 min, no queue), BUILD SUCCESSFUL, zero Kotlin errors; expo-jarvis-brain and expo-image-picker compiled.
+APK: https://expo.dev/artifacts/eas/TuPqVdcTlMn77N8u3RwXi11W9upHMn__4J4r6MDFxZQ.apk (now the setup script default).
