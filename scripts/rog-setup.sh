@@ -57,6 +57,15 @@ ok "connected"
 
 step "Installing JARVIS (keeps your data)"
 curl -fL --retry 3 -o "$WORK/jarvis.apk" "$APK_URL"
+# Prove the download is a real JARVIS before installing it: the brain's native
+# libraries must be inside, or the app would install but never think.
+command -v unzip >/dev/null 2>&1 || pkg install -y unzip
+echo "  APK sha256: $(sha256sum "$WORK/jarvis.apk" | awk '{print $1}')"
+libs=$(unzip -l "$WORK/jarvis.apk" | awk '{print $4}')
+for want in "lib/arm64-v8a/librnllama" "lib/arm64-v8a/libreact-native-audio-api" "assets/index.android.bundle"; do
+  if echo "$libs" | grep -q "^$want"; then ok "APK contains $want"; else echo "FAIL: APK is missing $want — do not install it, tell Claude."; exit 8; fi
+done
+echo "$libs" | grep "^lib/arm64-v8a/librnllama" | sed 's/^/        /'
 adb install -r -g "$WORK/jarvis.apk"
 adb shell pm path "$PKG" >/dev/null || { echo "FAIL: $PKG is not installed."; exit 3; }
 ok "installed"
