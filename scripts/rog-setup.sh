@@ -16,7 +16,7 @@ set -euo pipefail
 # you leave that screen.
 
 PKG="com.app.localjarviscoach"
-LATEST_APK="https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk"
+LATEST_APK="https://expo.dev/artifacts/eas/2wJnoCVc0r3TdRTjGJ_VL7JWPdDBQ-56OUgR4NAvVTY.apk"
 APK_URL="${1:-$LATEST_APK}"
 BRAIN_NAME="Qwen3-4B-Q4_K_M.gguf"
 BRAIN_URL="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
@@ -143,7 +143,7 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 cat <<'NEXT'
 
 Done. JARVIS loads the brain by itself in a few seconds — no download button.
-  1. Say: "Jarvis, how much battery"  /  "Jarvis, what do you see"
+  1. Say: "Jarvis, how much battery"  /  "Jarvis, open the camera", then "what do you see"
   2. Settings -> Live test link -> Start live link, so Claude can watch the test.
 Run this same command again any time to update JARVIS; the brain stays.
 NEXT

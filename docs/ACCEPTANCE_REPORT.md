@@ -211,3 +211,17 @@ preview, FINISHED 05:06 UTC. APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c
 | 3 Video-2 parity (time, maths, system info, site search, language switch, share) | PASS in unit tests; device NOT RUN | tests/utilityCommands.test.ts (32) |
 | 4 Privacy: live log word counts by default | PASS in unit tests | tests/transcriptPolicy.test.ts — dictated name/number/code absent from snapshot() and toText() |
 | 4 Calls never auto-dial | PASS in unit tests + manifest | ACTION_DIAL only, CALL_PHONE removed; tests/callDialer.test.ts |
+
+## Session 9 — 26 Sep 2026 (the reference-video look)
+
+Source commit `2512167`. EAS build `ac59bd3c-6e8e-4a3a-800c-cbbf7de4c7a1`, preview, FINISHED 12:11 UTC.
+APK: https://expo.dev/artifacts/eas/2wJnoCVc0r3TdRTjGJ_VL7JWPdDBQ-56OUgR4NAvVTY.apk (setup-script default)
+
+| Gate | Result | Evidence |
+|---|---|---|
+| 1 Build — typecheck, lint, tests, smoke | PASS | 394/394 vitest, `pnpm smoke` PASS, `tsc` and lint clean |
+| 1 Build — Gradle release | PASS | EAS log: BUILD SUCCESSFUL in 11m 59s, 0 Kotlin errors; react-native-svg compiled; expo-camera 17.0.10 autolinked (prebuilt); rnllama_v8_2_dotprod_i8mm(+hexagon_opencl), arm64-v8a |
+| 3 Look — grid, reactor orb, clock under orb | PASS as design preview; device NOT RUN | browser render of the same geometry (not a phone screenshot); tests/orbGeometry.test.ts |
+| 3 Camera page, mini orb, "open the camera", look from live view | PASS in unit tests; device NOT RUN | tests/cameraPage.test.ts |
+| 3 Thinking filler after 1.2 s | PASS in unit tests; device NOT RUN | tests/thinkingFiller.test.ts; live log `fillerMs` |
+| 4 Camera privacy | PASS by construction | preview only while the page is visible and the app in front; capture unregistered on pause; no audio; photo deleted after description |
