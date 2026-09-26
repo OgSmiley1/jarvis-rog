@@ -17,7 +17,6 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
   <div id="wrap">
     <div id="status">Loading Puter.js gateway…</div>
     <button id="connect">Connect Puter for keyless AI</button>
-    <button id="refresh" class="secondary">Refresh models</button>
     <div id="error"></div>
   </div>
 <script>
@@ -25,7 +24,6 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
   const status = document.getElementById('status');
   const errorBox = document.getElementById('error');
   const connect = document.getElementById('connect');
-  const refresh = document.getElementById('refresh');
 
   const post = (type, payload, requestId) => {
     try {
@@ -78,12 +76,35 @@ export const PUTER_BRIDGE_HTML = String.raw`<!doctype html>
       await authState();
       await listModels('connect');
     } catch (error) {
+      // In JARVIS the sign-in page opens in a separate native window, so the
+      // popup puter.js tracks here closes as soon as it opens and puter.js
+      // reports 'auth_window_closed'. That is expected, not a failure: the
+      // token arrives through __jarvisPuterSetToken below once the owner
+      // finishes signing in.
+      if (error && error.error === 'auth_window_closed') {
+        status.textContent = 'Finish signing in on the Puter screen…';
+        return;
+      }
       errorBox.textContent = errorText(error);
       post('bridge_error', { message: errorText(error) });
     }
   });
 
-  refresh.addEventListener('click', () => listModels('manual-refresh'));
+  // Called by JARVIS with the token Puter's sign-in page posted to its opener.
+  // puter.setAuthToken is Puter's own public API for exactly this; it
+  // persists the session the same way a browser popup sign-in would.
+  window.__jarvisPuterSetToken = async (token) => {
+    try {
+      errorBox.textContent = '';
+      puter.setAuthToken(token);
+      const signedIn = await authState();
+      if (signedIn) await listModels('signed-in');
+    } catch (error) {
+      errorBox.textContent = errorText(error);
+      post('bridge_error', { message: errorText(error) });
+    }
+  };
+
 
   window.__jarvisPuter = async (command) => {
     const requestId = command?.requestId;

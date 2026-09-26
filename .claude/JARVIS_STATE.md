@@ -1,5 +1,65 @@
 # JARVIS ROG — LIVE BUILD STATE
 
+> **DEVICE CRASH ROOT CAUSE + FIX — 2026-09-22**
+>
+> Physical ROG logcat identified the startup crash exactly:
+> `react-native-audio-api 0.9.3` constructs `AudioAPIModule` before the JS runtime is ready,
+> causing `AudioAPIModule.initHybrid()` to throw a NullPointerException on startup.
+> This is the same upstream defect fixed by Software Mansion PR #971 by moving
+> `initHybrid` into `install()` and asserting the JS queue thread.
+>
+> JARVIS now backports that upstream native fix deterministically from
+> `scripts/patch-react-native-audio-api.mjs` via the root `postinstall` hook.
+> CI verifies the patched native source before continuing. The local LLM,
+> memory, Android Assistant, tools, Termux bridge, and hands-free design were not removed.
+>
+> Startup hardening remains: the lightweight app shell paints before heavy
+> AI/audio imports, but the real JARVIS runtime starts automatically immediately
+> afterwards, and an already-configured GGUF still auto-loads.
+>
+> **Current gate:** build a new arm64 release APK from the current
+> `feat/handsfree-jarvis-rog` head, install that exact APK, then re-run cold launch.
+> Do not reinstall or validate the older `b9c88cb` APK; it contains the confirmed
+> crashing Audio API initialization path.
+>
+> **VERIFICATION UPDATE — 2026-09-21**
+>
+> Continue from `feat/handsfree-jarvis-rog`; see
+> `docs/BUILD_VERIFICATION_2026-09-21.md` for current evidence. Missing GitHub logs
+> do not establish an account-level failure. The currently accessible Expo
+> project differs from the project configured in this repository.
+> Local Android compilation was interrupted by cancelled network approval;
+> the offline fallback confirmed that build dependencies are still missing.
+> No APK was produced. Restore approved downloads or original Expo access to resume.
+> Source checks and prebuild are not APK or device acceptance.
+
+> **AUDIT UPDATE — 2026-09-20**
+>
+> Current working branch: `feat/handsfree-jarvis-rog`.
+> Build target: **0.4.0** for `com.app.localjarviscoach`.
+> The older sections below are retained as historical evidence, but any statement
+> saying background voice or Android Assistant is "not implemented" is superseded
+> by this update.
+>
+> Current source now includes: microphone foreground-service configuration,
+> hands-free wake-word routing, local STT, local GGUF reasoning, Android
+> VoiceInteractionService/SessionService integration, bounded tool planning,
+> Maps/email intents, authenticated Termux actions, owner profile memory, and
+> local TTS. The Termux installer is repeatable, creates its secret with Python,
+> prepares a Termux:Boot startup script, and all tracked shell scripts are stored
+> executable in Git.
+>
+> Final audit fixes include: correct speech-recognition bind permission, safe
+> wake-word boundary matching, STT input muted while JARVIS speaks, truthful
+> loaded-runtime diagnostics, clean Termux bridge restarts, and corrected
+> hands-free acceptance tests.
+>
+> **Current gate:** run one clean EAS Android preview build from the final audited
+> branch, then install that exact APK on the physical ROG Phone 8 Pro and execute
+> `docs/ACCEPTANCE_TESTS.md`. Do not claim final device success before those
+> tests pass.
+
+
 ## CURRENT OBJECTIVE
 
 Produce a verified, installable Android APK for the ASUS ROG Phone 8 Pro while preserving the local-first JARVIS architecture and package ID `com.app.localjarviscoach`.
@@ -423,6 +483,249 @@ layout meant `tsc` resolved the local module's own source path directly
 instead of through its symlink, breaking its internal `expo-modules-core`
 import. This does not affect Metro/Gradle, only `tsc`'s type-check walk.
 
+## SESSION 4 — the two branches were merged, and the eight tabs became one ambient HUD
+
+### Merge first, build second
+
+`main` carried Sessions 1–3 (jniLibs fix, Arabic directive, schema versioning,
+GBNF grammar, adaptive runtime, thermal bridge). PR #4
+(`feat/handsfree-jarvis-rog`, open and draft) carried the hands-free work: wake
+word, microphone foreground service, the native
+`VoiceInteractionService`/`RecognitionService` assistant registration, the
+constrained tool planner, the Qwen3-4B one-tap download, the
+`react-native-audio-api` startup-crash backport, and the ROG install scripts
+including `scripts/install-fixed-on-phone.sh`.
+
+Neither branch was a superset of the other. `origin/feat/handsfree-jarvis-rog`
+was merged into this branch — **cleanly, zero conflicts** — before any new work
+started, so nothing from either line was stranded. This branch is the only
+place both now exist.
+
+### The interface
+
+The eight-tab bar (Coach · Chat · AI Hub · Projects · Memory · Understand ·
+Reflect · Settings) is gone. There is one screen: the orb. Every former tab is
+still a route and is reachable as a sheet from the HUD drawer. The route group
+was renamed `app/(tabs)` → `app/(hud)` — group names do not affect URLs, so
+every existing `router.push` and deep link still resolves — and its `_layout`
+is a `Stack` rather than `Tabs`.
+
+`components/CoachRuntimeScreen.tsx` → `components/JarvisHud.tsx`. The
+hands-free wake loop, the self-listening suppression and the voice session
+lifecycle inside it are PR #4's, unchanged; only the presentation is new.
+**There is no second runtime screen.**
+
+Full rationale, file map and honest limits: `docs/AMBIENT_HUD.md`.
+
+### The orb reports measurements, not animation
+
+`components/JarvisOrb.tsx` is an animated arc reactor whose core is scaled by
+**measured microphone RMS** (`lib/voice/audioLevel.ts`), taken from the PCM
+frames the recorder actually delivered. No capturing session means level 0 and
+a resting orb; frames dropped by the self-listening guard also read 0, so the
+orb never shows JARVIS reacting to its own voice.
+
+`lib/hud/hudState.ts` derives the one word under the orb. `unloaded` reads
+OFFLINE and `loading` reads PREPARING — there is no optimistic READY — and the
+status strip reports acceleration only as `modelState.gpu` / `reasonNoGPU`
+actually reported it.
+
+Built from `Animated` and native-driver transforms only: no SVG, no Skia, no
+Reanimated, no new dependency, and no contention with token streaming on the JS
+thread. Rotation stops under `AccessibilityInfo.isReduceMotionEnabled()`.
+
+### Barge-in
+
+`lib/voice/bargeIn.ts` matches a whole-utterance halt in English or Arabic and
+the HUD stops TTS and generation directly, with no model call. Matching is
+narrow on purpose — "stop the car at the roundabout" is a question. While
+JARVIS is *speaking*, its own frames are discarded by design, so a spoken halt
+cannot be heard in that window: **tapping the orb is the barge-in there**.
+Spoken halts do reach the transcriber while it is generating.
+
+### Deliberately not done
+
+A floating `TYPE_APPLICATION_OVERLAY` orb drawn over other apps. It needs a new
+Kotlin Expo module, a `Settings.canDrawOverlays` consent flow and its own
+foreground service. This repository already carries native surface that has not
+yet survived a verified device launch; adding more before this branch produces
+an installable APK would make a failure harder to localise. The Android assist
+gesture already opens the HUD, because the hand-off in
+`JarvisVoiceInteractionSession` lands on `MainActivity`, which is now the orb.
+
+### Verified this session
+
+`pnpm check` 0 errors · `pnpm lint` exit 0 · `pnpm test` 23 files / 123 tests ·
+`pnpm smoke` 11 checks · `npx expo prebuild --platform android --clean` clean,
+no warnings. The generated manifest carries both assistant services,
+`BIND_VOICE_INTERACTION`, `FOREGROUND_SERVICE_MICROPHONE` and both `res/xml`
+configs, so PR #4's native registration survived the merge.
+
+**No APK was produced here, and none was attempted.** `dl.google.com` was
+re-tested this session and is denied at the CONNECT by this environment's
+egress policy (HTTP 403), so no Android SDK or AGP artifact can be fetched and
+Gradle cannot run. `api.expo.dev` is denied too, so EAS cannot be driven from
+this session either. The APK gate is unchanged: it is EAS or GitHub Actions,
+from the owner's side.
+
+## SESSION 4B — the voice became conversational, and the phone can now build its own APK
+
+### The APK dead end was a script bug, not only the runner block
+
+`scripts/install-fixed-on-phone.sh` could only **download** a finished EAS
+build, pinned to hardcoded commit `e6e0246`. No such build existed, so the
+script always failed with nothing the owner could do about it. Nothing in the
+repository ever *started* a build: `.eas/workflows/build-android.yml` is
+`workflow_dispatch: {}` — manual only, deliberately, to conserve build credits.
+So merging to `main` does **not** trigger an EAS build. Any note above saying
+it does is superseded.
+
+The script now builds the commit that is checked out
+(`eas build --platform android --profile preview --non-interactive --wait`),
+waits, then runs the existing integrity checks and installs. It runs from
+Termux on the owner's own network, so it depends on neither the blocked GitHub
+Actions runners nor any agent sandbox egress.
+
+It also names the account-access failure specifically. `app.config.ts` points
+at owner `smiley007s-team` / project `eda56376-…`; if the signed-in account
+cannot reach it, the script says so and offers `eas init --force` to build
+under the owner's own account instead. The package id is unchanged, so the APK
+installs over any previous build either way. Guarded by
+`tests/phoneInstallContract.test.ts` so it cannot regress to download-only.
+
+### Streaming speech — the largest free latency win
+
+JARVIS generated the whole answer and only then began speaking. On a 4B model
+writing six sentences, that is most of a minute of silence.
+
+`lib/voice/speechStream.ts` segments the token stream at sentence boundaries
+and speaks each finished sentence while the model writes the next. Time to
+first word drops from "the whole answer" to "the first sentence", and the voice
+then stays ahead of the generator. A sentence is released only once its
+terminator has actually arrived — nothing is predicted or faked.
+
+`speakQueued()` was added because `speakResponse()` calls `Speech.stop()`
+first, which would make each new segment silence the previous one. Handles
+decimals, abbreviations, `?!` runs, Arabic `؟`, unpunctuated run-ons, and
+strips markdown so it is not dictated aloud. Barge-in uses a **speech epoch**,
+so segments queued for an abandoned answer are dropped rather than resuming
+after the engine queue is cleared. 11 tests.
+
+### The HUD now holds a conversation
+
+It was calling `ask()` with no history, so every utterance was a cold start and
+"and tomorrow?" had nothing to attach to. `lib/hud/conversation.ts` keeps a
+bounded 12-message window, appended as pairs so history never holds a question
+with no answer. In-memory only — Chat records and approved memory remain the
+persistence layer. 7 tests.
+
+### Verified
+
+`pnpm check` 0 errors · `pnpm lint` exit 0 · `pnpm test` 26 files / 145 tests ·
+`pnpm smoke` 11 checks. Both embedded snippets in the shell script were
+executed directly (`bash -n`, and the JSON parser fed sample EAS output).
+
+**Still no APK from this environment, and still none attempted** — the egress
+block on `dl.google.com` and `api.expo.dev` is unchanged. What changed is that
+the owner now has one command that produces one.
+
+## SESSION 5 — a real APK from this branch, and the 45-minute wall measured and beaten
+
+### EAS was reachable all along — through the Expo connector
+
+Session 4 recorded that EAS could not be driven from here because
+`api.expo.dev` is denied to the sandbox shell. That was true of the shell and
+wrong as a conclusion: the Expo MCP connector reaches EAS through a different
+path. `build_list`, `build_run`, `build_info`, `build_logs` and `build_cancel`
+all work. Two finished APKs already existed in the project (`e6e0246`,
+`b9c88cb`); the owner installed `e6e0246` and sent screenshots.
+
+### What the owner's device test showed (Build e6e0246)
+
+No startup crash (the AudioAPIModule NPE backport holds on hardware); local
+STT READY; orb LISTENING with the mic indicator lit — and `Model: Not
+selected`, so JARVIS heard everything and answered nothing. Every tab icon
+rendered as a missing-glyph box. Puter sign-in spun forever. All acted on in
+08dc9b5 (see its commit message).
+
+### Why builds died at 45 minutes — measured per Gradle task
+
+| Build | ABIs | ccache | Gradle | llama.rn | Result |
+| --- | --- | --- | --- | --- | --- |
+| 7 cancelled | all 4 | miss | 39.9 min (still compiling) | — | killed at 45 |
+| `b9c88cb` | arm64 | miss | 37.0 min | 19.1 min | ~5 min spare |
+| `e6e0246` | arm64 | hit | 17.2 min | 0.4 min | fine |
+| **`bc77eace` (08dc9b5)** | **arm64** | **miss** | **18.3 min** | **3.8 min** | **20.1 min total** |
+
+`bc77eace` is a **cold** build ("No cache found for this key") — exactly the
+case that used to die — and finished with ~25 minutes to spare. The log
+confirms `Building rnllama variants:
+rnllama_v8_2_dotprod_i8mm_hexagon_opencl,rnllama_v8_2_dotprod_i8mm,rnllama`,
+zero armeabi-v7a/x86 compilation, the llama.rn jniLibs postinstall ran, the JS
+bundle was created, the audio-api patch applied, `BUILD SUCCESSFUL`, no
+`FAILURE`.
+
+**APK:** https://expo.dev/artifacts/eas/_FJQv4viVLNAgwyC903-xZ9w8Ol1D_pfR0mkWydnjHw.apk
+(expires 2026-10-07).
+
+**Not proven from the log:** that the three llama.rn JNI bridges are inside
+the APK — Gradle does not print CMake target names. The evidence points that
+way (the variant line, 3.8 min of llama.rn compilation), and the phone-side
+installer now requires `librnllama_jni_v8_2_dotprod_i8mm_hexagon_opencl.so`
+and `librnllama_jni.so` by exact name, so the first on-device install settles
+it. If the brain downloads but will not load, check this first.
+
+### Built after 08dc9b5, not yet in any APK
+
+- `fd40587` cloud brain fallback (Cerebras → Groq → Gemini), opt-in, keys in
+  the keystore.
+- `e23e9d2` floating orb over other apps — native Kotlin, never compiled yet.
+- `36ca223` Kokoro on-device neural voice (British male), 351 MB opt-in; and
+  two microphone-release bugs in the streaming speech path.
+- `46f3c5e` Puter popup sign-in relay, built from puter.js 2.6.3's real
+  protocol; Reset now remounts the bridge instead of reloading the stuck page.
+
+The next EAS build, on the latest head, is the compile check for all of these.
+
+Build `900e6cd8` (on `db35d19`) is that compile check — **FINISHED**
+22:04 UTC 23 Sep: 12.7 min running (38 min queue), Gradle `BUILD SUCCESSFUL in
+10m 55s` with a warm cache. `:expo-jarvis-overlay:compileReleaseKotlin` ran with
+zero `e:` errors — the floating orb's Kotlin compiles. Variants line present.
+APK: https://expo.dev/artifacts/eas/f6B2Km1heZMInvvdewwHI65nkZs9yZ4eS9P1MrqTskc.apk
+`76094589` on `e6d1abd` (adds the live test link) — **FINISHED** 22:40 UTC,
+13 min running after a 12-min queue, BUILD SUCCESSFUL, no Kotlin errors.
+APK: https://expo.dev/artifacts/eas/JPL392ziksfTM-FLfC8znI7WfFxgaYn4mmAMh5ScfUk.apk
+Haiku watcher v2 `session_012V9KpYDF4zXwvgiqLxuDbH` subscribed to
+jarvis-live-tests#1 (first watcher stuck on a permission prompt, archived).
+
+`scripts/rog-setup.sh` (Termux, no PC): pairs with the phone's own Wireless
+debugging over 127.0.0.1, downloads + installs an APK (`install -r -g`),
+grants mic/notifications, overlay (appops), battery-optimisation exemption,
+background run, tries the ASSISTANT role, verifies, launches.
+
+### Live test link (Session 6, after db35d19)
+
+The owner asked for a way for Claude to see device tests live. Design, from
+what both ends can actually reach: the sandbox reaches only GitHub (ntfy.sh,
+Slack hooks and httpbin are policy-denied), and the GitHub integration cannot
+create repositories (403), so the owner creates one private repo by hand.
+
+- `lib/telemetry/liveLog.ts` — in-memory ring buffer (400) of events; secrets
+  scrubbed by shape and by field name before recording.
+- `lib/telemetry/githubChannel.ts` — batches events into comments on a private
+  issue/PR; ≥8 s apart, 30-min session cap, honours retry-after / rate-limit
+  reset, keeps lines through network loss, stops on 401/403/404 with a fix.
+- `lib/telemetry/liveSession.ts` — the single link, status store for the HUD's
+  red ● LIVE badge (tap = stop) and the Settings card.
+- Token in the keystore (`jarvis.live.github.token`), fine-grained, one repo.
+- HUD records: heard, wake/ignored, ask (route), answer (source, ms, first
+  token ms), speak (engine), halt, brain/voice/HUD state, errors.
+- Guide: `docs/LIVE_TEST_LINK.md`. Tests: `tests/liveLink.test.ts` (13),
+  mutation-checked (min interval, backoff requeue).
+- Channel = PR #1 in `OgSmiley1/jarvis-live-tests`, so comments wake a
+  subscribed session; the cheap watcher is a Haiku session subscribed to it.
+  Waiting on the owner to create the repo.
+
 ## NEXT EXACT ACTION
 
 Both PR #2 and PR #3 are merged to `main` (`3a4e373`). Everything built across
@@ -588,3 +891,75 @@ JARVIS is not “alive” because the UI opens. It is alive when a real APK on t
 - and pass the documented acceptance gates.
 
 Until those are observed, report the remaining gap truthfully.
+
+## SESSION 6 — brain survives, phone control, charge reminder (24 Sep 2026)
+
+Owner report: the brain downloaded yesterday asked to download again; a
+download restarted from 0% after leaving the app. Causes and fixes in f2e9bbb.
+Owner asked for Muse-style phone control (f151636) and a charge reminder
+(82f9772).
+
+Build `bc047ad7` on `82f9772` — **FINISHED** 18:58 UTC (queued 56 min on the
+free tier, ran 14 min), BUILD SUCCESSFUL, zero Kotlin errors; both new local
+modules (expo-jarvis-brain, expo-jarvis-phone) compiled.
+APK: https://expo.dev/artifacts/eas/WikoiqX3Gkuuis1YzK-vCCAcrKMJUPvNDxDB6H1pyS4.apk
+Not yet verified on the device: DownloadManager survival, the permission
+prompts (SMS/call log are restricted for browser installs), app-list
+visibility, reminder notifications.
+
+## SESSION 7 — owner's build brief + build pack, phases A–G (26 Sep 2026)
+
+Evidence in: owner's screen recording (build bc047ad7) — brain loaded through
+the Termux push (so the one-command setup works end to end), but Qwen3's
+<think> was displayed and spoken, "how are you?" took 37.07 s (TTFT 5.3 s,
+5.9 tok/s, OpenCL GPU), the heard-line accumulated the whole session with
+Whisper labels "(Bell)", and System UI ANR'd while the brain loaded on GPU.
+
+| Phase | Commit | What | Verified how |
+|---|---|---|---|
+| A | 2311dd9 | enable_thinking:false; streaming think filter; stripThinking at completion, cloud, speakResponse/speakQueued; per-turn transcript + label cleaner; CPU default (GPU switch in Settings) | tests/voicePipeline.test.ts (18) incl. the exact ROG output under every chunking |
+| B | ade2a42 | fast profile for spoken turns; no per-turn clearCache (prefix reuse); firstSpeechMs recorded; scripts/measure-voice-latency.mjs | script on the recorded run → 5.32 s / 37.07 s baseline. **On-device < 5 s: hardware-only, not yet measured** |
+| C | 398976e | clock/date/status line; orb ripples (listen), fast spin (think), fast pulse (speak), breath (idle) | tests/dashboard.test.ts (8). **No screenshot: no web target; capture from the ROG** |
+| D | bfd721e | vision.look: expo-image-picker camera (owner-taken photo), SmolVLM2-500M + mmproj via llama.rn multimodal, photo deleted, WATCHING state + "camera on"; per-file download slots; setup script fetches eyes; brain loader releases only its own context | tests/vision.test.ts (14). **On-device describe: hardware-only** |
+| E/F/G | dfe8b17 | 8 s follow-up window after a spoken answer; PERSONA in system prompt; first-wake greeting by time of day + active project; docs/PI_SATELLITE.md (design only) | tests/greeting.test.ts (6) |
+
+/no_think finding: llama.rn 0.13.0-rc.1 `completion()` accepts
+`enable_thinking` and applies it through the GGUF's jinja template
+(`getFormattedChat`, jinja on by default). Empirical check on the device
+still owed: the live log's ANSWER lines must contain no "<think>".
+
+Build `206bc03d` on 9ca8574 — **FINISHED** 02:54 UTC (13 min, no queue), BUILD SUCCESSFUL, zero Kotlin errors; expo-jarvis-brain and expo-image-picker compiled.
+APK: https://expo.dev/artifacts/eas/TuPqVdcTlMn77N8u3RwXi11W9upHMn__4J4r6MDFxZQ.apk (now the setup script default).
+
+## SESSION 8 — owner's ChatGPT handoff pack (26 Sep 2026)
+
+Inputs: video-2 reverse-engineering report, reconstructed Windows Python JARVIS,
+ops master handoff for PR #6, Sheikh Ammar museum handoff (not touched — out of
+scope). Owner decisions: calls open the dialler only; no Windows app, port the
+useful behaviours into the phone app. Plan: /root/.claude/plans/serialized-wiggling-newell.md.
+
+| Commit | What | Verified |
+|---|---|---|
+| a5b2471 | live log: word counts, not words, unless a 30-min opt-in | tests/transcriptPolicy.test.ts |
+| ab1dc21 | calls: ACTION_DIAL only, CALL_PHONE removed | tests/callDialer.test.ts |
+| 7813fe4 | time/date, maths (EN+AR, no eval), system info (real readings only), site search, language switch, share sheet | tests/utilityCommands.test.ts (32) |
+| 5bd0f0b | setup script verifies APK SHA-256 + native libs before install | simulated good/bad APK |
+
+Build `5e5991f6` on 7813fe4 FINISHED 05:06 UTC, BUILD SUCCESSFUL, 0 Kotlin errors.
+APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk (setup-script default). 370 tests green.
+Device gates for this build: NOT RUN — awaiting the owner's live-link test.
+
+## SESSION 9 — the reference-video look (26 Sep 2026)
+
+Owner sent two videos: "that's exactly what I want on my ROG". Video 1 (a
+HUD JARVIS) decoded frame by frame; video 2 (console assistant) was already
+covered by session 8 except the thinking filler.
+
+| Commit | What | Verified |
+|---|---|---|
+| 04d5688 | navy grid backdrop + top bracket; SVG reactor orb (thick glowing blue ring, broken counter-rotating arcs, 60-tick ring with // marks, particles, black core + JARVIS); big monospace clock under the orb; all motion native-driver | tests/orbGeometry.test.ts (5); browser render of the same geometry sent to the owner (a design preview, not a phone screenshot) |
+| 8bd322a | camera page: live CameraView full-bleed, mini orb in the corner, icon bar under the stage, "open the camera" / «افتح الكاميرا»; "what do you see" there takes its one photo from the live view; preview only while the page is visible and the app is in front; expo-camera plugin, audio off | tests/cameraPage.test.ts (15) |
+| 2512167 | "Let me think about that for you." after 1.2 s with no first sentence, EN/AR, once per question; fillerMs logged apart from firstSpeechMs | tests/thinkingFiller.test.ts (4) |
+
+394 tests, lint, typecheck and smoke green. EAS build `ac59bd3c` on 2512167.
+Device gates: NOT RUN — awaiting the owner's live-link test.

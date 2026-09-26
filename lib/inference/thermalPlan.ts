@@ -67,6 +67,15 @@ export interface RuntimePlan {
 const MAX_THREADS_PASSIVE = 6;
 const MAX_THREADS_ACTIVE_COOLING = 8;
 
+/**
+ * RAM at or above which a doubled context is affordable. The ROG Phone 8 Pro
+ * ships 16 GB; 12 is the threshold because a 12 GB device clears the model,
+ * the KV cache and Android's own footprint with room to spare, and anything
+ * below that is where an OS kill starts to be a real risk.
+ */
+const GENEROUS_RAM_GB = 12;
+const LARGE_CONTEXT = 8192;
+
 const TIERS: Record<RuntimeTier, Omit<RuntimePlan, 'reason' | 'tier' | 'thermalSignalPresent'>> = {
   overdrive: { threads: MAX_THREADS_ACTIVE_COOLING, gpuLayers: 99, contextSize: 8192, batchSize: 512 },
   full: { threads: MAX_THREADS_PASSIVE, gpuLayers: 99, contextSize: 4096, batchSize: 512 },
@@ -132,8 +141,30 @@ export function planRuntime(device: DevicePowerState = {}): RuntimePlan {
   }
 
   const base = TIERS[tier];
+  let { contextSize } = base;
+
+  // The rule above was one-directional: plenty of RAM bought nothing. On a
+  // 16 GB ROG Phone 8 Pro holding a 4B Q4 model, the KV cache for a doubled
+  // context is on the order of hundreds of megabytes — trivially affordable,
+  // and the difference between an assistant that remembers this conversation
+  // and one that forgets the start of it.
+  //
+  // Deliberately only the context grows. Threads and GPU layers are a heat
+  // decision and stay governed by the thermal tier; context is a memory
+  // decision. And it applies only while thermals are unthrottled, so a hot
+  // phone is never handed a bigger working set.
+  if (
+    typeof device.totalRamGb === 'number' &&
+    device.totalRamGb >= GENEROUS_RAM_GB &&
+    (tier === 'full' || tier === 'overdrive')
+  ) {
+    contextSize = Math.max(contextSize, LARGE_CONTEXT);
+    reasons.push(`${device.totalRamGb} GB RAM allows a ${LARGE_CONTEXT} context`);
+  }
+
   return {
     ...base,
+    contextSize,
     tier,
     thermalSignalPresent,
     reason: reasons.length > 0 ? reasons.join('; ') : 'device cool and unconstrained',

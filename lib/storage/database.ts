@@ -19,12 +19,26 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   defaultMode: 'fast',
   approvedMemoryEnabled: true,
   autoSpeak: false,
+  handsFreeEnabled: true,
+  wakeWord: 'jarvis',
+  ownerProfile: 'Keep explanations simple and direct. Prefer voice-first interaction, local-first operation, free tools where practical, and clear next actions. This assistant is optimized for the ASUS ROG Phone 8 Pro.',
   contextSize: 4096,
   batchSize: 512,
   threads: 6,
   gpuLayers: 99,
   adaptiveRuntime: true,
+  gpuAcceleration: false,
   onlineFreeOnly: true,
+  // Off by default: a network voice sounds better but stops working the moment
+  // the phone loses signal, and JARVIS is local-first.
+  ttsAllowNetworkVoice: false,
+  // Off by default: enabling it lets a question leave the phone.
+  cloudFallbackEnabled: false,
+  floatingOrbEnabled: false,
+  // Off by default: 351 MB should never start downloading on mobile data unasked.
+  neuralVoiceEnabled: false,
+  chargeReminderEnabled: true,
+  chargeReminderLevel: 0.2,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

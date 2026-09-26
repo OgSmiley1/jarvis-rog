@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Drawing over other apps. The owner grants this in Android settings;
+       JARVIS opens that screen for them and never assumes it is granted. -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <!-- The orb has to survive the app being backgrounded, which on Android 8+
+       means a foreground service with a visible notification. Android 14+
+       requires every foreground service to declare a type; a floating
+       assistant bubble fits no predefined type, so it is specialUse. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+  <application>
+    <service
+      android:name="expo.modules.jarvisoverlay.JarvisOverlayService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Floating assistant orb shown over other apps at the owner's request; tapping it opens JARVIS." />
+    </service>
+  </application>
+</manifest>

@@ -1,0 +1,7 @@
+{
+  "name": "expo-jarvis-phone",
+  "version": "1.0.0",
+  "description": "Phone access for JARVIS: contacts, calls, messages, call log, calendar and installed apps. Local Expo module, autolinked from ./modules, not published.",
+  "license": "UNLICENSED",
+  "private": true
+}

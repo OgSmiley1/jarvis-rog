@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
+import { ensureExecutorch } from '@/lib/voice/executorch';
+import { levelFromFrame } from '@/lib/voice/audioLevel';
+import { cleanTranscript } from '@/lib/voice/transcriptClean';
 
 export type VoiceState =
   | 'IDLE'
@@ -15,9 +18,11 @@ export type VoiceState =
 export interface UseLiveVoiceOptions {
   language: 'auto' | 'en' | 'ar';
   onFinal?: (text: string) => void;
+  shouldAcceptAudio?: () => boolean;
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
+  ensureExecutorch();
   const model = useSpeechToText({
     model: models.speech_to_text.whisper_tiny(),
     vad: models.vad.fsmn_vad(),
@@ -33,7 +38,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const sessionRef = useRef(0);
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
+  const finalizedRef = useRef('');
   const [error, setError] = useState<string | null>(null);
+  // Measured microphone level for the HUD ring. Held in a ref and published on
+  // an interval: audio frames arrive every 100 ms, and re-rendering the tree
+  // that often would compete with token streaming for the JS thread.
+  const levelRef = useRef(0);
+  const [level, setLevel] = useState(0);
 
   const stop = useCallback(async () => {
     const recorder = recorderRef.current;
@@ -66,6 +77,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
 
     recorderRef.current = null;
     consumerRef.current = null;
+    levelRef.current = 0;
+    setLevel(0);
     setState('IDLE');
   }, []);
 
@@ -91,6 +104,15 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       return;
     }
 
+    if (Platform.Version >= 33) {
+      try {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      } catch {
+        // Notification permission is helpful for the visible foreground-service
+        // notification, but a denial must not fake a microphone failure.
+      }
+    }
+
     const stt = modelRef.current;
     if (!stt.isReady) {
       setError(stt.error?.message ?? 'Local speech model is not ready yet.');
@@ -106,13 +128,22 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     runningRef.current = true;
 
     recorder.onAudioReady((chunk) => {
-      if (runningRef.current && sessionRef.current === session) {
-        stt.streamInsert(chunk.buffer.getChannelData(0));
+      if (
+        runningRef.current &&
+        sessionRef.current === session &&
+        (optionsRef.current.shouldAcceptAudio?.() ?? true)
+      ) {
+        const frame = chunk.buffer.getChannelData(0);
+        levelRef.current = levelFromFrame(frame, levelRef.current);
+        stt.streamInsert(frame);
+      } else {
+        // Suppressed audio (JARVIS is speaking) must not drive the ring.
+        levelRef.current = 0;
       }
     });
 
     const consume = async () => {
-      let finalized = '';
+      finalizedRef.current = '';
       try {
         const language = optionsRef.current.language;
         const stream = stt.stream({
@@ -125,11 +156,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         for await (const { committed, nonCommitted } of stream) {
           if (!runningRef.current || sessionRef.current !== session) break;
           setState('TRANSCRIBING');
-          if (committed.text) {
-            finalized += committed.text;
-            optionsRef.current.onFinal?.(committed.text.trim());
+          const heard = cleanTranscript(committed.text ?? '');
+          if (heard) {
+            finalizedRef.current = `${finalizedRef.current} ${heard}`.trim();
+            optionsRef.current.onFinal?.(heard);
           }
-          setTranscript(`${finalized}${nonCommitted.text}`.trim());
+          setTranscript(`${finalizedRef.current} ${cleanTranscript(nonCommitted.text ?? '')}`.trim());
           if (runningRef.current) setState('LISTENING');
         }
       } catch (cause) {
@@ -168,11 +200,32 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') void stop();
-    });
+    // Publish the measured level while a session is live. Outside a session
+    // there is no reading, and the HUD shows a resting orb rather than silence
+    // it did not measure.
+    if (state !== 'LISTENING' && state !== 'TRANSCRIBING') {
+      setLevel(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setLevel((current) => (Math.abs(current - levelRef.current) < 0.02 ? current : levelRef.current));
+    }, 100);
+    return () => clearInterval(timer);
+  }, [state]);
+
+  const clearTranscript = useCallback(() => {
+    finalizedRef.current = '';
+    setTranscript('');
+  }, []);
+
+  useEffect(() => {
+    // Keep the active recorder alive when the app is backgrounded. On Android
+    // the react-native-audio-api recorder is backed by a microphone foreground
+    // service (configured in app.config.ts), so the session can continue while
+    // the app is minimized. We still release the microphone when this hook is
+    // actually unmounted or the owner stops the session.
     return () => {
-      subscription.remove();
       void stop();
     };
   }, [stop]);
@@ -181,9 +234,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     state,
     transcript,
     error,
+    /** Measured microphone level, 0..1. Zero whenever no session is capturing. */
+    level,
     isReady: model.isReady,
     downloadProgress: model.downloadProgress,
     start,
     stop,
+    /** Start the next turn with an empty transcript, without restarting the microphone. */
+    clearTranscript,
   };
 }
