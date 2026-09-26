@@ -41,8 +41,9 @@ export function DashboardClock({ lang, status }: { lang: 'en' | 'ar'; status: Om
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 2 },
-  time: { color: colors.text, fontSize: 44, fontWeight: '200', letterSpacing: 4, fontVariant: ['tabular-nums'] },
-  date: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 3 },
-  status: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  wrap: { alignItems: 'center', gap: 3 },
+  // The reference video's clock: heavy monospace digits, a tiny spaced date under them.
+  time: { color: '#F2F6FA', fontSize: 40, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 4 },
+  date: { color: '#8EA2BA', fontSize: 10, fontWeight: '600', letterSpacing: 3 },
+  status: { color: colors.muted, fontSize: 11, marginTop: 4, opacity: 0.8 },
 });

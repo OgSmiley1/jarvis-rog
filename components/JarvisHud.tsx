@@ -5,6 +5,7 @@ import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { DashboardClock } from '@/components/DashboardClock';
+import { HudBackdrop } from '@/components/HudBackdrop';
 import { colors } from '@/components/theme';
 import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
 import { providerById } from '@/lib/online/cloudBrain';
@@ -490,9 +491,9 @@ export default function JarvisHud() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <HudBackdrop />
       <View style={styles.statusBar}>
         <View style={styles.wordRow}>
-          <Text style={styles.wordmark}>JARVIS</Text>
           {live ? (
             <Pressable
               onPress={() => void stopLiveLink()}
@@ -505,19 +506,18 @@ export default function JarvisHud() {
           ) : null}
         </View>
       </View>
-      <DashboardClock
-        lang={arabic ? 'ar' : 'en'}
-        status={{
-          modelStatus: jarvis.modelState.status,
-          modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
-          cloudReady: jarvis.cloudReady,
-          micOn,
-          camera: watching,
-        }}
-      />
-
       <View style={styles.stage}>
         <JarvisOrb state={hud.state} level={voice.level} onPress={toggleVoice} label={hud.headline} />
+        <DashboardClock
+          lang={arabic ? 'ar' : 'en'}
+          status={{
+            modelStatus: jarvis.modelState.status,
+            modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
+            cloudReady: jarvis.cloudReady,
+            micOn,
+            camera: watching,
+          }}
+        />
         <Text style={styles.detail}>{hud.detail}</Text>
         {voice.transcript ? (
           <Text style={styles.transcript} numberOfLines={2}>
@@ -618,9 +618,8 @@ export default function JarvisHud() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  statusBar: { paddingHorizontal: 18, paddingTop: 8, gap: 2 },
-  wordmark: { color: colors.accent, fontSize: 15, fontWeight: '900', letterSpacing: 6 },
+  screen: { flex: 1, backgroundColor: '#0A0D14' },
+  statusBar: { paddingHorizontal: 18, paddingTop: 36, minHeight: 44, gap: 2 },
   wordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   liveBadge: { borderWidth: 1, borderColor: colors.bad, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   liveText: { color: colors.bad, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
