@@ -74,6 +74,11 @@ export interface JarvisSettings {
    * session). The token is in the Android keystore, never here.
    */
   liveChannel?: { owner: string; repo: string; number?: number };
+  /**
+   * Until when (epoch ms) the live test log may include the owner's actual
+   * words. Unset or past: only word counts are logged. See transcriptPolicy.ts.
+   */
+  liveTranscriptsUntil?: number;
 }
 
 export interface MemoryRecord {

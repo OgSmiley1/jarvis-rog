@@ -49,3 +49,12 @@ The **cloud brain** changes that, and only when the owner turns it on in Setting
 Each answer on the HUD is labelled with where it came from — "On-device · never left the phone" or "Via Groq · left the phone" — so the owner never has to guess. The providers' own terms govern what they do with a request.
 
 The Free AI Hub (Puter) is a separate, explicitly opened screen and is unaffected by this setting.
+
+
+## Live test link (owner-started, public channel)
+
+Default: states, timings, routes and errors only; the owner's words and the
+replies are logged as word counts (`lib/telemetry/transcriptPolicy.ts`). An
+explicit "Include what I say" switch adds words for at most 30 minutes.
+Private phone data (messages, calls, contacts, calendar, camera) is never
+logged. Tested in `tests/transcriptPolicy.test.ts`.

@@ -23,6 +23,7 @@ import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { recordLive } from '@/lib/telemetry/liveLog';
+import { liveText } from '@/lib/telemetry/transcriptPolicy';
 import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
 
 /** How long after JARVIS finishes speaking a reply is heard without the wake word. */
@@ -88,8 +89,13 @@ export default function JarvisHud() {
     speak: (text) => speakJarvis(text),
   });
 
+  /** The owner's words as the live log may carry them: word counts unless opted in. */
+  function said(text: string): string {
+    return liveText(text, jarvis.settings.liveTranscriptsUntil, Date.now());
+  }
+
   function speakJarvis(text: string, secret = false) {
-    recordLive('speak', secret ? '[private phone data]' : text, { engine: neural.isReady ? 'neural' : 'system' });
+    recordLive('speak', secret ? '[private phone data]' : said(text), { engine: neural.isReady ? 'neural' : 'system' });
     if (neural.isReady) {
       neural.speakAll(text);
       return;
@@ -134,7 +140,7 @@ export default function JarvisHud() {
     // A spoken question gets the fast profile: short, low-temperature, and the
     // quickest to its first word. Deeper modes stay for typed work.
     const turnMode: IntelligenceMode = voiceOut ? 'fast' : mode;
-    recordLive('ask', command, {
+    recordLive('ask', said(command), {
       route: deterministic ? 'tool' : jarvis.modelState.status === 'ready' ? 'local' : jarvis.cloudReady ? 'cloud' : 'none',
       mode: turnMode,
     });
@@ -207,7 +213,9 @@ export default function JarvisHud() {
       setAnswerSource(result.source);
       // Messages, calls, contacts and calendar never reach the live log
       // (a public repository) or the conversation history sent to a brain.
-      recordLive('answer', result.private ? '[private phone data]' : result.text, {
+      recordLive('answer', result.private ? '[private phone data]' : said(result.text), {
+        // Checkable without the words: did any reasoning reach the owner?
+        thinkLeak: /<\/?think/i.test(result.text),
         source: result.source,
         ms: Date.now() - askedAt,
         firstTokenMs: firstTokenAt ? firstTokenAt - askedAt : null,
@@ -267,7 +275,7 @@ export default function JarvisHud() {
   function handleVoiceFinal(text: string) {
     const clean = text.trim();
     if (!clean) return;
-    recordLive('heard', clean, {
+    recordLive('heard', said(clean), {
       speaking: speakingRef.current,
       awake: awakeUntilRef.current > Date.now(),
     });
@@ -289,7 +297,7 @@ export default function JarvisHud() {
     }
 
     const wake = extractWakeCommand(clean, jarvis.settings.wakeWord);
-    if (wake.heard) recordLive('wake', wake.command ? 'wake word + command' : 'wake word only', { command: wake.command ?? null });
+    if (wake.heard) recordLive('wake', wake.command ? 'wake word + command' : 'wake word only', { command: wake.command ? said(wake.command) : null });
     else if (awakeUntilRef.current <= Date.now()) recordLive('wake', 'ignored: no wake word', { wakeWord: jarvis.settings.wakeWord });
     if (wake.heard) {
       if (wake.command) {

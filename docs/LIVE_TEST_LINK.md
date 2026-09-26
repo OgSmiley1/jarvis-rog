@@ -10,25 +10,25 @@ Haiku session, the cheapest Claude model.
 
 ## What is sent
 
-One line per event, for example:
+One line per event. By default the owner's words and JARVIS's replies are
+**replaced by word counts** — the channel is a public repository, and free
+speech can contain anything:
 
 ```
-22:10:01.004 HEARD  jarvis what time is it · speaking=false awake=false
-22:10:01.006 WAKE   wake word + command · command="what time is it"
-22:10:01.010 ASK    what time is it · route=tool mode=fast
-22:10:01.052 ANSWER It is 10:10 PM. · source=tool ms=42 firstTokenMs=null chars=15 voice=whole
-22:10:01.060 SPEAK  It is 10:10 PM. · engine=neural
+22:10:01.004 HEARD  [5 words] · speaking=false awake=false
+22:10:01.006 WAKE   wake word + command · command=[4 words]
+22:10:01.010 ASK    [4 words] · route=tool mode=fast
+22:10:01.052 ANSWER [4 words] · source=tool thinkLeak=false ms=42 firstTokenMs=null firstSpeechMs=null chars=15
 22:10:02.890 SPEAK  silent
 ```
 
-Also: HUD state changes, brain load/ready/error, microphone state and errors, halts,
-voice-engine failures. Your words and JARVIS's replies are included — that is the
-point — so anyone who can see the channel repository can read them. The owner
-chose to keep `jarvis-live-tests` public; make it private in its settings if that
-changes. Anything that
-looks like an API key (GitHub, Groq, Cerebras, Gemini, OpenAI, Hugging Face) is
-replaced with `[redacted]` before it is recorded, and fields named key/token/secret
-are never sent.
+Also: HUD state changes, brain load/ready/error, microphone state and errors,
+halts, voice-engine failures, camera on/off — none of which carry the owner's
+words. Settings → Live test link → **Include what I say — 30 min** adds the
+actual words for one test; it switches itself off after 30 minutes. Messages,
+calls, contacts, calendar and camera descriptions are never included, even
+then (`[private phone data]`). Anything that looks like an API key is replaced
+with `[redacted]`, and fields named key/token/secret are never sent.
 
 Limits: posts are at least 8 s apart, and a session ends itself after 30 minutes
 (well inside GitHub's 500-comments-an-hour guidance). If the phone goes offline the

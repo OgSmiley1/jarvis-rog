@@ -9,6 +9,7 @@ import { formatEvent, liveLog } from '@/lib/telemetry/liveLog';
 import { getLiveStatus, isLiveActive, startLiveLink, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
 import { clearLiveToken, DEFAULT_LIVE_CHANNEL, readLiveToken, setLiveToken } from '@/lib/telemetry/liveToken';
 import { errorMessage } from '@/lib/utils/errors';
+import { TRANSCRIPT_OPT_IN_MS, transcriptsAllowed } from '@/lib/telemetry/transcriptPolicy';
 
 const TOKEN_HELP_URL =
   'https://github.com/settings/personal-access-tokens/new?name=JARVIS%20live%20link&description=Posts%20JARVIS%20test%20logs&expires_in=90';
@@ -41,6 +42,8 @@ export function LiveTestCard() {
   );
 
   const active = isLiveActive(status);
+  const transcriptsOn = transcriptsAllowed(jarvis.settings.liveTranscriptsUntil, Date.now());
+  const minutesLeft = transcriptsOn ? Math.ceil(((jarvis.settings.liveTranscriptsUntil ?? 0) - Date.now()) / 60_000) : 0;
 
   async function saveChannel(): Promise<{ owner: string; repo: string; number?: number } | undefined> {
     const match = /^\s*([\w.-]+)\/([\w.-]+)\s*$/.exec(repoDraft);
@@ -108,9 +111,9 @@ export function LiveTestCard() {
   return (
     <Card title="Live test link">
       <AppText muted>
-        While on, what JARVIS hears, answers, says and fails at is posted to a private GitHub channel every few seconds, so
-        Claude can follow your test live. It includes your words and JARVIS&apos;s replies, so anyone who can see the channel
-        repository can read them. API keys are scrubbed before anything is sent. Ends itself after 30 minutes.
+        While on, what JARVIS does — states, timings, routes, errors — is posted to the GitHub channel every few seconds,
+        so Claude can follow your test live. Your words and its replies are replaced by word counts unless you switch on
+        “Include what I say” below, which turns itself off after 30 minutes. API keys are always scrubbed.
       </AppText>
       <AppText>Status: {stateLine}</AppText>
       {status.dropped ? <AppText muted>{status.dropped} lines dropped while offline.</AppText> : null}
@@ -160,6 +163,19 @@ export function LiveTestCard() {
         Token: Repository access → only the channel repository; Permissions → Issues: Read and write (add Pull requests:
         Read and write if the channel is a PR).
       </AppText>
+      <Row>
+        {transcriptsOn ? (
+          <Button
+            title={`Stop including my words (${minutesLeft} min left)`}
+            onPress={() => void jarvis.updateSettings({ liveTranscriptsUntil: undefined })}
+          />
+        ) : (
+          <Button
+            title="Include what I say — 30 min"
+            onPress={() => void jarvis.updateSettings({ liveTranscriptsUntil: Date.now() + TRANSCRIPT_OPT_IN_MS })}
+          />
+        )}
+      </Row>
       <Row>
         {active ? (
           <Button title="Stop live link" danger onPress={() => void stopLiveLink()} />
