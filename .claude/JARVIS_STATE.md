@@ -930,3 +930,21 @@ still owed: the live log's ANSWER lines must contain no "<think>".
 
 Build `206bc03d` on 9ca8574 — **FINISHED** 02:54 UTC (13 min, no queue), BUILD SUCCESSFUL, zero Kotlin errors; expo-jarvis-brain and expo-image-picker compiled.
 APK: https://expo.dev/artifacts/eas/TuPqVdcTlMn77N8u3RwXi11W9upHMn__4J4r6MDFxZQ.apk (now the setup script default).
+
+## SESSION 8 — owner's ChatGPT handoff pack (26 Sep 2026)
+
+Inputs: video-2 reverse-engineering report, reconstructed Windows Python JARVIS,
+ops master handoff for PR #6, Sheikh Ammar museum handoff (not touched — out of
+scope). Owner decisions: calls open the dialler only; no Windows app, port the
+useful behaviours into the phone app. Plan: /root/.claude/plans/serialized-wiggling-newell.md.
+
+| Commit | What | Verified |
+|---|---|---|
+| a5b2471 | live log: word counts, not words, unless a 30-min opt-in | tests/transcriptPolicy.test.ts |
+| ab1dc21 | calls: ACTION_DIAL only, CALL_PHONE removed | tests/callDialer.test.ts |
+| 7813fe4 | time/date, maths (EN+AR, no eval), system info (real readings only), site search, language switch, share sheet | tests/utilityCommands.test.ts (32) |
+| 5bd0f0b | setup script verifies APK SHA-256 + native libs before install | simulated good/bad APK |
+
+Build `5e5991f6` on 7813fe4 FINISHED 05:06 UTC, BUILD SUCCESSFUL, 0 Kotlin errors.
+APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk (setup-script default). 370 tests green.
+Device gates for this build: NOT RUN — awaiting the owner's live-link test.

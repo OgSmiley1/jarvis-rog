@@ -193,4 +193,21 @@ Record every issue found. Do not hide incomplete hardware validation.
 
 | # | Problem | Severity | Status |
 |---|---|---|---|
-| | | | |
+| 1 | Raw heard/asked text posted to the public live channel | High (privacy) | Fixed a5b2471 — word counts by default |
+| 2 | phone.call could dial without confirmation | High (side effect) | Fixed ab1dc21 — dialler only |
+| 3 | GitHub Actions verify-and-build never starts (account billing) | Info | Owner-acknowledged; EAS builds unaffected |
+
+## Session 8 — 26 Sep 2026 (handoff pack integration)
+
+Source commit `7813fe4` (+ setup script `5bd0f0b`). EAS build `5e5991f6-7059-4f56-8d88-79a58a511122`,
+preview, FINISHED 05:06 UTC. APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk
+
+| Gate | Result | Evidence |
+|---|---|---|
+| 1 Build — typecheck, lint, tests, smoke | PASS | 370/370 vitest, `pnpm smoke` PASS, `tsc` and lint clean (local, this session) |
+| 1 Build — Gradle release | PASS | EAS log: BUILD SUCCESSFUL in 11m 50s, 0 Kotlin errors; expo-jarvis-brain/overlay/phone compileReleaseKotlin |
+| 1 Build — native libs in APK | PASS (log), phone check pending | log shows rnllama_v8_2_dotprod_i8mm(+hexagon_opencl) built for arm64-v8a. APK zip not inspectable here (expo.dev → sandbox proxy 403); `scripts/rog-setup.sh` now prints SHA-256 and refuses to install unless librnllama*, audio-api and the JS bundle are inside |
+| 2 Real phone | NOT RUN (this build) | brain load on device proven on bc047ad7 (owner video); this build awaits the owner's live-link test |
+| 3 Video-2 parity (time, maths, system info, site search, language switch, share) | PASS in unit tests; device NOT RUN | tests/utilityCommands.test.ts (32) |
+| 4 Privacy: live log word counts by default | PASS in unit tests | tests/transcriptPolicy.test.ts — dictated name/number/code absent from snapshot() and toText() |
+| 4 Calls never auto-dial | PASS in unit tests + manifest | ACTION_DIAL only, CALL_PHONE removed; tests/callDialer.test.ts |
