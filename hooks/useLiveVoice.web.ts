@@ -8,5 +8,6 @@ export function useLiveVoice() {
     downloadProgress: 0,
     start: async () => {},
     stop: async () => {},
+    clearTranscript: () => {},
   };
 }

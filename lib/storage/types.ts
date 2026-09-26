@@ -21,6 +21,12 @@ export interface JarvisSettings {
    * pins the runtime to the explicit contextSize/batchSize/threads/gpuLayers.
    */
   adaptiveRuntime: boolean;
+  /**
+   * Offload the brain to the Adreno GPU (OpenCL). Off by default: on the ROG
+   * it measured 5.9 tok/s with Q4_K_M and hung System UI while loading, so
+   * the CPU path (dotprod + i8mm) is the default.
+   */
+  gpuAcceleration: boolean;
   modelPath?: string;
   modelName?: string;
   modelSize?: number;

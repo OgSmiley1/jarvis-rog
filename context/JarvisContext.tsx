@@ -36,6 +36,7 @@ import {
   hasSystemDownloader,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
+import { stripThinking } from '@/lib/voice/stripThinking';
 import { Platform } from 'react-native';
 import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
@@ -207,6 +208,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
         setPowerReading(reading);
         const state = await runtime.loadLocalModel(modelPath, modelName, {
           device: reading.state,
+          ...(settings.gpuAcceleration ? {} : { gpuLayers: 0 }),
         });
         setActiveRuntimePlan(runtime.getActiveRuntimePlan());
         setModelState(state);
@@ -218,7 +220,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
         contextSize: settings.contextSize,
         batchSize: settings.batchSize,
         threads: settings.threads,
-        gpuLayers: settings.gpuLayers,
+        gpuLayers: settings.gpuAcceleration ? settings.gpuLayers : 0,
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
       setModelState(state);
@@ -428,9 +430,11 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
       // goes through the same token callback, so the HUD's sentence-level
       // speech handles it exactly as it handles the local brain.
-      onToken?.(answer.text);
+      // Cloud reasoning models can think out loud too; the same rule applies.
+      const cloudText = stripThinking(answer.text) || answer.text;
+      onToken?.(cloudText);
       setLastMetrics(answer.metrics);
-      return { text: answer.text, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
+      return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
     }
 
     const runtime = await getRuntime();

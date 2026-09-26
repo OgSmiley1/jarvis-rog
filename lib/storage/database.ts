@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   threads: 6,
   gpuLayers: 99,
   adaptiveRuntime: true,
+  gpuAcceleration: false,
   onlineFreeOnly: true,
   // Off by default: a network voice sounds better but stops working the moment
   // the phone loses signal, and JARVIS is local-first.

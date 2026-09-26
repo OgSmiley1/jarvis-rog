@@ -125,6 +125,8 @@ export default function JarvisHud() {
     setBusy(true);
     setToolRunning(deterministic);
     setInput(command);
+    // Every command is its own turn: what was heard before must not linger.
+    voice.clearTranscript();
     setResponse('');
     setAnswerSource(undefined);
 
@@ -193,6 +195,7 @@ export default function JarvisHud() {
         voice: stream ? 'streamed' : voiceOut ? 'whole' : 'off',
       });
       if (!result.private) historyRef.current = appendExchange(historyRef.current, command, result.text);
+      setInput('');
 
       // A tool the local brain chose returns its sentence whole, with no
       // tokens streamed — speak it whole rather than flushing an empty stream.

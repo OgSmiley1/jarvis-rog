@@ -4,6 +4,7 @@ import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 import { ensureExecutorch } from '@/lib/voice/executorch';
 import { levelFromFrame } from '@/lib/voice/audioLevel';
+import { cleanTranscript } from '@/lib/voice/transcriptClean';
 
 export type VoiceState =
   | 'IDLE'
@@ -37,6 +38,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const sessionRef = useRef(0);
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
+  const finalizedRef = useRef('');
   const [error, setError] = useState<string | null>(null);
   // Measured microphone level for the HUD ring. Held in a ref and published on
   // an interval: audio frames arrive every 100 ms, and re-rendering the tree
@@ -141,7 +143,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     });
 
     const consume = async () => {
-      let finalized = '';
+      finalizedRef.current = '';
       try {
         const language = optionsRef.current.language;
         const stream = stt.stream({
@@ -154,11 +156,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         for await (const { committed, nonCommitted } of stream) {
           if (!runningRef.current || sessionRef.current !== session) break;
           setState('TRANSCRIBING');
-          if (committed.text) {
-            finalized += committed.text;
-            optionsRef.current.onFinal?.(committed.text.trim());
+          const heard = cleanTranscript(committed.text ?? '');
+          if (heard) {
+            finalizedRef.current = `${finalizedRef.current} ${heard}`.trim();
+            optionsRef.current.onFinal?.(heard);
           }
-          setTranscript(`${finalized}${nonCommitted.text}`.trim());
+          setTranscript(`${finalizedRef.current} ${cleanTranscript(nonCommitted.text ?? '')}`.trim());
           if (runningRef.current) setState('LISTENING');
         }
       } catch (cause) {
@@ -211,6 +214,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     return () => clearInterval(timer);
   }, [state]);
 
+  const clearTranscript = useCallback(() => {
+    finalizedRef.current = '';
+    setTranscript('');
+  }, []);
+
   useEffect(() => {
     // Keep the active recorder alive when the app is backgrounded. On Android
     // the react-native-audio-api recorder is backed by a microphone foreground
@@ -232,5 +240,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     downloadProgress: model.downloadProgress,
     start,
     stop,
+    /** Start the next turn with an empty transcript, without restarting the microphone. */
+    clearTranscript,
   };
 }

@@ -167,6 +167,10 @@ export default function SettingsScreen() {
             title={jarvis.settings.adaptiveRuntime ? 'Adaptive sizing: ON' : 'Adaptive sizing: OFF'}
             onPress={() => void jarvis.updateSettings({ adaptiveRuntime: !jarvis.settings.adaptiveRuntime })}
           />
+          <Button
+            title={jarvis.settings.gpuAcceleration ? 'GPU acceleration: ON' : 'GPU acceleration: OFF (CPU)'}
+            onPress={() => void jarvis.updateSettings({ gpuAcceleration: !jarvis.settings.gpuAcceleration })}
+          />
         </Row>
 
         {jarvis.activeRuntimePlan ? (

@@ -1,5 +1,6 @@
 import * as Speech from 'expo-speech';
 import { prosodyFor, rankVoices, selectVoice, type DeviceVoice, type RankedVoice } from './voiceCatalog';
+import { stripThinking } from './stripThinking';
 
 export type VoiceLanguage = 'en' | 'ar';
 
@@ -100,7 +101,7 @@ export async function speakResponse(
   language: VoiceLanguage,
   options: SpeakResponseOptions = {},
 ): Promise<void> {
-  const clean = text.trim();
+  const clean = stripThinking(text).trim();
   if (!clean) throw new Error('TTS_EMPTY_TEXT');
 
   await Speech.stop();
@@ -148,7 +149,7 @@ export async function speakQueued(
   language: VoiceLanguage,
   options: SpeakResponseOptions = {},
 ): Promise<void> {
-  const clean = text.trim();
+  const clean = stripThinking(text).trim();
   if (!clean) return;
 
   const chosen = await chooseVoice(language);
