@@ -17,6 +17,10 @@ import { haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
+import { wakeGreeting } from '@/lib/hud/greeting';
+
+/** How long after JARVIS finishes speaking a reply is heard without the wake word. */
+const FOLLOW_UP_MS = 8_000;
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
@@ -43,6 +47,10 @@ export default function JarvisHud() {
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
   const [watching, setWatching] = useState(false);
+  const greetedRef = useRef(false);
+  // Set when an answer has been spoken in hands-free mode: once the voice
+  // finishes, the owner can reply for a few seconds without the wake word.
+  const followUpRef = useRef(false);
   const [speaking, setSpeaking] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainBusy, setBrainBusy] = useState(false);
@@ -211,6 +219,7 @@ export default function JarvisHud() {
       });
       if (!result.private) historyRef.current = appendExchange(historyRef.current, command, result.text);
       setInput('');
+      if (jarvis.settings.handsFreeEnabled && voiceOut) followUpRef.current = true;
 
       // A tool the local brain chose returns its sentence whole, with no
       // tokens streamed — speak it whole rather than flushing an empty stream.
@@ -288,7 +297,17 @@ export default function JarvisHud() {
         void runCommand(wake.command);
       } else {
         awakeUntilRef.current = Date.now() + 10_000;
-        speakJarvis(jarvis.settings.language === 'ar' ? 'معاك.' : 'Yes?');
+        speakJarvis(
+          wakeGreeting({
+            firstOfSession: !greetedRef.current,
+            hour: new Date().getHours(),
+            lang: jarvis.settings.language === 'ar' ? 'ar' : 'en',
+            project: jarvis.activeProject
+              ? { name: jarvis.activeProject.name, nextAction: jarvis.activeProject.nextAction ?? undefined }
+              : undefined,
+          }),
+        );
+        greetedRef.current = true;
       }
       return;
     }
@@ -378,6 +397,11 @@ export default function JarvisHud() {
   }, [voice.error]);
   useEffect(() => {
     recordLive('speak', speaking ? 'speaking' : 'silent');
+    if (!speaking && followUpRef.current) {
+      followUpRef.current = false;
+      awakeUntilRef.current = Date.now() + FOLLOW_UP_MS;
+      recordLive('wake', 'follow-up window open', { ms: FOLLOW_UP_MS });
+    }
   }, [speaking]);
   const liveStatus = useSyncExternalStore(subscribeLiveStatus, getLiveStatus, getLiveStatus);
   const live = isLiveActive(liveStatus);
