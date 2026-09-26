@@ -5,7 +5,8 @@ import type { CalendarEvent, CallEntry, Contact, InstalledApp, Message } from '@
 interface ExpoJarvisPhoneNativeModule {
   hasPermission(permission: string): boolean;
   findContacts(query: string, limit: number): Promise<Contact[]>;
-  placeCall(number: string): 'calling' | 'dialer';
+  /** Opens the dialler with the number filled in; never places the call. */
+  placeCall(number: string): 'dialer';
   recentMessages(limit: number): Promise<Message[]>;
   recentCalls(limit: number): Promise<CallEntry[]>;
   calendarEvents(startMs: number, endMs: number, limit: number): Promise<CalendarEvent[]>;

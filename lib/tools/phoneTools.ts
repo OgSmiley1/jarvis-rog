@@ -83,7 +83,7 @@ async function resolveNumber(who: string, language: Lang): Promise<{ number: str
 export const phoneTools: ToolDefinition[] = [
   {
     name: 'phone.call',
-    description: 'Call a contact by name, or a phone number. Places the call when phone permission is granted.',
+    description: 'Open the dialler with a contact (by name) or a number filled in. The owner presses Call; JARVIS never places the call.',
     target: 'ANDROID',
     confirmation: 'none',
     schema: z.object({ who: z.string().min(1).max(80), lang }),
@@ -91,8 +91,7 @@ export const phoneTools: ToolDefinition[] = [
       guarded(language, async () => {
         const target = await resolveNumber(who, language);
         if ('speech' in target) return target;
-        const mode = phone().placeCall(target.number);
-        if (mode === 'calling') return { speech: language === 'ar' ? `أتصل بـ ${target.name}.` : `Calling ${target.name}.`, private: true };
+        phone().placeCall(target.number);
         return {
           speech: language === 'ar' ? `فتحت الاتصال بـ ${target.name}. اضغط اتصال.` : `Dialer ready for ${target.name}. Tap Call.`,
           private: true,

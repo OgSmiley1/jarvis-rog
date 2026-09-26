@@ -21,7 +21,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'WAKE_LOCK',
       // Phone access (Settings → Phone access). Each is asked for separately.
       'READ_CONTACTS',
-      'CALL_PHONE',
       'READ_SMS',
       'READ_CALL_LOG',
       'READ_CALENDAR',

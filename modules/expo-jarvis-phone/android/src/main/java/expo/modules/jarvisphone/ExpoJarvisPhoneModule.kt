@@ -57,15 +57,14 @@ class ExpoJarvisPhoneModule : Module() {
       results
     }
 
-    // Places the call when CALL_PHONE is granted; otherwise opens the dialler
-    // with the number filled in, so the request still gets the owner there.
+    // Opens the dialler with the number filled in. The owner presses Call:
+    // JARVIS never places a call by itself (owner's decision, 26 Sep 2026).
     Function("placeCall") { number: String ->
       val context = context() ?: throw IllegalStateException("NO_CONTEXT")
-      val direct = context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
-      val intent = Intent(if (direct) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number)))
+      val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number)))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
-      if (direct) "calling" else "dialer"
+      "dialer"
     }
 
     AsyncFunction("recentMessages") { limit: Int ->

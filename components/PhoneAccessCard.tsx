@@ -13,7 +13,6 @@ interface Access {
 
 const ACCESS: Access[] = [
   { permission: 'android.permission.READ_CONTACTS', title: 'Contacts', says: '"Call Mom", "text Ahmed saying I\'m late"' },
-  { permission: 'android.permission.CALL_PHONE', title: 'Phone calls', says: 'JARVIS places the call instead of only opening the dialler' },
   { permission: 'android.permission.READ_SMS', title: 'Messages', says: '"Read my messages"', restricted: true },
   { permission: 'android.permission.READ_CALL_LOG', title: 'Call log', says: '"Who called me", "any missed calls"', restricted: true },
   { permission: 'android.permission.READ_CALENDAR', title: 'Calendar', says: '"What do I have tomorrow"' },

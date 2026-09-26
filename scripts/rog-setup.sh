@@ -63,7 +63,7 @@ ok "installed"
 
 step "Granting permissions"
 # adb installs whitelist restricted permissions (SMS, call log), so pm grant works for them here.
-for perm in RECORD_AUDIO POST_NOTIFICATIONS READ_CONTACTS CALL_PHONE READ_SMS READ_CALL_LOG READ_CALENDAR CAMERA; do
+for perm in RECORD_AUDIO POST_NOTIFICATIONS READ_CONTACTS READ_SMS READ_CALL_LOG READ_CALENDAR CAMERA; do
   if adb shell pm grant "$PKG" "android.permission.$perm" 2>/dev/null; then ok "$perm"; else skip "$perm" "not requested by this build"; fi
 done
 adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow 2>/dev/null && ok "display over other apps (floating orb)" || skip "display over other apps" "refused"
@@ -124,7 +124,7 @@ put_model "SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/SmolVLM2-500M-Vid
 
 step "Verifying"
 adb shell dumpsys package "$PKG" | grep -o "android.permission.[A-Z_]*: granted=[a-z]*" \
-  | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|CALL_PHONE|READ_SMS|READ_CALL_LOG|READ_CALENDAR|CAMERA" | sort -u || true
+  | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|READ_SMS|READ_CALL_LOG|READ_CALENDAR|CAMERA" | sort -u || true
 echo "  overlay: $(adb shell appops get "$PKG" SYSTEM_ALERT_WINDOW | tr -d '\r')"
 adb shell dumpsys deviceidle whitelist | grep -q "$PKG" && echo "  battery: exempt" || echo "  battery: optimised"
 
