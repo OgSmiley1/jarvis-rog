@@ -1,10 +1,11 @@
 import { androidTools } from './androidTools';
 import { buildToolCallGrammar } from './grammar';
 import { phoneTools } from './phoneTools';
+import { visionTools } from './visionTools';
 import { termuxTools } from './termuxTools';
 import type { ToolDefinition } from './types';
 
-const definitions = [...androidTools, ...phoneTools, ...termuxTools];
+const definitions = [...androidTools, ...phoneTools, ...visionTools, ...termuxTools];
 export const toolRegistry = new Map<string, ToolDefinition>(definitions.map((tool) => [tool.name, tool]));
 
 export function listToolSchemas() {

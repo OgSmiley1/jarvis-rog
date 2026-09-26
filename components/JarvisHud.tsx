@@ -42,6 +42,7 @@ export default function JarvisHud() {
   const [response, setResponse] = useState('');
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
+  const [watching, setWatching] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainBusy, setBrainBusy] = useState(false);
@@ -115,7 +116,9 @@ export default function JarvisHud() {
 
     // The deterministic router is the same function `ask` consults first, so
     // this reports the path the request will actually take rather than a guess.
-    const deterministic = Boolean(routeDeterministicTool(command));
+    const route = routeDeterministicTool(command);
+    const deterministic = Boolean(route);
+    const looking = route?.call.tool === 'vision.look';
     const askedAt = Date.now();
     let firstTokenAt = 0;
     let firstSpeechAt = 0;
@@ -130,6 +133,9 @@ export default function JarvisHud() {
 
     setBusy(true);
     setToolRunning(deterministic);
+    // The camera is only ever open inside this turn, and the HUD says so for all of it.
+    setWatching(looking);
+    if (looking) recordLive('app', 'camera on', { by: 'owner request' });
     setInput(command);
     // Every command is its own turn: what was heard before must not linger.
     voice.clearTranscript();
@@ -225,6 +231,10 @@ export default function JarvisHud() {
     } finally {
       setBusy(false);
       setToolRunning(false);
+      if (looking) {
+        setWatching(false);
+        recordLive('app', 'camera off');
+      }
     }
   }
 
@@ -322,9 +332,11 @@ export default function JarvisHud() {
         sttProgress: voice.downloadProgress,
         language: jarvis.settings.language,
         cloudReady: jarvis.cloudReady,
+        watching,
       }),
     [
       jarvis.cloudReady,
+      watching,
       busy,
       jarvis.modelState.status,
       jarvis.settings.handsFreeEnabled,
@@ -439,6 +451,7 @@ export default function JarvisHud() {
           modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
           cloudReady: jarvis.cloudReady,
           micOn,
+          camera: watching,
         }}
       />
 
@@ -522,6 +535,11 @@ export default function JarvisHud() {
             title={busy ? (arabic ? 'يعمل…' : 'Working…') : arabic ? 'إرسال' : 'Send'}
             onPress={() => void runCommand(input)}
             disabled={busy || !input.trim()}
+          />
+          <Button
+            title={arabic ? 'انظر' : 'Look'}
+            onPress={() => void runCommand(arabic ? 'ماذا ترى' : 'what do you see')}
+            disabled={busy}
           />
           {busy ? (
             <Button title={arabic ? 'إيقاف' : 'Stop'} onPress={() => void jarvis.stopGeneration()} />

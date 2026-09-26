@@ -7,6 +7,8 @@ import type { HudState } from '@/lib/hud/hudState';
 export type OrbState = HudState;
 
 const SIZE = 236;
+/** Violet: no other state uses it, so a live camera is never mistaken for anything else. */
+const WATCHING_TINT = '#B388FF';
 const CORE = 86;
 
 /**
@@ -46,7 +48,7 @@ export function JarvisOrb({
   // One motion per state, so the owner can read it from across the room:
   // listening sends ripples out, speaking pulses them fast, thinking spins the
   // inner ring hard, idle only breathes.
-  const ripplePeriod = state === 'SPEAKING' ? 900 : state === 'LISTENING' ? 2200 : 0;
+  const ripplePeriod = state === 'SPEAKING' ? 900 : state === 'LISTENING' ? 2200 : state === 'WATCHING' ? 1400 : 0;
   const innerPeriod = state === 'THINKING' || state === 'TOOL_RUNNING' ? 1400 : active ? 4200 : 9000;
 
   const tint = useMemo(() => tintFor(state), [state]);
@@ -186,6 +188,8 @@ function tintFor(state: OrbState): string {
       return colors.warn;
     case 'TOOL_RUNNING':
       return colors.good;
+    case 'WATCHING':
+      return WATCHING_TINT;
     case 'OFFLINE':
       return colors.muted;
     default:

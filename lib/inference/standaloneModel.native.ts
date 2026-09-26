@@ -1,4 +1,4 @@
-import { initLlama, releaseAllLlama, loadLlamaModelInfo } from 'llama.rn';
+import { initLlama, loadLlamaModelInfo } from 'llama.rn';
 import { INTELLIGENCE_MODES } from './intelligenceModes';
 import { requireNonBlankCompletion } from './inferenceResponse';
 import { createThinkFilter, stripThinking } from '@/lib/voice/stripThinking';
@@ -48,7 +48,7 @@ export async function loadLocalModel(
   state = { status: 'loading', modelPath, modelName };
   try {
     if (context) {
-      await releaseAllLlama();
+      await context.release();
       context = null;
     }
 
@@ -105,7 +105,7 @@ export async function loadLocalModel(
 }
 
 export async function unloadLocalModel(): Promise<void> {
-  if (context) await releaseAllLlama();
+  if (context) await context.release();
   context = null;
   activePlan = null;
   state = { status: 'unloaded' };

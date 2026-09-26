@@ -25,6 +25,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'READ_SMS',
       'READ_CALL_LOG',
       'READ_CALENDAR',
+      // Eyes: only when the owner asks "what do you see?" (Android's camera screen, one photo).
+      'CAMERA',
     ],
   },
   plugins: [
@@ -32,6 +34,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-system-ui',
     'expo-secure-store',
     'expo-sqlite',
+    [
+      'expo-image-picker',
+      {
+        cameraPermission: 'JARVIS opens the camera only when you ask what it sees, for one photo described on this phone.',
+        photosPermission: false,
+        microphonePermission: false,
+      },
+    ],
     [
       'react-native-audio-api',
       {

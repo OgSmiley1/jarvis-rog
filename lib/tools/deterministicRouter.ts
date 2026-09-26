@@ -20,6 +20,22 @@ function tool(name: string, args: Record<string, unknown>, successMessage = 'Don
   return { call: { id: createId('tool'), tool: name, arguments: args }, successMessage };
 }
 
+/** "What do you see?" — the only way the camera ever opens. */
+function routeVision(trimmed: string, normalized: string): DeterministicToolRoute | null {
+  const lang = hasArabic(trimmed) ? 'ar' : 'en';
+  const plain =
+    /^(?:what\s+(?:do|can)\s+you\s+see|what(?:'s|\s+is)\s+(?:this|that|in\s+front\s+of\s+me)|look(?:\s+at\s+(?:this|that))?|describe\s+(?:this|that|what\s+you\s+see)|(?:use\s+the\s+)?camera\s+and\s+look)$/.test(normalized) ||
+    /^(?:ماذا|شو|ايش|إيش|وش)\s+(?:ترى|تشوف)$/u.test(trimmed) ||
+    /^(?:شوف|انظر|أنظر)\s+(?:هذا|هذه|هذي)$/u.test(trimmed) ||
+    /^(?:ما|وش|شو|ايش)\s+(?:هذا|هذه|هذي)$/u.test(trimmed);
+  if (plain) return tool('vision.look', { lang });
+  const asked =
+    normalized.match(/^look\s+at\s+this\s+and\s+(?:tell\s+me\s+)?(.+)$/) ??
+    normalized.match(/^(read\s+(?:this|that)(?:\s+.+)?)$/);
+  if (asked?.[1]) return tool('vision.look', { question: asked[1].trim(), lang });
+  return null;
+}
+
 /**
  * The phone commands: messages, calls, calendar, battery, calling and texting
  * a contact, web search. Each tool returns its own spoken sentence.
@@ -194,6 +210,9 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
       successMessage: `Opened ${urlMatch[1]}`,
     };
   }
+
+  const look = routeVision(trimmed, normalized);
+  if (look) return look;
 
   const phoneRoute = routePhone(trimmed, normalized);
   if (phoneRoute) return phoneRoute;

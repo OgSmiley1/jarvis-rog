@@ -38,16 +38,18 @@ class ExpoJarvisBrainModule : Module() {
       File(path.removePrefix("file://")).delete()
     }
 
-    Function("activeDownload") {
+    // Each file has its own download slot, keyed by its name, so the brain and
+    // the eyes can download side by side and each resumes independently.
+    Function("activeDownload") { fileName: String ->
       val context = context() ?: return@Function null
-      val id = prefs(context).getLong(KEY_ID, -1L)
+      val id = prefs(context).getLong(key(fileName), -1L)
       if (id < 0) null else id.toDouble()
     }
 
     Function("startDownload") { url: String, fileName: String, title: String ->
       val context = context() ?: throw IllegalStateException("NO_CONTEXT")
       val manager = manager(context)
-      val existing = prefs(context).getLong(KEY_ID, -1L)
+      val existing = prefs(context).getLong(key(fileName), -1L)
       if (existing >= 0) {
         val state = query(manager, existing)["state"]
         if (state == "pending" || state == "running" || state == "paused") return@Function existing.toDouble()
@@ -57,13 +59,13 @@ class ExpoJarvisBrainModule : Module() {
       File(dir, "$fileName.part").delete()
       val request = DownloadManager.Request(Uri.parse(url))
         .setTitle(title)
-        .setDescription("JARVIS brain · runs offline once downloaded")
+        .setDescription("JARVIS · runs offline once downloaded")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         .setDestinationInExternalFilesDir(context, DIR_TYPE, "$fileName.part")
         .setAllowedOverMetered(true)
         .setAllowedOverRoaming(true)
       val id = manager.enqueue(request)
-      prefs(context).edit().putLong(KEY_ID, id).apply()
+      prefs(context).edit().putLong(key(fileName), id).apply()
       id.toDouble()
     }
 
@@ -84,16 +86,16 @@ class ExpoJarvisBrainModule : Module() {
         if (target.exists()) target.delete()
         if (!part.renameTo(target)) throw IllegalStateException("MODEL_RENAME_FAILED")
       }
-      prefs(context).edit().remove(KEY_ID).apply()
+      prefs(context).edit().remove(key(fileName)).apply()
       if (!target.isFile) throw IllegalStateException("MODEL_DOWNLOAD_VERIFICATION_FAILED")
       "file://${target.absolutePath}"
     }
 
-    Function("cancelDownload") {
+    Function("cancelDownload") { fileName: String ->
       val context = context() ?: return@Function false
-      val id = prefs(context).getLong(KEY_ID, -1L)
+      val id = prefs(context).getLong(key(fileName), -1L)
       if (id >= 0) manager(context).remove(id)
-      prefs(context).edit().remove(KEY_ID).apply()
+      prefs(context).edit().remove(key(fileName)).apply()
       true
     }
   }
@@ -101,6 +103,10 @@ class ExpoJarvisBrainModule : Module() {
   private fun context(): Context? = appContext.reactContext?.applicationContext
 
   private fun manager(context: Context) = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
+  // The brain keeps the original key, so a download started by an older
+  // build is still found after this update.
+  private fun key(fileName: String) = if (fileName == BRAIN_FILE) KEY_ID else "$KEY_ID:$fileName"
 
   private fun prefs(context: Context) = context.getSharedPreferences("jarvis.brain", Context.MODE_PRIVATE)
 
@@ -133,5 +139,6 @@ class ExpoJarvisBrainModule : Module() {
   companion object {
     private const val DIR_TYPE = "models"
     private const val KEY_ID = "downloadId"
+    private const val BRAIN_FILE = "Qwen3-4B-Q4_K_M.gguf"
   }
 }

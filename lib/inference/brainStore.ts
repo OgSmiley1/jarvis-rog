@@ -17,11 +17,11 @@ interface ExpoJarvisBrainNativeModule {
   modelDirectory(): string | null;
   fileSize(path: string): number;
   deleteFile(path: string): boolean;
-  activeDownload(): number | null;
+  activeDownload(fileName: string): number | null;
   startDownload(url: string, fileName: string, title: string): number;
   downloadStatus(id: number): NativeDownloadStatus;
   finishDownload(fileName: string): string;
-  cancelDownload(): boolean;
+  cancelDownload(fileName: string): boolean;
 }
 
 // Null on web and in APKs built before this module existed; callers then fall
@@ -66,9 +66,33 @@ export function findInstalledModel(configured?: { path?: string; name?: string }
   return pickInstalledModel(candidates);
 }
 
-/** True when Android is still holding a brain download for JARVIS, running or finished. */
-export function hasPendingSystemDownload(): boolean {
-  return native?.activeDownload() != null;
+/** A model file JARVIS downloads: where from, what it is called, how big a complete one is. */
+export interface ModelFile {
+  url: string;
+  name: string;
+  title: string;
+  minBytes: number;
+}
+
+export const BRAIN_FILE: ModelFile = {
+  url: RECOMMENDED_MODEL.url,
+  name: RECOMMENDED_MODEL.name,
+  title: 'JARVIS brain (Qwen3 4B)',
+  minBytes: MIN_COMPLETE_MODEL_BYTES,
+};
+
+/** True when Android is still holding a download for this file, running or finished. */
+export function hasPendingSystemDownload(file: ModelFile = BRAIN_FILE): boolean {
+  return native?.activeDownload(file.name) != null;
+}
+
+/** The complete file in the system-download folder, or null. */
+export function findModelFile(file: ModelFile): InstalledModel | null {
+  const dir = native?.modelDirectory();
+  if (!dir) return null;
+  const path = `file://${dir}/${file.name}`;
+  const size = sizeOf(path);
+  return size >= file.minBytes ? { path, name: file.name, size } : null;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,32 +102,35 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * resolves with the finished file. Safe to call again after the app was
  * closed mid-download: it picks up the same download, not a new one.
  */
-export async function downloadWithSystem(onView: (view: DownloadView) => void): Promise<InstalledModel> {
+export async function downloadWithSystem(
+  onView: (view: DownloadView) => void,
+  file: ModelFile = BRAIN_FILE,
+): Promise<InstalledModel> {
   if (!native) throw new Error('SYSTEM_DOWNLOADER_UNAVAILABLE');
-  let id = native.activeDownload();
+  let id = native.activeDownload(file.name);
   if (id != null) {
     const previous = native.downloadStatus(id).state;
     if (previous === 'failed' || previous === 'missing') {
-      native.cancelDownload();
+      native.cancelDownload(file.name);
       id = null;
     }
   }
-  id ??= native.startDownload(RECOMMENDED_MODEL.url, RECOMMENDED_MODEL.name, 'JARVIS brain (Qwen3 4B)');
+  id ??= native.startDownload(file.url, file.name, file.title);
   for (;;) {
     const view = describeDownload(native.downloadStatus(id));
     onView(view);
     if (view.done) {
       if (view.failed) {
-        native.cancelDownload();
-        throw new Error(view.note ?? 'The brain download failed. Tap to try again.');
+        native.cancelDownload(file.name);
+        throw new Error(view.note ?? 'The download failed. Tap to try again.');
       }
-      const path = native.finishDownload(RECOMMENDED_MODEL.name);
+      const path = native.finishDownload(file.name);
       const size = native.fileSize(path);
-      if (size < MIN_COMPLETE_MODEL_BYTES) {
+      if (size < file.minBytes) {
         native.deleteFile(path);
         throw new Error('MODEL_DOWNLOAD_SIZE_INVALID');
       }
-      return { path, name: RECOMMENDED_MODEL.name, size };
+      return { path, name: file.name, size };
     }
     await sleep(1000);
   }

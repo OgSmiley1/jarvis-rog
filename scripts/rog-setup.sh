@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # JARVIS ROG — everything in one go, from Termux, no PC:
-#   the app, every permission, and the 2.5 GB brain put where JARVIS finds it.
+#   the app, every permission, the 2.5 GB brain and the eyes, put where JARVIS finds them.
 # Safe to run again at any time: it resumes the brain download, skips what is
 # already done, and updates the app while keeping your data.
 #
@@ -21,7 +21,7 @@ APK_URL="${1:-$LATEST_APK}"
 BRAIN_NAME="Qwen3-4B-Q4_K_M.gguf"
 BRAIN_URL="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
 BRAIN_MIN_BYTES=2000000000
-BRAIN_DIR="/sdcard/Android/data/${PKG}/files/models"
+MODEL_DIR="/sdcard/Android/data/${PKG}/files/models"
 WORK="$HOME/jarvis-rog-setup"
 mkdir -p "$WORK"
 
@@ -63,7 +63,7 @@ ok "installed"
 
 step "Granting permissions"
 # adb installs whitelist restricted permissions (SMS, call log), so pm grant works for them here.
-for perm in RECORD_AUDIO POST_NOTIFICATIONS READ_CONTACTS CALL_PHONE READ_SMS READ_CALL_LOG READ_CALENDAR; do
+for perm in RECORD_AUDIO POST_NOTIFICATIONS READ_CONTACTS CALL_PHONE READ_SMS READ_CALL_LOG READ_CALENDAR CAMERA; do
   if adb shell pm grant "$PKG" "android.permission.$perm" 2>/dev/null; then ok "$perm"; else skip "$perm" "not requested by this build"; fi
 done
 adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow 2>/dev/null && ok "display over other apps (floating orb)" || skip "display over other apps" "refused"
@@ -75,49 +75,56 @@ else
   skip "default assistant" "set it by hand: Settings -> Apps -> Default apps -> Digital assistant app"
 fi
 
-step "The brain (Qwen3 4B, 2.5 GB, runs offline)"
-# Stop the app so it cannot start its own download of the same file meanwhile.
-adb shell am force-stop "$PKG" || true
-on_phone=$(adb shell "stat -c %s '$BRAIN_DIR/$BRAIN_NAME' 2>/dev/null" | tr -d '\r' || true)
-if [ -n "$on_phone" ] && [ "$on_phone" -ge "$BRAIN_MIN_BYTES" ]; then
-  ok "already in place ($((on_phone / 1048576)) MB) — not downloading again"
-else
+# put_model <file name> <url> <minimum bytes> <label>
+# Downloads into Termux (resumable), checks Hugging Face's sha256, pushes it
+# into JARVIS's own model folder, deletes the Termux copy. Skips what is there.
+put_model() {
+  local name="$1" url="$2" min="$3" label="$4"
+  local on_phone size free_kb expected actual
+  on_phone=$(adb shell "stat -c %s '$MODEL_DIR/$name' 2>/dev/null" | tr -d '\r' || true)
+  if [ -n "$on_phone" ] && [ "$on_phone" -ge "$min" ]; then
+    ok "$label already in place ($((on_phone / 1048576)) MB)"
+    return 0
+  fi
   free_kb=$(df -k "$WORK" | awk 'NR==2 {print $4}')
-  if [ "${free_kb:-0}" -lt 3000000 ]; then
-    echo "FAIL: need about 3 GB free for the download (have $((free_kb / 1024)) MB). Free some space and run this again."
+  if [ "${free_kb:-0}" -lt $((min / 1024 + 400000)) ]; then
+    echo "FAIL: not enough free space for $label ($((free_kb / 1024)) MB free). Free some space and run this again."
     exit 4
   fi
-  echo "Downloading. If it stops, run this command again: it continues where it left off."
-  curl -fL --retry 10 --retry-delay 5 -C - -o "$WORK/$BRAIN_NAME" "$BRAIN_URL"
-  size=$(stat -c %s "$WORK/$BRAIN_NAME")
-  [ "$size" -ge "$BRAIN_MIN_BYTES" ] || { echo "FAIL: download incomplete ($size bytes). Run this again to resume."; exit 5; }
-
-  # Hugging Face publishes the file's sha256 as its ETag: check it when present.
-  expected=$(curl -sIL "$BRAIN_URL" | tr -d '\r"' | awk 'tolower($1)=="x-linked-etag:" {print $2}' | tail -1 || true)
+  echo "Downloading $label. If it stops, run this command again: it continues where it left off."
+  curl -fL --retry 10 --retry-delay 5 -C - -o "$WORK/$name" "$url"
+  size=$(stat -c %s "$WORK/$name")
+  [ "$size" -ge "$min" ] || { echo "FAIL: $label incomplete ($size bytes). Run this again to resume."; exit 5; }
+  expected=$(curl -sIL "$url" | tr -d '\r"' | awk 'tolower($1)=="x-linked-etag:" {print $2}' | tail -1 || true)
   if [ ${#expected} -eq 64 ]; then
-    echo "Checking the file is intact…"
-    actual=$(sha256sum "$WORK/$BRAIN_NAME" | awk '{print $1}')
+    actual=$(sha256sum "$WORK/$name" | awk '{print $1}')
     if [ "$actual" != "$expected" ]; then
-      rm -f "$WORK/$BRAIN_NAME"
-      echo "FAIL: the download was corrupted and has been deleted. Run this again."
+      rm -f "$WORK/$name"
+      echo "FAIL: $label was corrupted and has been deleted. Run this again."
       exit 6
     fi
-    ok "checksum matches"
+    ok "$label checksum matches"
   fi
+  adb shell mkdir -p "$MODEL_DIR"
+  adb shell rm -f "$MODEL_DIR/$name.part"
+  adb push "$WORK/$name" "$MODEL_DIR/$name"
+  on_phone=$(adb shell "stat -c %s '$MODEL_DIR/$name'" | tr -d '\r')
+  [ "$on_phone" = "$size" ] || { echo "FAIL: $label copy size mismatch. Run this again."; exit 7; }
+  rm -f "$WORK/$name"
+  ok "$label in place ($((size / 1048576)) MB)"
+}
 
-  echo "Putting it where JARVIS looks…"
-  adb shell mkdir -p "$BRAIN_DIR"
-  adb shell rm -f "$BRAIN_DIR/$BRAIN_NAME.part"
-  adb push "$WORK/$BRAIN_NAME" "$BRAIN_DIR/$BRAIN_NAME"
-  on_phone=$(adb shell "stat -c %s '$BRAIN_DIR/$BRAIN_NAME'" | tr -d '\r')
-  [ "$on_phone" = "$size" ] || { echo "FAIL: copy size mismatch. Run this again."; exit 7; }
-  rm -f "$WORK/$BRAIN_NAME"
-  ok "brain in place ($((size / 1048576)) MB); the Termux copy is deleted to free space"
-fi
+step "The brain (Qwen3 4B, 2.5 GB) and the eyes (SmolVLM2, 546 MB) — all offline"
+# Stop the app so it cannot start its own download of the same files meanwhile.
+adb shell am force-stop "$PKG" || true
+put_model "$BRAIN_NAME" "$BRAIN_URL" "$BRAIN_MIN_BYTES" "brain"
+EYES_REPO="https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main"
+put_model "mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 100000000 "eyes projector"
+put_model "SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 400000000 "eyes"
 
 step "Verifying"
 adb shell dumpsys package "$PKG" | grep -o "android.permission.[A-Z_]*: granted=[a-z]*" \
-  | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|CALL_PHONE|READ_SMS|READ_CALL_LOG|READ_CALENDAR" | sort -u || true
+  | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|CALL_PHONE|READ_SMS|READ_CALL_LOG|READ_CALENDAR|CAMERA" | sort -u || true
 echo "  overlay: $(adb shell appops get "$PKG" SYSTEM_ALERT_WINDOW | tr -d '\r')"
 adb shell dumpsys deviceidle whitelist | grep -q "$PKG" && echo "  battery: exempt" || echo "  battery: optimised"
 
@@ -127,7 +134,7 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 cat <<'NEXT'
 
 Done. JARVIS loads the brain by itself in a few seconds — no download button.
-  1. Say: "Jarvis, how much battery"  /  "Jarvis, what do I have tomorrow"
+  1. Say: "Jarvis, how much battery"  /  "Jarvis, what do you see"
   2. Settings -> Live test link -> Start live link, so Claude can watch the test.
 Run this same command again any time to update JARVIS; the brain stays.
 NEXT

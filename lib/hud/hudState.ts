@@ -17,6 +17,7 @@ export type HudState =
   | 'THINKING'
   | 'SPEAKING'
   | 'TOOL_RUNNING'
+  | 'WATCHING'
   | 'ERROR';
 
 export type HudLanguage = 'auto' | 'en' | 'ar';
@@ -44,6 +45,8 @@ export interface HudSignals {
    * Optional so existing callers keep their behaviour.
    */
   cloudReady?: boolean;
+  /** The camera is open for an owner-requested look. Outranks everything: it must be unmistakable. */
+  watching?: boolean;
 }
 
 export interface HudPresentation {
@@ -73,6 +76,7 @@ const HEADLINES: Record<HudState, { en: string; ar: string }> = {
   THINKING: { en: 'THINKING', ar: 'يفكّر' },
   SPEAKING: { en: 'SPEAKING', ar: 'يتحدث' },
   TOOL_RUNNING: { en: 'EXECUTING', ar: 'ينفّذ' },
+  WATCHING: { en: 'WATCHING', ar: 'يرى' },
   ERROR: { en: 'ERROR', ar: 'خطأ' },
 };
 
@@ -86,6 +90,7 @@ function pick(language: HudLanguage, en: string, ar: string): string {
  * unloaded model the least.
  */
 export function deriveHudState(signals: HudSignals): HudState {
+  if (signals.watching) return 'WATCHING';
   if (signals.toolRunning) return 'TOOL_RUNNING';
   if (signals.speaking) return 'SPEAKING';
   if (signals.generating) return 'THINKING';
@@ -117,6 +122,12 @@ export function describeHud(signals: HudSignals): HudPresentation {
     }
 
     switch (state) {
+      case 'WATCHING':
+        return pick(
+          language,
+          'Camera on. One photo, described on this phone, then the camera is off.',
+          'الكاميرا تعمل. صورة واحدة تُوصف على هذا الهاتف، ثم تُطفأ الكاميرا.',
+        );
       case 'TOOL_RUNNING':
         return pick(language, 'Running an audited tool call.', 'ينفّذ أداة ضمن السجل المدقق.');
       case 'SPEAKING':
