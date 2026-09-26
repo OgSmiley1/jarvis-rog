@@ -18,15 +18,15 @@ import { SpeechStream } from '@/lib/voice/speechStream';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { wakeGreeting } from '@/lib/hud/greeting';
-
-/** How long after JARVIS finishes speaking a reply is heard without the wake word. */
-const FOLLOW_UP_MS = 8_000;
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
+
+/** How long after JARVIS finishes speaking a reply is heard without the wake word. */
+const FOLLOW_UP_MS = 8_000;
 
 /**
  * The ambient HUD — JARVIS's only screen.
