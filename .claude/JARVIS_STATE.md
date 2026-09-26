@@ -948,3 +948,18 @@ useful behaviours into the phone app. Plan: /root/.claude/plans/serialized-wiggl
 Build `5e5991f6` on 7813fe4 FINISHED 05:06 UTC, BUILD SUCCESSFUL, 0 Kotlin errors.
 APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk (setup-script default). 370 tests green.
 Device gates for this build: NOT RUN — awaiting the owner's live-link test.
+
+## SESSION 9 — the reference-video look (26 Sep 2026)
+
+Owner sent two videos: "that's exactly what I want on my ROG". Video 1 (a
+HUD JARVIS) decoded frame by frame; video 2 (console assistant) was already
+covered by session 8 except the thinking filler.
+
+| Commit | What | Verified |
+|---|---|---|
+| 04d5688 | navy grid backdrop + top bracket; SVG reactor orb (thick glowing blue ring, broken counter-rotating arcs, 60-tick ring with // marks, particles, black core + JARVIS); big monospace clock under the orb; all motion native-driver | tests/orbGeometry.test.ts (5); browser render of the same geometry sent to the owner (a design preview, not a phone screenshot) |
+| 8bd322a | camera page: live CameraView full-bleed, mini orb in the corner, icon bar under the stage, "open the camera" / «افتح الكاميرا»; "what do you see" there takes its one photo from the live view; preview only while the page is visible and the app is in front; expo-camera plugin, audio off | tests/cameraPage.test.ts (15) |
+| 2512167 | "Let me think about that for you." after 1.2 s with no first sentence, EN/AR, once per question; fillerMs logged apart from firstSpeechMs | tests/thinkingFiller.test.ts (4) |
+
+394 tests, lint, typecheck and smoke green. EAS build `ac59bd3c` on 2512167.
+Device gates: NOT RUN — awaiting the owner's live-link test.
