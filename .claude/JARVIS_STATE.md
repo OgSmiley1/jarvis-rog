@@ -906,3 +906,26 @@ APK: https://expo.dev/artifacts/eas/WikoiqX3Gkuuis1YzK-vCCAcrKMJUPvNDxDB6H1pyS4.
 Not yet verified on the device: DownloadManager survival, the permission
 prompts (SMS/call log are restricted for browser installs), app-list
 visibility, reminder notifications.
+
+## SESSION 7 — owner's build brief + build pack, phases A–G (26 Sep 2026)
+
+Evidence in: owner's screen recording (build bc047ad7) — brain loaded through
+the Termux push (so the one-command setup works end to end), but Qwen3's
+<think> was displayed and spoken, "how are you?" took 37.07 s (TTFT 5.3 s,
+5.9 tok/s, OpenCL GPU), the heard-line accumulated the whole session with
+Whisper labels "(Bell)", and System UI ANR'd while the brain loaded on GPU.
+
+| Phase | Commit | What | Verified how |
+|---|---|---|---|
+| A | 2311dd9 | enable_thinking:false; streaming think filter; stripThinking at completion, cloud, speakResponse/speakQueued; per-turn transcript + label cleaner; CPU default (GPU switch in Settings) | tests/voicePipeline.test.ts (18) incl. the exact ROG output under every chunking |
+| B | ade2a42 | fast profile for spoken turns; no per-turn clearCache (prefix reuse); firstSpeechMs recorded; scripts/measure-voice-latency.mjs | script on the recorded run → 5.32 s / 37.07 s baseline. **On-device < 5 s: hardware-only, not yet measured** |
+| C | 398976e | clock/date/status line; orb ripples (listen), fast spin (think), fast pulse (speak), breath (idle) | tests/dashboard.test.ts (8). **No screenshot: no web target; capture from the ROG** |
+| D | bfd721e | vision.look: expo-image-picker camera (owner-taken photo), SmolVLM2-500M + mmproj via llama.rn multimodal, photo deleted, WATCHING state + "camera on"; per-file download slots; setup script fetches eyes; brain loader releases only its own context | tests/vision.test.ts (14). **On-device describe: hardware-only** |
+| E/F/G | dfe8b17 | 8 s follow-up window after a spoken answer; PERSONA in system prompt; first-wake greeting by time of day + active project; docs/PI_SATELLITE.md (design only) | tests/greeting.test.ts (6) |
+
+/no_think finding: llama.rn 0.13.0-rc.1 `completion()` accepts
+`enable_thinking` and applies it through the GGUF's jinja template
+(`getFormattedChat`, jinja on by default). Empirical check on the device
+still owed: the live log's ANSWER lines must contain no "<think>".
+
+Build `206bc03d` queued on 9ca8574.
