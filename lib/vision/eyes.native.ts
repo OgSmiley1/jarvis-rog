@@ -4,12 +4,14 @@ import { initLlama, type LlamaContext } from 'llama.rn';
 import { findModelFile } from '@/lib/inference/brainStore';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { EYES_MODEL, EYES_PROJECTOR, visionPrompt } from './eyesFiles';
+import { liveCapture } from './liveCapture';
 
 /**
- * Owner-triggered sight. Nothing here runs unless the owner asks: the camera
- * opens only through Android's own camera screen (the owner takes the one
- * photo), the photo is described on the phone, and the file is deleted as
- * soon as the description exists. There is no background capture path.
+ * Owner-triggered sight. Nothing here runs unless the owner asks: the photo
+ * comes from the camera page's live view when that page is on screen, and
+ * otherwise from Android's own camera screen (the owner takes the one photo).
+ * It is described on the phone and the file is deleted as soon as the
+ * description exists. There is no background capture path.
  */
 
 let context: LlamaContext | null = null;
@@ -22,6 +24,8 @@ export function eyesInstalled(): boolean {
 
 /** Opens the camera for one photo. Null if the owner backed out. */
 export async function captureFrame(): Promise<string | null> {
+  const live = liveCapture();
+  if (live) return live();
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) throw new Error('CAMERA_PERMISSION_DENIED');
   const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, exif: false, allowsEditing: false });

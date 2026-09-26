@@ -7,7 +7,7 @@ import type { ToolDefinition } from './types';
 export const visionTools: ToolDefinition[] = [
   {
     name: 'vision.look',
-    description: 'Open the camera for one photo the owner takes, and describe what is in it. Nothing leaves the phone.',
+    description: 'Take one photo (from the live camera page if it is open, otherwise the owner takes it) and describe what is in it. Nothing leaves the phone.',
     target: 'ANDROID',
     confirmation: 'none',
     schema: z.object({ question: z.string().max(300).optional(), lang: z.enum(['en', 'ar']).default('en') }),

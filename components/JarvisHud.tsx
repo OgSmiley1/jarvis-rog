@@ -6,6 +6,8 @@ import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { DashboardClock } from '@/components/DashboardClock';
 import { HudBackdrop } from '@/components/HudBackdrop';
+import { CameraPage } from '@/components/CameraPage';
+import { PageBar } from '@/components/PageBar';
 import { colors } from '@/components/theme';
 import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
 import { providerById } from '@/lib/online/cloudBrain';
@@ -19,7 +21,14 @@ import { SpeechStream } from '@/lib/voice/speechStream';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { wakeGreeting } from '@/lib/hud/greeting';
-import { detectLanguageSwitch, isShareCommand, languageSwitchedReply } from '@/lib/hud/hudCommands';
+import {
+  detectLanguageSwitch,
+  detectPageSwitch,
+  isShareCommand,
+  languageSwitchedReply,
+  pageSwitchedReply,
+  type HudPage,
+} from '@/lib/hud/hudCommands';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
@@ -50,6 +59,8 @@ export default function JarvisHud() {
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
   const [watching, setWatching] = useState(false);
+  // The orb page, or the live camera page with JARVIS in the corner.
+  const [page, setPage] = useState<HudPage>('orb');
   const greetedRef = useRef(false);
   // Set when an answer has been spoken in hands-free mode: once the voice
   // finishes, the owner can reply for a few seconds without the wake word.
@@ -142,6 +153,15 @@ export default function JarvisHud() {
       setResponse(reply);
       setInput('');
       if (voiceReply) speakJarvis(reply, false, switchTo);
+      return;
+    }
+    const pageTo = detectPageSwitch(command);
+    if (pageTo) {
+      showPage(pageTo);
+      const reply = pageSwitchedReply(pageTo, arabic ? 'ar' : 'en');
+      setResponse(reply);
+      setInput('');
+      if (voiceReply) speakJarvis(reply);
       return;
     }
     if (isShareCommand(command)) {
@@ -283,6 +303,12 @@ export default function JarvisHud() {
         recordLive('app', 'camera off');
       }
     }
+  }
+
+  function showPage(next: HudPage) {
+    if (next === page) return;
+    recordLive('app', next === 'camera' ? 'camera page on' : 'camera page off');
+    setPage(next);
   }
 
   /** Stop speech and generation now. No model call, no confirmation. */
@@ -506,69 +532,75 @@ export default function JarvisHud() {
           ) : null}
         </View>
       </View>
-      <View style={styles.stage}>
-        <JarvisOrb state={hud.state} level={voice.level} onPress={toggleVoice} label={hud.headline} />
-        <DashboardClock
-          lang={arabic ? 'ar' : 'en'}
-          status={{
-            modelStatus: jarvis.modelState.status,
-            modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
-            cloudReady: jarvis.cloudReady,
-            micOn,
-            camera: watching,
-          }}
-        />
-        <Text style={styles.detail}>{hud.detail}</Text>
-        {voice.transcript ? (
-          <Text style={styles.transcript} numberOfLines={2}>
-            “{voice.transcript}”
-          </Text>
-        ) : null}
-        {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
-        {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
-          <Pressable
-            onPress={() => void installBrain()}
-            disabled={downloading || brainBusy}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
-          >
-            <Text style={styles.brainTitle}>
-              {downloading
-                ? downloadPercent === null
-                  ? arabic ? 'جارٍ بدء التنزيل…' : 'Starting download…'
-                  : arabic ? `جارٍ التنزيل ${downloadPercent}%` : `Downloading ${downloadPercent}%`
-                : brainBusy
-                  ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
-                  : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
-                    ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
-                    : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
+      {page === 'camera' ? (
+        <CameraPage state={hud.state} level={voice.level} onOrbPress={toggleVoice} arabic={arabic} />
+      ) : (
+        <View style={styles.stage}>
+          <JarvisOrb state={hud.state} level={voice.level} onPress={toggleVoice} label={hud.headline} />
+          <DashboardClock
+            lang={arabic ? 'ar' : 'en'}
+            status={{
+              modelStatus: jarvis.modelState.status,
+              modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
+              cloudReady: jarvis.cloudReady,
+              micOn,
+                camera: watching,
+            }}
+          />
+          <Text style={styles.detail}>{hud.detail}</Text>
+          {voice.transcript ? (
+            <Text style={styles.transcript} numberOfLines={2}>
+              “{voice.transcript}”
             </Text>
-            <Text style={styles.brainSub}>
-              {downloading
-                ? jarvis.brainDownload?.note ??
-                  (arabic
-                    ? 'يمكنك مغادرة التطبيق — أندرويد يكمل التنزيل. التقدّم في الإشعارات.'
-                    : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
-                : jarvis.modelState.status === 'error' && jarvis.modelState.error
-                  ? jarvis.modelState.error
-                  : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
-            </Text>
-            {downloading ? (
-              <View style={styles.brainTrack}>
-                <View style={[styles.brainFill, { width: `${Math.max(2, downloadPercent ?? 0)}%` }]} />
-              </View>
-            ) : null}
-          </Pressable>
-        ) : null}
-        {jarvis.activeProject ? (
-          <Pressable onPress={() => setInput(jarvis.activeProject?.nextAction ?? '')} style={styles.projectPill}>
-            <Text style={styles.projectPillText} numberOfLines={1}>
-              {jarvis.activeProject.name}
-              {jarvis.activeProject.nextAction ? ` · ${jarvis.activeProject.nextAction}` : ''}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+          ) : null}
+          {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
+          {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
+            <Pressable
+              onPress={() => void installBrain()}
+              disabled={downloading || brainBusy}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
+            >
+              <Text style={styles.brainTitle}>
+                {downloading
+                  ? downloadPercent === null
+                    ? arabic ? 'جارٍ بدء التنزيل…' : 'Starting download…'
+                    : arabic ? `جارٍ التنزيل ${downloadPercent}%` : `Downloading ${downloadPercent}%`
+                  : brainBusy
+                    ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
+                    : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
+                      ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
+                      : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
+              </Text>
+              <Text style={styles.brainSub}>
+                {downloading
+                  ? jarvis.brainDownload?.note ??
+                    (arabic
+                      ? 'يمكنك مغادرة التطبيق — أندرويد يكمل التنزيل. التقدّم في الإشعارات.'
+                      : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
+                  : jarvis.modelState.status === 'error' && jarvis.modelState.error
+                    ? jarvis.modelState.error
+                    : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
+              </Text>
+              {downloading ? (
+                <View style={styles.brainTrack}>
+                  <View style={[styles.brainFill, { width: `${Math.max(2, downloadPercent ?? 0)}%` }]} />
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
+          {jarvis.activeProject ? (
+            <Pressable onPress={() => setInput(jarvis.activeProject?.nextAction ?? '')} style={styles.projectPill}>
+              <Text style={styles.projectPillText} numberOfLines={1}>
+                {jarvis.activeProject.name}
+                {jarvis.activeProject.nextAction ? ` · ${jarvis.activeProject.nextAction}` : ''}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      )}
+
+      <PageBar page={page} onChange={showPage} arabic={arabic} />
 
       {response ? (
         <ScrollView style={styles.responseWrap} contentContainerStyle={styles.responseContent}>

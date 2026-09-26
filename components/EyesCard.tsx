@@ -43,8 +43,9 @@ export function EyesCard() {
   return (
     <Card title="Eyes">
       <AppText muted>
-        Say “what do you see?” or tap Look. The camera opens only then, you take one photo, it is described on this phone,
-        and the photo is deleted. Nothing leaves the phone.
+        Say “what do you see?” or tap Look. On the camera page (say “open the camera”) JARVIS takes one photo from the live
+        view; elsewhere the camera opens and you take it. It is described on this phone and the photo is deleted. Nothing
+        is recorded and nothing leaves the phone.
       </AppText>
       {installed ? (
         <AppText>Installed · SmolVLM2 · works offline</AppText>

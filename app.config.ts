@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'READ_SMS',
       'READ_CALL_LOG',
       'READ_CALENDAR',
-      // Eyes: only when the owner asks "what do you see?" (Android's camera screen, one photo).
+      // Eyes: the live camera page while it is on screen, and one photo when the owner asks "what do you see?".
       'CAMERA',
     ],
   },
@@ -39,6 +39,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         cameraPermission: 'JARVIS opens the camera only when you ask what it sees, for one photo described on this phone.',
         photosPermission: false,
         microphonePermission: false,
+      },
+    ],
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'JARVIS shows the camera only on its camera page, and takes one photo when you ask what it sees. Nothing is recorded.',
+        microphonePermission: false,
+        recordAudioAndroid: false,
       },
     ],
     [
