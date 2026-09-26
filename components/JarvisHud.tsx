@@ -18,6 +18,7 @@ import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
+import { FILLER_AFTER_MS, thinkingFiller } from '@/lib/voice/thinkingFiller';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
 import { extractWakeCommand } from '@/lib/voice/wakeWord';
 import { wakeGreeting } from '@/lib/hud/greeting';
@@ -219,9 +220,11 @@ export default function JarvisHud() {
     // stream, so it keeps the simple path.
     const stream = voiceOut && !deterministic ? new SpeechStream() : null;
 
-    const say = (segments: string[]) => {
+    // `filler` marks the one "let me think" line: it must not count as the
+    // answer's first word in the latency figures.
+    const say = (segments: string[], filler = false) => {
       if (!stream || segments.length === 0 || speechEpochRef.current !== epoch) return;
-      if (!firstSpeechAt) firstSpeechAt = Date.now();
+      if (!filler && !firstSpeechAt) firstSpeechAt = Date.now();
       if (neural.isReady) {
         // Speaking state is reported by the neural queue itself.
         for (const segment of segments) neural.enqueue(segment);
@@ -242,6 +245,17 @@ export default function JarvisHud() {
         });
       }
     };
+
+    // If the brain is still silent after a moment, say so rather than leave
+    // the owner in silence. Once per question; never over the answer itself.
+    let fillerAt = 0;
+    const fillerTimer = stream
+      ? setTimeout(() => {
+          if (firstSpeechAt || speechEpochRef.current !== epoch) return;
+          fillerAt = Date.now();
+          say([thinkingFiller(jarvis.settings.language, epoch)], true);
+        }, FILLER_AFTER_MS)
+      : undefined;
 
     try {
       const result = await jarvis.ask(
@@ -272,6 +286,7 @@ export default function JarvisHud() {
         // When the first sentence was handed to the voice — the owner's
         // "time to first word". Null for whole-answer (tool) speech.
         firstSpeechMs: firstSpeechAt ? firstSpeechAt - askedAt : null,
+        fillerMs: fillerAt ? fillerAt - askedAt : null,
         chars: result.text.length,
         voice: stream ? 'streamed' : voiceOut ? 'whole' : 'off',
       });
@@ -296,6 +311,7 @@ export default function JarvisHud() {
         Alert.alert('JARVIS error', message);
       }
     } finally {
+      clearTimeout(fillerTimer);
       setBusy(false);
       setToolRunning(false);
       if (looking) {
