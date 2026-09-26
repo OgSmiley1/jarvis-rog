@@ -6,6 +6,25 @@
 >
 > Section numbers match `docs/ACCEPTANCE_TESTS.md`.
 
+## Current status — read this first (27 Sep 2026)
+
+Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
+features listed as missing) were true when written and are superseded by later
+ones. The newest session section at the end of this file is the current state.
+
+- **Latest APK:** build `ac59bd3c` (source `2512167`), the default in `scripts/rog-setup.sh`.
+- **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
+- **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
+  on older builds only: the brain loads and answers (bc047ad7, owner's video),
+  37 s for one answer at 5.9 tok/s before the latency work. Under-5-s speech,
+  the new HUD, camera page, Arabic conversation, background wake word and the
+  floating orb are unverified until the owner's test.
+- **Not built (by design or not yet):** operating arbitrary apps (Accessibility /
+  screen reading), typing or scrolling in other apps, languages beyond EN/AR,
+  the Raspberry Pi satellite (design doc only).
+- **Live link privacy:** the default channel repository is public; words are only
+  sent to a repository GitHub confirms is private.
+
 ## Build under test
 
 | Field | Value |

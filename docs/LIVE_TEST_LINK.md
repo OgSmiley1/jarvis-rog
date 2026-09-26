@@ -1,7 +1,8 @@
 # Live test link — let Claude watch a test as it happens
 
 While the link is on, JARVIS posts what it hears, decides, says and fails at to a
-**private** GitHub channel every few seconds. A Claude session subscribed to that
+GitHub channel every few seconds. The default channel,
+`OgSmiley1/jarvis-live-tests`, is a **public** repository — anyone can read it. A Claude session subscribed to that
 channel is woken by each post and can follow the test live — no screenshots, no
 screen recording, no copy-paste.
 
@@ -25,7 +26,10 @@ speech can contain anything:
 Also: HUD state changes, brain load/ready/error, microphone state and errors,
 halts, voice-engine failures, camera on/off — none of which carry the owner's
 words. Settings → Live test link → **Include what I say — 30 min** adds the
-actual words for one test; it switches itself off after 30 minutes. Messages,
+actual words for one test, **only if GitHub confirms the channel repository is
+private** (checked each time the link starts; any doubt counts as public). On a
+public channel the button is disabled, a red warning says so, and words recorded
+earlier are not replayed. It switches itself off after 30 minutes. Messages,
 calls, contacts, calendar and camera descriptions are never included, even
 then (`[private phone data]`). Anything that looks like an API key is replaced
 with `[redacted]`, and fields named key/token/secret are never sent.

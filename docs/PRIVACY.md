@@ -55,6 +55,8 @@ The Free AI Hub (Puter) is a separate, explicitly opened screen and is unaffecte
 
 Default: states, timings, routes and errors only; the owner's words and the
 replies are logged as word counts (`lib/telemetry/transcriptPolicy.ts`). An
-explicit "Include what I say" switch adds words for at most 30 minutes.
+explicit "Include what I say" switch adds words for at most 30 minutes, and
+only while the link runs to a repository GitHub confirms is private — never to a
+public one (the default `OgSmiley1/jarvis-live-tests` is public).
 Private phone data (messages, calls, contacts, calendar, camera) is never
 logged. Tested in `tests/transcriptPolicy.test.ts`.

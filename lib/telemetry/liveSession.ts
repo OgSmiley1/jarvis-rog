@@ -1,4 +1,12 @@
-import { GithubLiveChannel, type ChannelFetch, type ChannelStatus, type ChannelTarget } from '@/lib/telemetry/githubChannel';
+import {
+  GithubLiveChannel,
+  readChannelVisibility,
+  type ChannelFetch,
+  type ChannelStatus,
+  type ChannelTarget,
+  type ChannelVisibility,
+} from '@/lib/telemetry/githubChannel';
+import { carriesWords, setPrivateChannelLive } from '@/lib/telemetry/transcriptPolicy';
 import { liveLog, recordLive } from '@/lib/telemetry/liveLog';
 
 /**
@@ -13,6 +21,12 @@ type Listener = () => void;
 const IDLE: ChannelStatus = { state: 'idle', posted: 0, pending: 0, dropped: 0 };
 
 let channel: GithubLiveChannel | undefined;
+let visibility: ChannelVisibility = 'unknown';
+
+/** What GitHub said about the last channel repository the link started on. */
+export function getLiveVisibility(): ChannelVisibility {
+  return visibility;
+}
 let status: ChannelStatus = IDLE;
 let detachLog: (() => void) | undefined;
 let detachStatus: (() => void) | undefined;
@@ -43,6 +57,7 @@ export async function startLiveLink(input: {
   fetchImpl: ChannelFetch;
 }): Promise<ChannelStatus> {
   await stopLiveLink();
+  visibility = await readChannelVisibility(input.target, input.token, input.fetchImpl);
   const next = new GithubLiveChannel(input);
   channel = next;
   detachStatus = next.onStatus((value) => {
@@ -50,6 +65,7 @@ export async function startLiveLink(input: {
     if (value.state === 'error' || value.state === 'stopped') {
       // The channel ended itself (bad token, time limit): stop feeding it.
       if (channel === next) {
+        setPrivateChannelLive(false);
         detachLog?.();
         detachLog = undefined;
       }
@@ -60,14 +76,18 @@ export async function startLiveLink(input: {
 
   // Send what already happened in this app session first, so a link started
   // mid-test still shows the lead-up, then follow live.
-  for (const event of liveLog.snapshot().slice(-40)) next.push(event);
+  // Words recorded under an earlier private link are not replayed anywhere else.
+  const isPrivate = visibility === 'private';
+  for (const event of liveLog.snapshot().slice(-40)) if (isPrivate || !carriesWords(event)) next.push(event);
+  setPrivateChannelLive(isPrivate);
   detachLog = liveLog.subscribe((event) => next.push(event));
-  recordLive('link', 'live link started', { to: `${input.target.owner}/${input.target.repo}#${result.number ?? '?'}` });
+  recordLive('link', 'live link started', { to: `${input.target.owner}/${input.target.repo}#${result.number ?? '?'}`, visibility });
   return next.status;
 }
 
 export async function stopLiveLink(reason?: string): Promise<void> {
   const current = channel;
+  setPrivateChannelLive(false);
   if (!current) return;
   detachLog?.();
   detachLog = undefined;

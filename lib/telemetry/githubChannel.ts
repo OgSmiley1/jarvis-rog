@@ -6,8 +6,9 @@ import { formatEvent, type LiveEvent } from '@/lib/telemetry/liveLog';
  *
  * Why GitHub: it is the one service both the phone and the Claude session can
  * reach, it costs nothing, and a comment on a subscribed pull request wakes a
- * watching Claude session by itself — no polling. The channel belongs in a
- * PRIVATE repository, because what the owner says to JARVIS is in the log.
+ * watching Claude session by itself — no polling. The owner's words are only
+ * ever sent to a repository GitHub confirms is private (see
+ * `readChannelVisibility`); anywhere else the log carries word counts.
  *
  * Batching is deliberate. GitHub asks integrations to stay under roughly 80
  * content-creating requests a minute and 500 an hour; one comment per event
@@ -90,6 +91,29 @@ export function takeBatch(lines: string[], budget = COMMENT_BUDGET): { batch: st
 
 export function renderComment(header: string, sessionId: string, batchNumber: number, lines: string[]): string {
   return [`\`JARVIS live\` · session ${sessionId} · #${batchNumber} · ${header}`, '```text', ...lines.map(fenceSafe), '```'].join('\n');
+}
+
+export type ChannelVisibility = 'private' | 'public' | 'unknown';
+
+/**
+ * Asks GitHub whether the channel repository is private. Anything but a clear
+ * `private: true` — a refusal, no network, an odd answer — counts as not
+ * private, so a failed check can only ever withhold words, never send them.
+ */
+export async function readChannelVisibility(target: ChannelTarget, token: string, fetchImpl: ChannelFetch): Promise<ChannelVisibility> {
+  try {
+    const response = await fetchImpl(`${API}/repos/${target.owner}/${target.repo}`, {
+      method: 'GET',
+      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (!response.ok) return 'unknown';
+    const repo = JSON.parse(await response.text()) as { private?: unknown };
+    if (repo.private === true) return 'private';
+    if (repo.private === false) return 'public';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }
 
 /** Human wording for a GitHub refusal: what is wrong and what fixes it. */

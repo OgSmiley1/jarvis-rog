@@ -1,12 +1,19 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Alert, Linking, Platform, Share, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Constants from 'expo-constants';
 import { AppText, Button, Card, Row } from '@/components/Ui';
 import { colors } from '@/components/theme';
 import { useJarvis } from '@/context/JarvisContext';
 import type { ChannelFetch } from '@/lib/telemetry/githubChannel';
 import { formatEvent, liveLog } from '@/lib/telemetry/liveLog';
-import { getLiveStatus, isLiveActive, startLiveLink, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
+import {
+  getLiveStatus,
+  getLiveVisibility,
+  isLiveActive,
+  startLiveLink,
+  stopLiveLink,
+  subscribeLiveStatus,
+} from '@/lib/telemetry/liveSession';
 import { clearLiveToken, DEFAULT_LIVE_CHANNEL, readLiveToken, setLiveToken } from '@/lib/telemetry/liveToken';
 import { errorMessage } from '@/lib/utils/errors';
 import { TRANSCRIPT_OPT_IN_MS, transcriptsAllowed } from '@/lib/telemetry/transcriptPolicy';
@@ -16,7 +23,7 @@ const TOKEN_HELP_URL =
 
 /**
  * Live test link: while it is on, every event JARVIS records is posted to a
- * private GitHub channel in small batches, where Claude can follow the test
+ * GitHub channel in small batches, where Claude can follow the test
  * as it happens. Off unless the owner starts it; ends itself after 30 minutes.
  */
 export function LiveTestCard() {
@@ -42,6 +49,8 @@ export function LiveTestCard() {
   );
 
   const active = isLiveActive(status);
+  // Known once a link has started; re-read on every status change.
+  const visibility = getLiveVisibility();
   const transcriptsOn = transcriptsAllowed(jarvis.settings.liveTranscriptsUntil, Date.now());
   const minutesLeft = transcriptsOn ? Math.ceil(((jarvis.settings.liveTranscriptsUntil ?? 0) - Date.now()) / 60_000) : 0;
 
@@ -112,9 +121,16 @@ export function LiveTestCard() {
     <Card title="Live test link">
       <AppText muted>
         While on, what JARVIS does — states, timings, routes, errors — is posted to the GitHub channel every few seconds,
-        so Claude can follow your test live. Your words and its replies are replaced by word counts unless you switch on
-        “Include what I say” below, which turns itself off after 30 minutes. API keys are always scrubbed.
+        so Claude can follow your test live. Your words and its replies are replaced by word counts. “Include what I say”
+        sends the words only to a repository GitHub confirms is private, and turns itself off after 30 minutes. API keys
+        are always scrubbed.
       </AppText>
+      {visibility === 'public' ? (
+        <Text style={styles.warning}>
+          This channel repository is PUBLIC — anyone can read it. Only word counts are sent. To include your words, make
+          the repository private on GitHub first.
+        </Text>
+      ) : null}
       <AppText>Status: {stateLine}</AppText>
       {status.dropped ? <AppText muted>{status.dropped} lines dropped while offline.</AppText> : null}
       {status.url ? <Button title="Open channel" onPress={() => void Linking.openURL(status.url!)} /> : null}
@@ -122,7 +138,7 @@ export function LiveTestCard() {
       <TextInput
         value={repoDraft}
         onChangeText={setRepoDraft}
-        placeholder="owner/private-repo"
+        placeholder="owner/repo (private for your words)"
         placeholderTextColor={colors.muted}
         autoCapitalize="none"
         autoCorrect={false}
@@ -171,7 +187,8 @@ export function LiveTestCard() {
           />
         ) : (
           <Button
-            title="Include what I say — 30 min"
+            title={visibility === 'public' ? 'Include what I say — needs a private repo' : 'Include what I say — 30 min'}
+            disabled={visibility === 'public'}
             onPress={() => void jarvis.updateSettings({ liveTranscriptsUntil: Date.now() + TRANSCRIPT_OPT_IN_MS })}
           />
         )}
@@ -207,5 +224,6 @@ const styles = StyleSheet.create({
     padding: 12,
     minHeight: 48,
   },
+  warning: { color: colors.bad, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   log: { gap: 2, paddingTop: 8, borderTopWidth: 1, borderColor: colors.border },
 });
