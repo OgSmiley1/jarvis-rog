@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
+import { DashboardClock } from '@/components/DashboardClock';
 import { colors } from '@/components/theme';
 import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
 import { providerById } from '@/lib/online/cloudBrain';
@@ -412,10 +413,7 @@ export default function JarvisHud() {
   const downloading = jarvis.brainDownload !== null;
   const downloadPercent =
     jarvis.brainDownload?.progress == null ? null : Math.round(jarvis.brainDownload.progress * 100);
-  const modelName = jarvis.modelState.modelName ?? jarvis.settings.modelName ?? (arabic ? 'لا يوجد نموذج' : 'No model');
-  const acceleration = jarvis.modelState.gpu
-    ? arabic ? 'تسريع نشط' : 'Accelerated backend active'
-    : jarvis.modelState.reasonNoGPU ?? (arabic ? 'غير مُقاس' : 'Not measured');
+  const micOn = !speaking && (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING');
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -433,10 +431,16 @@ export default function JarvisHud() {
             </Pressable>
           ) : null}
         </View>
-        <Text style={styles.statusMeta} numberOfLines={1}>
-          {modelName} · {acceleration}
-        </Text>
       </View>
+      <DashboardClock
+        lang={arabic ? 'ar' : 'en'}
+        status={{
+          modelStatus: jarvis.modelState.status,
+          modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
+          cloudReady: jarvis.cloudReady,
+          micOn,
+        }}
+      />
 
       <View style={styles.stage}>
         <JarvisOrb state={hud.state} level={voice.level} onPress={toggleVoice} label={hud.headline} />
@@ -541,7 +545,6 @@ const styles = StyleSheet.create({
   wordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   liveBadge: { borderWidth: 1, borderColor: colors.bad, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   liveText: { color: colors.bad, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  statusMeta: { color: colors.muted, fontSize: 11 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 14 },
   detail: { color: colors.text, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   transcript: { color: colors.muted, fontSize: 14, textAlign: 'center', fontStyle: 'italic' },

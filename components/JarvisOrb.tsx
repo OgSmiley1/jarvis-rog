@@ -39,10 +39,17 @@ export function JarvisOrb({
   const spinInner = useRef(new Animated.Value(0)).current;
   const breathe = useRef(new Animated.Value(0)).current;
   const amplitude = useRef(new Animated.Value(0)).current;
+  const rippleA = useRef(new Animated.Value(0)).current;
+  const rippleB = useRef(new Animated.Value(0)).current;
   const reduceMotion = useRef(false);
+  const active = state === 'LISTENING' || state === 'THINKING' || state === 'SPEAKING' || state === 'TOOL_RUNNING';
+  // One motion per state, so the owner can read it from across the room:
+  // listening sends ripples out, speaking pulses them fast, thinking spins the
+  // inner ring hard, idle only breathes.
+  const ripplePeriod = state === 'SPEAKING' ? 900 : state === 'LISTENING' ? 2200 : 0;
+  const innerPeriod = state === 'THINKING' || state === 'TOOL_RUNNING' ? 1400 : active ? 4200 : 9000;
 
   const tint = useMemo(() => tintFor(state), [state]);
-  const active = state === 'LISTENING' || state === 'THINKING' || state === 'SPEAKING' || state === 'TOOL_RUNNING';
 
   useEffect(() => {
     let cancelled = false;
@@ -54,8 +61,25 @@ export function JarvisOrb({
         Animated.timing(spinOuter, { toValue: 1, duration: 14000, easing: Easing.linear, useNativeDriver: true }),
       );
       const inner = Animated.loop(
-        Animated.timing(spinInner, { toValue: 1, duration: active ? 4200 : 9000, easing: Easing.linear, useNativeDriver: true }),
+        Animated.timing(spinInner, { toValue: 1, duration: innerPeriod, easing: Easing.linear, useNativeDriver: true }),
       );
+      if (ripplePeriod > 0) {
+        for (const [value, delay] of [
+          [rippleA, 0],
+          [rippleB, ripplePeriod / 2],
+        ] as const) {
+          value.setValue(0);
+          const ripple = Animated.loop(
+            Animated.sequence([
+              Animated.delay(delay),
+              Animated.timing(value, { toValue: 1, duration: ripplePeriod, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+              Animated.timing(value, { toValue: 0, duration: 0, useNativeDriver: true }),
+            ]),
+          );
+          loops.push(ripple);
+          ripple.start();
+        }
+      }
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(breathe, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -81,7 +105,7 @@ export function JarvisOrb({
       cancelled = true;
       for (const loop of loops) loop.stop();
     };
-  }, [active, breathe, spinInner, spinOuter]);
+  }, [active, breathe, spinInner, spinOuter, rippleA, rippleB, ripplePeriod, innerPeriod]);
 
   useEffect(() => {
     const target = Math.max(0, Math.min(1, level));
@@ -100,8 +124,25 @@ export function JarvisOrb({
   const voiceScale = amplitude.interpolate({ inputRange: [0, 1], outputRange: [1, 1.34] });
   const haloOpacity = amplitude.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.55] });
 
+  const ripples = ripplePeriod > 0
+    ? [rippleA, rippleB].map((value, index) => (
+        <Animated.View
+          key={index}
+          style={[
+            styles.ripple,
+            {
+              borderColor: tint,
+              opacity: value.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }),
+              transform: [{ scale: value.interpolate({ inputRange: [0, 1], outputRange: [0.62, 1.12] }) }],
+            },
+          ]}
+        />
+      ))
+    : null;
+
   const body = (
     <View style={styles.stage} pointerEvents="none">
+      {ripples}
       <Animated.View
         style={[styles.halo, { borderColor: tint, shadowColor: tint, opacity: active ? haloOpacity : 0.16 }]}
       />
@@ -166,6 +207,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 0 },
+  },
+  ripple: {
+    position: 'absolute',
+    width: SIZE,
+    height: SIZE,
+    borderRadius: SIZE / 2,
+    borderWidth: 2,
   },
   ringOuter: {
     position: 'absolute',
