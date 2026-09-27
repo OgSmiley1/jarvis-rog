@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { AudioContext } from 'react-native-audio-api';
 import { models, useTextToSpeech } from 'react-native-executorch';
 import { ensureExecutorch } from '@/lib/voice/executorch';
+import { useLocalVoiceModel } from '@/hooks/useLocalVoiceModel';
 import { NeuralSpeechQueue, type NeuralPlayer } from '@/lib/voice/neuralSpeechQueue';
 import { registerNeuralPreviewer, setNeuralVoiceStatus } from '@/lib/voice/neuralVoiceStore';
 import { SpeechStream } from '@/lib/voice/speechStream';
@@ -45,9 +46,10 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
   // Created once: the registry returns a new object per call, and a new
   // config every render could make the hook treat it as a new model.
   const config = useMemo(() => models.text_to_speech.kokoro.en_gb.daniel(), []);
-  // preventLoad keeps the ~351 MB download from starting until the owner
-  // actually turns the neural voice on.
-  const tts = useTextToSpeech(config, { preventLoad: !usable });
+  // Kept in Download/JARVIS once downloaded. Nothing is fetched until the
+  // owner actually turns the neural voice on.
+  const files = useLocalVoiceModel(config, usable);
+  const tts = useTextToSpeech(files.config, { preventLoad: !usable || !files.ready });
 
   const ttsRef = useRef(tts);
   ttsRef.current = tts;
@@ -127,12 +129,12 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
     setNeuralVoiceStatus({
       enabled,
       ready: isReady,
-      progress: tts.downloadProgress ?? 0,
+      progress: files.ready ? tts.downloadProgress ?? 0 : files.progress,
       error: tts.error ? String(tts.error.message ?? tts.error) : undefined,
       unavailableReason:
         enabled && language !== 'en' ? 'Kokoro has no Arabic voice; Arabic uses the phone’s best voice.' : undefined,
     });
-  }, [enabled, isReady, language, tts.downloadProgress, tts.error]);
+  }, [enabled, isReady, language, tts.downloadProgress, tts.error, files.ready, files.progress]);
 
   useEffect(() => {
     registerNeuralPreviewer(

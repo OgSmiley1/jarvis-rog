@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 import { ensureExecutorch } from '@/lib/voice/executorch';
 import { levelFromFrame } from '@/lib/voice/audioLevel';
 import { cleanTranscript } from '@/lib/voice/transcriptClean';
+import { useLocalVoiceModel } from '@/hooks/useLocalVoiceModel';
 
 export type VoiceState =
   | 'IDLE'
@@ -23,10 +24,10 @@ export interface UseLiveVoiceOptions {
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
   ensureExecutorch();
-  const model = useSpeechToText({
-    model: models.speech_to_text.whisper_tiny(),
-    vad: models.vad.fsmn_vad(),
-  });
+  // Whisper and the voice detector, kept in Download/JARVIS once downloaded.
+  const remote = useMemo(() => ({ model: models.speech_to_text.whisper_tiny(), vad: models.vad.fsmn_vad() }), []);
+  const files = useLocalVoiceModel(remote);
+  const model = useSpeechToText({ model: files.config.model, vad: files.config.vad, preventLoad: !files.ready });
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const modelRef = useRef(model);
@@ -237,7 +238,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     /** Measured microphone level, 0..1. Zero whenever no session is capturing. */
     level,
     isReady: model.isReady,
-    downloadProgress: model.downloadProgress,
+    // While the files are fetched into the permanent folder, that is the progress to show.
+    downloadProgress: files.ready ? model.downloadProgress : files.progress,
     start,
     stop,
     /** Start the next turn with an empty transcript, without restarting the microphone. */
