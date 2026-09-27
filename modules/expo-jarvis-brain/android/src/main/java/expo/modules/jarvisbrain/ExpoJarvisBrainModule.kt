@@ -2,23 +2,32 @@ package expo.modules.jarvisbrain
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 
 /**
- * The brain is 2.5 GB. An in-app download dies whenever Android pauses or
- * kills JARVIS in the background, and starts again from zero. DownloadManager
- * is a system service: it keeps going with the app closed, resumes after
- * network drops, and shows its own progress notification.
+ * Where JARVIS keeps its models (the brain, the eyes, the voice), and the
+ * system downloads that fetch them.
  *
- * The file lands in the app's external files directory
- * (Android/data/<package>/files/models), which needs no storage permission,
- * is readable by llama.cpp as a plain path, and survives app updates.
+ * Everything lives in ONE permanent folder the owner can see in the Files
+ * app: Download/JARVIS/models. It survives closing the app, updating it, and
+ * uninstalling and reinstalling it, so nothing is ever downloaded twice.
+ * Reading a folder outside the app's own needs "All files access"
+ * (MANAGE_EXTERNAL_STORAGE); the setup script grants it, and the app asks
+ * once if it is missing. Until it is granted the app's own folder
+ * (Android/data/<package>/files/models) is used, and its files are moved
+ * into the permanent folder as soon as access arrives.
  *
- * It downloads to "<name>.part" and is renamed only once complete, so a
- * half-finished file can never be mistaken for the brain.
+ * Downloads go through DownloadManager, a system service: it keeps going with
+ * the app closed, resumes after network drops, and shows its own progress
+ * notification. Files download to "<name>.part" and are renamed only once
+ * complete, so a half-finished file can never be mistaken for a model.
  */
 class ExpoJarvisBrainModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -27,6 +36,29 @@ class ExpoJarvisBrainModule : Module() {
     Function("modelDirectory") {
       val context = context() ?: return@Function null
       modelDir(context).absolutePath
+    }
+
+    Function("permanentDirectory") { permanentDir().absolutePath }
+
+    Function("legacyDirectory") {
+      val context = context() ?: return@Function null
+      legacyDir(context).absolutePath
+    }
+
+    Function("storageAccess") { hasStorageAccess() }
+
+    // Opens Android's "All files access" page for JARVIS.
+    Function("openStorageAccessSettings") {
+      val context = context() ?: return@Function false
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return@Function false
+      val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        context.startActivity(intent)
+      } catch (_: Exception) {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      }
+      true
     }
 
     Function("fileSize") { path: String ->
@@ -38,8 +70,44 @@ class ExpoJarvisBrainModule : Module() {
       File(path.removePrefix("file://")).delete()
     }
 
-    // Each file has its own download slot, keyed by its name, so the brain and
-    // the eyes can download side by side and each resumes independently.
+    // Moves every finished model file from the app's own folder into the
+    // permanent one. Rename when the filesystem allows it, copy otherwise.
+    // Runs off the JS thread: a copy of a 5 GB brain takes a while.
+    AsyncFunction("moveToPermanent") {
+      val context = context() ?: return@AsyncFunction 0
+      if (!hasStorageAccess()) return@AsyncFunction 0
+      val from = legacyDir(context)
+      val to = permanentDir().apply { mkdirs() }
+      var moved = 0
+      from.walkTopDown().filter { it.isFile && !it.name.endsWith(".part") }.forEach { file ->
+        val target = File(to, file.relativeTo(from).path)
+        if (target.isFile && target.length() == file.length()) {
+          file.delete()
+          return@forEach
+        }
+        target.parentFile?.mkdirs()
+        if (moveFile(file, target)) moved += 1
+      }
+      moved
+    }
+
+    // Copies a file that an older build kept somewhere else (for example the
+    // voice library's private cache) into the model folder, once.
+    AsyncFunction("adoptFile") { source: String, fileName: String ->
+      val context = context() ?: return@AsyncFunction false
+      val src = File(source.removePrefix("file://"))
+      val target = File(modelDir(context), fileName)
+      if (target.isFile && target.length() > 0) return@AsyncFunction true
+      if (!src.isFile || src.length() == 0L) return@AsyncFunction false
+      target.parentFile?.mkdirs()
+      val tmp = File(target.path + ".part")
+      src.copyTo(tmp, overwrite = true)
+      tmp.renameTo(target)
+    }
+
+    // Each file has its own download slot, keyed by its name, so the brain,
+    // the eyes and the voice files download side by side and each resumes
+    // independently.
     Function("activeDownload") { fileName: String ->
       val context = context() ?: return@Function null
       val id = prefs(context).getLong(key(fileName), -1L)
@@ -55,15 +123,23 @@ class ExpoJarvisBrainModule : Module() {
         if (state == "pending" || state == "running" || state == "paused") return@Function existing.toDouble()
       }
 
-      val dir = modelDir(context)
-      File(dir, "$fileName.part").delete()
       val request = DownloadManager.Request(Uri.parse(url))
         .setTitle(title)
-        .setDescription("JARVIS · runs offline once downloaded")
+        .setDescription("JARVIS · saved on this phone for good")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        .setDestinationInExternalFilesDir(context, DIR_TYPE, "$fileName.part")
         .setAllowedOverMetered(true)
         .setAllowedOverRoaming(true)
+      if (hasStorageAccess()) {
+        val part = File(permanentDir(), "$fileName.part")
+        part.parentFile?.mkdirs()
+        part.delete()
+        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "$PERMANENT_SUBPATH/$fileName.part")
+      } else {
+        val part = File(legacyDir(context), "$fileName.part")
+        part.parentFile?.mkdirs()
+        part.delete()
+        request.setDestinationInExternalFilesDir(context, DIR_TYPE, "$fileName.part")
+      }
       val id = manager.enqueue(request)
       prefs(context).edit().putLong(key(fileName), id).apply()
       id.toDouble()
@@ -75,20 +151,28 @@ class ExpoJarvisBrainModule : Module() {
     }
 
     // Renames the finished ".part" file into place and forgets the download.
-    // The DownloadManager entry is deliberately not removed: remove() would
-    // delete the file it points at.
+    // The part may be in either folder (a download started before access was
+    // granted lands in the app's own folder); the result ends up permanent
+    // whenever access allows. The DownloadManager entry is deliberately not
+    // removed: remove() would delete the file it points at.
     Function("finishDownload") { fileName: String ->
       val context = context() ?: throw IllegalStateException("NO_CONTEXT")
-      val dir = modelDir(context)
-      val part = File(dir, "$fileName.part")
-      val target = File(dir, fileName)
-      if (part.isFile) {
+      val dirs = listOf(permanentDir(), legacyDir(context))
+      val partDir = dirs.firstOrNull { File(it, "$fileName.part").isFile }
+      if (partDir != null) {
+        val target = File(partDir, fileName)
         if (target.exists()) target.delete()
-        if (!part.renameTo(target)) throw IllegalStateException("MODEL_RENAME_FAILED")
+        if (!File(partDir, "$fileName.part").renameTo(target)) throw IllegalStateException("MODEL_RENAME_FAILED")
       }
       prefs(context).edit().remove(key(fileName)).apply()
-      if (!target.isFile) throw IllegalStateException("MODEL_DOWNLOAD_VERIFICATION_FAILED")
-      "file://${target.absolutePath}"
+      var found = dirs.map { File(it, fileName) }.firstOrNull { it.isFile }
+        ?: throw IllegalStateException("MODEL_DOWNLOAD_VERIFICATION_FAILED")
+      if (hasStorageAccess() && found.parentFile == legacyDir(context)) {
+        val target = File(permanentDir(), fileName)
+        target.parentFile?.mkdirs()
+        if (moveFile(found, target)) found = target
+      }
+      "file://${found.absolutePath}"
     }
 
     Function("cancelDownload") { fileName: String ->
@@ -110,10 +194,37 @@ class ExpoJarvisBrainModule : Module() {
 
   private fun prefs(context: Context) = context.getSharedPreferences("jarvis.brain", Context.MODE_PRIVATE)
 
+  private fun hasStorageAccess(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
+
+  @Suppress("DEPRECATION")
+  private fun permanentDir(): File =
+    File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), PERMANENT_SUBPATH)
+
+  private fun legacyDir(context: Context): File =
+    context.getExternalFilesDir(DIR_TYPE) ?: File(context.filesDir, DIR_TYPE)
+
   private fun modelDir(context: Context): File {
-    val dir = context.getExternalFilesDir(DIR_TYPE) ?: File(context.filesDir, DIR_TYPE)
+    val dir = if (hasStorageAccess()) permanentDir() else legacyDir(context)
     if (!dir.exists()) dir.mkdirs()
     return dir
+  }
+
+  private fun moveFile(from: File, to: File): Boolean {
+    if (from.renameTo(to)) return true
+    return try {
+      val tmp = File(to.path + ".part")
+      from.copyTo(tmp, overwrite = true)
+      if (tmp.length() != from.length() || !tmp.renameTo(to)) {
+        tmp.delete()
+        false
+      } else {
+        from.delete()
+        true
+      }
+    } catch (_: Exception) {
+      false
+    }
   }
 
   private fun query(manager: DownloadManager, id: Long): Map<String, Any?> {
@@ -138,6 +249,7 @@ class ExpoJarvisBrainModule : Module() {
 
   companion object {
     private const val DIR_TYPE = "models"
+    private const val PERMANENT_SUBPATH = "JARVIS/models"
     private const val KEY_ID = "downloadId"
     private const val BRAIN_FILE = "Qwen3-4B-Q4_K_M.gguf"
   }

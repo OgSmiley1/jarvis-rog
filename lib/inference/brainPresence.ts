@@ -25,6 +25,48 @@ export interface InstalledModel {
   size: number;
 }
 
+/** A brain JARVIS knows by name, and the smallest size a complete copy has. */
+export interface KnownBrain {
+  name: string;
+  minBytes: number;
+}
+
+/**
+ * Every place a brain may be, best first. A model the owner imported by hand
+ * (a name JARVIS does not know) comes first: it was chosen on purpose. Then
+ * each known brain, the best first (the 8B before the 4B), in each folder,
+ * the permanent one first; so a configured 4B gives way to an 8B that has
+ * since arrived. The configured file, when it is a known brain somewhere
+ * else, comes last. Paths are de-duplicated.
+ */
+export function brainCandidates(
+  folders: Array<string | null | undefined>,
+  brains: KnownBrain[],
+  sizeOf: (path: string) => number,
+  configured?: { path?: string; name?: string },
+): ModelCandidate[] {
+  const candidates: ModelCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (path: string, name: string, minBytes: number) => {
+    const key = path.replace(/^file:\/\//, '');
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ path, name, size: sizeOf(path), minBytes });
+  };
+  const configuredName = configured?.path ? configured.name ?? modelFileName(configured.path) : undefined;
+  const known = brains.find((brain) => brain.name === configuredName);
+  if (configured?.path && configuredName && !known) add(configured.path, configuredName, MIN_IMPORTED_MODEL_BYTES);
+  for (const brain of brains) {
+    for (const folder of folders) {
+      if (!folder) continue;
+      const base = folder.startsWith('file://') ? folder : `file://${folder}`;
+      add(`${base.replace(/\/$/, '')}/${brain.name}`, brain.name, brain.minBytes);
+    }
+  }
+  if (configured?.path && configuredName && known) add(configured.path, configuredName, known.minBytes);
+  return candidates;
+}
+
 export function pickInstalledModel(candidates: ModelCandidate[]): InstalledModel | null {
   const found = candidates.find((candidate) => candidate.size >= candidate.minBytes && candidate.size > 0);
   return found ? { path: found.path, name: found.name, size: found.size } : null;

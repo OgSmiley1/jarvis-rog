@@ -26,6 +26,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'READ_CALENDAR',
       // Eyes: the live camera page while it is on screen, and one photo when the owner asks "what do you see?".
       'CAMERA',
+      // Keeps the brain, eyes and voice in Download/JARVIS for good: they
+      // survive closing, updating and reinstalling the app ("All files access").
+      'MANAGE_EXTERNAL_STORAGE',
     ],
   },
   plugins: [

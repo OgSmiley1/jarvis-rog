@@ -29,17 +29,22 @@ import { canDrawOverlays, showFloatingOrb } from '@/lib/device/overlay';
 import { downloadRecommendedModel, type ImportedModel } from '@/lib/inference/modelImport';
 import type { DownloadView } from '@/lib/inference/brainPresence';
 import {
+  askForPermanentStorage,
+  BRAIN_FILE,
   deleteModelFile,
   downloadWithSystem,
   findInstalledModel,
+  findModelFile,
   hasPendingSystemDownload,
+  hasPermanentStorage,
   hasSystemDownloader,
+  moveModelsToPermanent,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { shortModelName } from '@/lib/hud/dashboard';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
 
@@ -100,6 +105,13 @@ type ContextValue = {
   installRecommendedModel: (onProgress?: (progress: number) => void) => Promise<ImportedModel>;
   /** The brain download in progress, or null. Survives the app being closed and reopened. */
   brainDownload: DownloadView | null;
+  /**
+   * True when JARVIS keeps its files in Download/JARVIS, where they survive
+   * closing, updating and reinstalling the app. False until "All files
+   * access" is allowed; `requestPermanentStorage` opens that page.
+   */
+  permanentStorage: boolean;
+  requestPermanentStorage: () => void;
   /** Cloud providers with a key stored in the keystore. Never the keys themselves. */
   cloudProviders: CloudProviderId[];
   /** True when the cloud brain is switched on and at least one key is stored. */
@@ -139,6 +151,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [activeRuntimePlan, setActiveRuntimePlan] = useState<RuntimePlan | null>(null);
   const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
   const [brainDownload, setBrainDownload] = useState<DownloadView | null>(null);
+  const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
+  const upgradeTried = useRef(false);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
 
@@ -323,20 +337,71 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     // new download on its own.
     if (!ready || brainBootTried.current) return;
     brainBootTried.current = true;
-    let present = false;
-    try {
-      present = Boolean(findInstalledModel({ path: settings.modelPath, name: settings.modelName })) || hasPendingSystemDownload();
-    } catch (error) {
-      recordLive('error', 'brain lookup failed', { raw: error instanceof Error ? error.message : String(error) });
-    }
-    if (!present) {
-      recordLive('brain', 'none on phone');
-      return;
-    }
-    void installRecommendedModel().catch((error) =>
-      recordLive('error', 'brain start failed', { raw: error instanceof Error ? error.message : String(error) }),
-    );
+    void (async () => {
+      // Files an earlier build left in the app's own folder move to the
+      // permanent one first, so the lookup below finds them there.
+      try {
+        const moved = await moveModelsToPermanent();
+        if (moved) recordLive('brain', 'moved to Download/JARVIS', { files: moved });
+      } catch (error) {
+        recordLive('error', 'move to permanent folder failed', { raw: error instanceof Error ? error.message : String(error) });
+      }
+      let present = false;
+      try {
+        present = Boolean(findInstalledModel({ path: settings.modelPath, name: settings.modelName })) || hasPendingSystemDownload();
+      } catch (error) {
+        recordLive('error', 'brain lookup failed', { raw: error instanceof Error ? error.message : String(error) });
+      }
+      if (!present) {
+        recordLive('brain', 'none on phone');
+        return;
+      }
+      void installRecommendedModel().catch((error) =>
+        recordLive('error', 'brain start failed', { raw: error instanceof Error ? error.message : String(error) }),
+      );
+    })();
   }, [ready, settings.modelPath, settings.modelName, installRecommendedModel]);
+
+  useEffect(() => {
+    // "All files access" is granted on Android's own page, outside the app:
+    // re-check whenever JARVIS comes back, and move files over the moment it is on.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const granted = hasPermanentStorage();
+      setPermanentStorage(granted);
+      if (granted) {
+        void moveModelsToPermanent()
+          .then((moved) => {
+            if (moved) recordLive('brain', 'moved to Download/JARVIS', { files: moved });
+          })
+          .catch(() => undefined);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const requestPermanentStorage = useCallback(() => {
+    if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());
+  }, []);
+
+  useEffect(() => {
+    // The smarter 8B brain: when the phone only has the older 4B, JARVIS keeps
+    // answering with the 4B while Android downloads the 8B into the permanent
+    // folder, then switches to it. Once, and only with permanent storage, so
+    // the 5 GB file is never downloaded twice.
+    if (upgradeTried.current || modelState.status !== 'ready' || !permanentStorage || !hasSystemDownloader()) return;
+    if (modelState.modelName === BRAIN_FILE.name || findModelFile(BRAIN_FILE)) return;
+    upgradeTried.current = true;
+    recordLive('brain', 'upgrade to 8B started');
+    void downloadWithSystem(() => undefined, BRAIN_FILE)
+      .then(async (model) => {
+        const runtime = await getRuntime();
+        await runtime.validateGguf(model.path);
+        recordLive('brain', 'upgrade downloaded', { size: model.size });
+        await installRecommendedModel();
+      })
+      .catch((error) => recordLive('error', 'brain upgrade failed', { raw: error instanceof Error ? error.message : String(error) }));
+  }, [modelState.status, modelState.modelName, permanentStorage, installRecommendedModel]);
 
   const activeProject = projects.find((project) => project.status === 'active');
 
@@ -589,6 +654,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     validateModel,
     installRecommendedModel,
     brainDownload,
+    permanentStorage,
+    requestPermanentStorage,
     cloudProviders,
     cloudReady,
     saveCloudKey,
@@ -602,7 +669,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, brainDownload, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, brainDownload, permanentStorage, requestPermanentStorage, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

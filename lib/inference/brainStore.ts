@@ -1,20 +1,24 @@
 import { requireOptionalNativeModule } from 'expo';
 import { File, Paths } from 'expo-file-system';
 import {
+  brainCandidates,
   describeDownload,
-  MIN_COMPLETE_MODEL_BYTES,
-  MIN_IMPORTED_MODEL_BYTES,
-  modelFileName,
   pickInstalledModel,
+  type KnownBrain,
   type DownloadView,
   type InstalledModel,
-  type ModelCandidate,
   type NativeDownloadStatus,
 } from '@/lib/inference/brainPresence';
-import { RECOMMENDED_MODEL } from '@/lib/inference/modelImport';
+import { PREVIOUS_MODEL, RECOMMENDED_MODEL } from '@/lib/inference/modelImport';
 
 interface ExpoJarvisBrainNativeModule {
   modelDirectory(): string | null;
+  permanentDirectory?(): string;
+  legacyDirectory?(): string | null;
+  storageAccess?(): boolean;
+  openStorageAccessSettings?(): boolean;
+  moveToPermanent?(): Promise<number>;
+  adoptFile?(source: string, fileName: string): Promise<boolean>;
   fileSize(path: string): number;
   deleteFile(path: string): boolean;
   activeDownload(fileName: string): number | null;
@@ -42,28 +46,52 @@ function sizeOf(path: string): number {
   }
 }
 
-/**
- * The brain already on this phone, if any: the configured file, then the
- * system-download location, then where older builds saved it.
- */
+/** Best first: the 8B, then the 4B earlier builds downloaded. */
+export const KNOWN_BRAINS: KnownBrain[] = [
+  { name: RECOMMENDED_MODEL.name, minBytes: RECOMMENDED_MODEL.minBytes },
+  { name: PREVIOUS_MODEL.name, minBytes: PREVIOUS_MODEL.minBytes },
+];
+
+/** Every folder a model may be in: the permanent one first, then the app's own, then where the oldest builds kept it. */
+export function modelFolders(): string[] {
+  const folders = [
+    native?.permanentDirectory?.(),
+    native?.modelDirectory(),
+    native?.legacyDirectory?.(),
+    `${Paths.document.uri.replace(/\/$/, '')}/models`,
+  ].filter((folder): folder is string => Boolean(folder));
+  return [...new Set(folders.map((folder) => folder.replace(/^file:\/\//, '')))];
+}
+
+/** The brain already on this phone, if any — the best one found in any folder. */
 export function findInstalledModel(configured?: { path?: string; name?: string }): InstalledModel | null {
-  const candidates: ModelCandidate[] = [];
-  if (configured?.path) {
-    candidates.push({
-      path: configured.path,
-      name: configured.name ?? modelFileName(configured.path),
-      size: sizeOf(configured.path),
-      minBytes: MIN_IMPORTED_MODEL_BYTES,
-    });
+  return pickInstalledModel(brainCandidates(modelFolders(), KNOWN_BRAINS, sizeOf, configured));
+}
+
+/** True when JARVIS may use the permanent Download/JARVIS folder ("All files access"). */
+export function hasPermanentStorage(): boolean {
+  return native?.storageAccess?.() ?? false;
+}
+
+/** Opens Android's "All files access" page for JARVIS. */
+export function askForPermanentStorage(): boolean {
+  return native?.openStorageAccessSettings?.() ?? false;
+}
+
+/** Moves models left in the app's own folder into the permanent one. Returns how many moved. */
+export async function moveModelsToPermanent(): Promise<number> {
+  if (!native?.moveToPermanent || !hasPermanentStorage()) return 0;
+  return native.moveToPermanent();
+}
+
+/** Copies a file an older build downloaded elsewhere into the model folder, once. */
+export async function adoptModelFile(source: string, fileName: string): Promise<boolean> {
+  if (!native?.adoptFile) return false;
+  try {
+    return await native.adoptFile(source, fileName);
+  } catch {
+    return false;
   }
-  const dir = native?.modelDirectory();
-  if (dir) {
-    const path = `file://${dir}/${RECOMMENDED_MODEL.name}`;
-    candidates.push({ path, name: RECOMMENDED_MODEL.name, size: sizeOf(path), minBytes: MIN_COMPLETE_MODEL_BYTES });
-  }
-  const legacy = `${Paths.document.uri.replace(/\/$/, '')}/models/${RECOMMENDED_MODEL.name}`;
-  candidates.push({ path: legacy, name: RECOMMENDED_MODEL.name, size: sizeOf(legacy), minBytes: MIN_COMPLETE_MODEL_BYTES });
-  return pickInstalledModel(candidates);
 }
 
 /** A model file JARVIS downloads: where from, what it is called, how big a complete one is. */
@@ -77,8 +105,8 @@ export interface ModelFile {
 export const BRAIN_FILE: ModelFile = {
   url: RECOMMENDED_MODEL.url,
   name: RECOMMENDED_MODEL.name,
-  title: 'JARVIS brain (Qwen3 4B)',
-  minBytes: MIN_COMPLETE_MODEL_BYTES,
+  title: 'JARVIS brain (Qwen3 8B)',
+  minBytes: RECOMMENDED_MODEL.minBytes,
 };
 
 /** True when Android is still holding a download for this file, running or finished. */
@@ -86,13 +114,15 @@ export function hasPendingSystemDownload(file: ModelFile = BRAIN_FILE): boolean 
   return native?.activeDownload(file.name) != null;
 }
 
-/** The complete file in the system-download folder, or null. */
+/** The complete file in any model folder (the permanent one first), or null. */
 export function findModelFile(file: ModelFile): InstalledModel | null {
-  const dir = native?.modelDirectory();
-  if (!dir) return null;
-  const path = `file://${dir}/${file.name}`;
-  const size = sizeOf(path);
-  return size >= file.minBytes ? { path, name: file.name, size } : null;
+  if (!native) return null;
+  for (const dir of modelFolders()) {
+    const path = `file://${dir}/${file.name}`;
+    const size = sizeOf(path);
+    if (size >= file.minBytes) return { path, name: file.name, size };
+  }
+  return null;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

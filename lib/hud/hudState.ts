@@ -174,8 +174,8 @@ export function describeHud(signals: HudSignals): HudPresentation {
       default:
         return pick(
           language,
-          'No brain loaded yet. One tap below downloads it — about 2.5 GB, free, and it runs fully offline after that.',
-          'لا يوجد عقل محمّل بعد. ضغطة واحدة بالأسفل تنزّله — حوالي 2.5 جيجابايت، مجانًا، ويعمل دون إنترنت بعدها.',
+          'No brain loaded yet. One tap below downloads it once — about 5 GB, free, kept on this phone, and it runs fully offline after that.',
+          'لا يوجد عقل محمّل بعد. ضغطة واحدة بالأسفل تنزّله مرة واحدة — حوالي 5 جيجابايت، مجانًا، يبقى في الهاتف، ويعمل دون إنترنت بعدها.',
         );
     }
   })();

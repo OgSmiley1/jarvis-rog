@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
@@ -570,6 +570,20 @@ export default function JarvisHud() {
             </Text>
           ) : null}
           {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
+          {!jarvis.permanentStorage && Platform.OS === 'android' ? (
+            <Pressable
+              onPress={jarvis.requestPermanentStorage}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
+            >
+              <Text style={styles.brainTitle}>{arabic ? 'احفظ كل شيء في الهاتف' : 'Keep everything on this phone'}</Text>
+              <Text style={styles.brainSub}>
+                {arabic
+                  ? 'اسمح بـ «الوصول إلى كل الملفات» مرة واحدة، فيبقى العقل والصوت في مجلد Download/JARVIS حتى لو أُغلق التطبيق أو حُذف.'
+                  : 'Allow "All files access" once and the brain and voice stay in Download/JARVIS — even if the app is closed or reinstalled.'}
+              </Text>
+            </Pressable>
+          ) : null}
           {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
             <Pressable
               onPress={() => void installBrain()}
@@ -596,7 +610,7 @@ export default function JarvisHud() {
                       : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
                   : jarvis.modelState.status === 'error' && jarvis.modelState.error
                     ? jarvis.modelState.error
-                    : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مجاني · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · free · runs offline'}
+                    : arabic ? 'Qwen3 8B · 5 جيجابايت · مرة واحدة · يعمل دون إنترنت' : 'Qwen3 8B · 5 GB · downloaded once · runs offline'}
               </Text>
               {downloading ? (
                 <View style={styles.brainTrack}>

@@ -2,10 +2,24 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 
+/**
+ * The brain JARVIS downloads: Qwen3 8B, about 5 GB. The owner has the
+ * storage and asked for the smarter model; it is kept for good in
+ * Download/JARVIS/models, so it is downloaded once.
+ */
 export const RECOMMENDED_MODEL = {
+  name: 'Qwen3-8B-Q4_K_M.gguf',
+  url: 'https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf?download=true',
+  approximateBytes: 5_027_783_488,
+  minBytes: 4_500_000_000,
+} as const;
+
+/** The 4B brain earlier builds downloaded. Still used when it is the one on the phone. */
+export const PREVIOUS_MODEL = {
   name: 'Qwen3-4B-Q4_K_M.gguf',
   url: 'https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf?download=true',
-  approximateBytes: 2_500_000_000,
+  approximateBytes: 2_497_280_256,
+  minBytes: 2_000_000_000,
 } as const;
 
 export interface ImportedModel {
@@ -64,7 +78,7 @@ export function removeImportedModel(path: string): void {
 export async function downloadRecommendedModel(
   onProgress?: (progress: number) => void,
 ): Promise<ImportedModel> {
-  // Keep comfortable headroom for the 2.5 GB model plus temporary/network overhead.
+  // Keep comfortable headroom for the model plus temporary/network overhead.
   if (Paths.availableDiskSpace < RECOMMENDED_MODEL.approximateBytes * 1.35) {
     throw new Error('MODEL_INSUFFICIENT_STORAGE');
   }
@@ -95,7 +109,7 @@ export async function downloadRecommendedModel(
   if (!downloaded.exists || !downloaded.size) throw new Error('MODEL_DOWNLOAD_VERIFICATION_FAILED');
 
   // Catch obvious HTML/error bodies or truncated transfers before handing the file to llama.cpp.
-  if (downloaded.size < 2_000_000_000) {
+  if (downloaded.size < RECOMMENDED_MODEL.minBytes) {
     downloaded.delete();
     throw new Error('MODEL_DOWNLOAD_SIZE_INVALID');
   }
