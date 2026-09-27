@@ -9,3 +9,6 @@ termux/.env
 termux/runtime/
 termux/logs/
 .DS_Store
+termux/.venv/
+termux/**/__pycache__/
+termux/**/*.pyc

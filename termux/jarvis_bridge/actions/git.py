@@ -26,6 +26,9 @@ def git_status(params: dict[str, Any]) -> dict[str, Any]:
         timeout=10,
         check=False,
     )
+    if result.returncode != 0:
+        raise ValueError(result.stderr.strip() or result.stdout.strip() or "git status failed")
+
     return {
         "exitCode": result.returncode,
         "stdout": result.stdout,

@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { CompletionMessage, IntelligenceMode, ModelRuntimeState, RuntimeMetrics } from '@/lib/inference/types';
 import type { JarvisProject, JarvisSettings, MemoryRecord, ProjectStep } from '@/lib/storage/types';
 import {
   DEFAULT_SETTINGS,
   listMemories,
   listProjects,
+  hasSavedSettings,
   listProjectSteps,
   loadSettings,
   saveSettings,
@@ -12,15 +13,64 @@ import {
   upsertProject,
   upsertProjectStep,
 } from '@/lib/storage/database';
+import { BACKUP_FILE, buildBackup, parseBackup, shouldRestore } from '@/lib/storage/backup';
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
 import { buildMessages } from '@/lib/inference/promptBuilder';
 import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
-import * as runtime from '@/lib/inference/standaloneModel';
+type RuntimeModule = typeof import('@/lib/inference/standaloneModel');
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { executeToolWithAudit } from '@/lib/tools/execution';
+import { listToolNames } from '@/lib/tools/registry';
+import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
+import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
+import { setVoicePreference } from '@/lib/voice/voiceResponse';
+import { canDrawOverlays, showFloatingOrb } from '@/lib/device/overlay';
+import { downloadRecommendedModel, type ImportedModel } from '@/lib/inference/modelImport';
+import type { DownloadView } from '@/lib/inference/brainPresence';
+import {
+  askForPermanentStorage,
+  BRAIN_FILE,
+  deleteModelFile,
+  downloadWithSystem,
+  findInstalledModel,
+  findModelFile,
+  hasPendingSystemDownload,
+  hasPermanentStorage,
+  hasSystemDownloader,
+  moveModelsToPermanent,
+  readJarvisFile,
+  writeJarvisFile,
+} from '@/lib/inference/brainStore';
+import { recordLive } from '@/lib/telemetry/liveLog';
+import { stripThinking } from '@/lib/voice/stripThinking';
+import { setBrainReader } from '@/lib/tools/utilityTools';
+import { shortModelName } from '@/lib/hud/dashboard';
+import { AppState, Platform } from 'react-native';
+import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
+import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
+
+/**
+ * Which brain produced an answer. Shown on the HUD, so the owner always knows
+ * whether a reply stayed on the phone or went to a cloud provider.
+ */
+export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
+
+/** A phone tool's spoken sentence, when it returned one. */
+function toolSpeech(data: unknown): { speech: string; private: boolean } | null {
+  if (!data || typeof data !== 'object') return null;
+  const { speech, private: secret } = data as { speech?: unknown; private?: unknown };
+  return typeof speech === 'string' ? { speech, private: secret === true } : null;
+}
+
+let runtimePromise: Promise<RuntimeModule> | null = null;
+
+function getRuntime(): Promise<RuntimeModule> {
+  if (!runtimePromise) runtimePromise = import('@/lib/inference/standaloneModel');
+  return runtimePromise;
+}
 
 export type StepStatus = ProjectStep['status'];
 
@@ -47,10 +97,43 @@ type ContextValue = {
   activeRuntimePlan: RuntimePlan | null;
   updateSettings: (patch: Partial<JarvisSettings>) => Promise<void>;
   refresh: () => Promise<void>;
-  loadModel: () => Promise<void>;
+  loadModel: (selection?: { path: string; name: string }) => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
-  ask: (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation?: CompletionMessage[]) => Promise<{ text: string; metrics: RuntimeMetrics }>;
+  /**
+   * Give JARVIS its brain in one call: load the file already on the phone if
+   * there is one; otherwise download the recommended GGUF (or attach to the
+   * download Android is already running), validate it, select it and load it.
+   * Settings and the HUD both use this, so there is exactly one implementation.
+   */
+  installRecommendedModel: (onProgress?: (progress: number) => void) => Promise<ImportedModel>;
+  /** The brain download in progress, or null. Survives the app being closed and reopened. */
+  brainDownload: DownloadView | null;
+  /**
+   * True when JARVIS keeps its files in Download/JARVIS, where they survive
+   * closing, updating and reinstalling the app. False until "All files
+   * access" is allowed; `requestPermanentStorage` opens that page.
+   */
+  permanentStorage: boolean;
+  requestPermanentStorage: () => void;
+  /** Cloud providers with a key stored in the keystore. Never the keys themselves. */
+  cloudProviders: CloudProviderId[];
+  /** True when the cloud brain is switched on and at least one key is stored. */
+  cloudReady: boolean;
+  saveCloudKey: (id: CloudProviderId, key: string) => Promise<void>;
+  removeCloudKey: (id: CloudProviderId) => Promise<void>;
+  /**
+   * `options.spoken` tells the prompt builder the answer will be read aloud,
+   * which changes how it is written (short spoken sentences, no markdown) but
+   * not what it says. The HUD sets it; typed Chat does not.
+   */
+  ask: (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation?: CompletionMessage[],
+    options?: { spoken?: boolean },
+  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource; private?: boolean }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -70,9 +153,37 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [lastMetrics, setLastMetrics] = useState<RuntimeMetrics>();
   const [powerReading, setPowerReading] = useState<PowerStateReading | null>(null);
   const [activeRuntimePlan, setActiveRuntimePlan] = useState<RuntimePlan | null>(null);
+  const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
+  const [brainDownload, setBrainDownload] = useState<DownloadView | null>(null);
+  const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
+  const upgradeTried = useRef(false);
+  const brainJob = useRef<Promise<ImportedModel> | null>(null);
+  const brainBootTried = useRef(false);
+  // Set once the backup in Download/JARVIS has been read (and restored onto a
+  // fresh install). Until then nothing is written over it: a fresh install
+  // without storage access must not replace a good backup with an empty one.
+  const backupChecked = useRef(false);
+
+  /** On a fresh install, bring back memories, projects and settings from Download/JARVIS/backup.json. */
+  const restoreBackupIfFresh = useCallback(async (): Promise<boolean> => {
+    if (backupChecked.current || !hasPermanentStorage()) return false;
+    backupChecked.current = true;
+    const backup = parseBackup(readJarvisFile(BACKUP_FILE));
+    const [settingsSaved, memoriesNow, projectsNow] = await Promise.all([hasSavedSettings(), listMemories(), listProjects()]);
+    if (!shouldRestore({ settingsSaved, memories: memoriesNow.length, projects: projectsNow.length }, backup)) return false;
+    await saveSettings({ ...DEFAULT_SETTINGS, ...backup.settings });
+    for (const memory of backup.memories) await upsertMemory(memory);
+    for (const project of backup.projects) await upsertProject(project);
+    for (const step of backup.steps) await upsertProjectStep(step);
+    recordLive('app', 'restored from Download/JARVIS', { memories: backup.memories.length, projects: backup.projects.length });
+    return true;
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
+      await restoreBackupIfFresh().catch((error) =>
+        recordLive('error', 'backup restore failed', { raw: error instanceof Error ? error.message : String(error) }),
+      );
       const [storedSettings, storedMemories, storedProjects] = await Promise.all([
         loadSettings(),
         listMemories(),
@@ -81,7 +192,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       setSettings(storedSettings);
       setMemories(storedMemories);
       setProjects(storedProjects);
-      setModelState(runtime.getModelRuntimeState());
+      setCloudProviders(await cloudProvidersWithKeys().catch(() => []));
       setInitError(undefined);
     } catch (error) {
       setInitError(error instanceof Error ? error.message : String(error));
@@ -89,11 +200,42 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     } finally {
       setReady(true);
     }
-  }, []);
+  }, [restoreBackupIfFresh]);
 
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
+
+  useEffect(() => {
+    // Keep Download/JARVIS/backup.json current, a few seconds after the last change.
+    if (!ready || !permanentStorage || !backupChecked.current) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const steps = (await Promise.all(projects.map((project) => listProjectSteps(project.id)))).flat();
+        const backup = buildBackup({ settings, memories, projects, steps, now: Date.now() });
+        await writeJarvisFile(BACKUP_FILE, JSON.stringify(backup));
+      })().catch((error) => recordLive('error', 'backup failed', { raw: error instanceof Error ? error.message : String(error) }));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [ready, permanentStorage, settings, memories, projects]);
+
+  useEffect(() => {
+    // The voice choice has to reach the speech layer at launch, not only when
+    // the owner happens to open Settings — otherwise the first thing JARVIS
+    // says after a cold start uses whatever the platform picks by default.
+    setVoicePreference({
+      allowNetwork: settings.ttsAllowNetworkVoice,
+      preferredIdentifier: settings.ttsVoiceId,
+    });
+  }, [settings.ttsAllowNetworkVoice, settings.ttsVoiceId]);
+
+  useEffect(() => {
+    // Bring the floating orb back after a restart if the owner left it on.
+    // canDrawOverlays() is re-checked because the permission can be revoked
+    // in Android settings while JARVIS is not running.
+    if (!ready || !settings.floatingOrbEnabled) return;
+    if (canDrawOverlays()) showFloatingOrb();
+  }, [ready, settings.floatingOrbEnabled]);
 
   const updateSettings = useCallback(async (patch: Partial<JarvisSettings>) => {
     const next = { ...settings, ...patch };
@@ -101,46 +243,219 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     await saveSettings(next);
   }, [settings]);
 
-  const validateModel = useCallback(async (path: string) => runtime.validateGguf(path), []);
+  const validateModel = useCallback(async (path: string) => {
+    const runtime = await getRuntime();
+    return runtime.validateGguf(path);
+  }, []);
 
-  const loadModel = useCallback(async () => {
-    if (!settings.modelPath || !settings.modelName) throw new Error('NO_MODEL_SELECTED');
+  const loadModel = useCallback(async (selection?: { path: string; name: string }) => {
+    const modelPath = selection?.path ?? settings.modelPath;
+    const modelName = selection?.name ?? settings.modelName;
+    if (!modelPath || !modelName) throw new Error('NO_MODEL_SELECTED');
 
-    if (settings.adaptiveRuntime) {
-      // Size the runtime from what the device actually reports. Signals that
-      // cannot be read stay undefined, and planRuntime treats them as
-      // "not measured" rather than as spare headroom.
-      const reading = await readDevicePowerState();
-      setPowerReading(reading);
-      const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
-        device: reading.state,
+    const runtime = await getRuntime();
+    try {
+      if (settings.adaptiveRuntime) {
+        // Size the runtime from what the device actually reports. Signals that
+        // cannot be read stay undefined, and planRuntime treats them as
+        // "not measured" rather than as spare headroom.
+        const reading = await readDevicePowerState();
+        setPowerReading(reading);
+        const state = await runtime.loadLocalModel(modelPath, modelName, {
+          device: reading.state,
+          ...(settings.gpuAcceleration ? {} : { gpuLayers: 0 }),
+        });
+        setActiveRuntimePlan(runtime.getActiveRuntimePlan());
+        setModelState(state);
+        return;
+      }
+
+      setPowerReading(null);
+      const state = await runtime.loadLocalModel(modelPath, modelName, {
+        contextSize: settings.contextSize,
+        batchSize: settings.batchSize,
+        threads: settings.threads,
+        gpuLayers: settings.gpuAcceleration ? settings.gpuLayers : 0,
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
       setModelState(state);
-      return;
+    } catch (error) {
+      // Without this the HUD stays on "unloaded" and offers a fresh 2.5 GB
+      // download — which would delete the file that is already here.
+      const message = error instanceof Error ? error.message : String(error);
+      setModelState({ status: 'error', modelPath, modelName, error: message });
+      recordLive('brain', 'load failed', { raw: message, path: modelPath });
+      throw error;
     }
-
-    setPowerReading(null);
-    const state = await runtime.loadLocalModel(settings.modelPath, settings.modelName, {
-      contextSize: settings.contextSize,
-      batchSize: settings.batchSize,
-      threads: settings.threads,
-      gpuLayers: settings.gpuLayers,
-    });
-    setActiveRuntimePlan(runtime.getActiveRuntimePlan());
-    setModelState(state);
   }, [settings]);
 
+  const installRecommendedModel = useCallback((onProgress?: (progress: number) => void) => {
+    if (brainJob.current) return brainJob.current;
+    const job = (async (): Promise<ImportedModel> => {
+      let model: ImportedModel | null = findInstalledModel({ path: settings.modelPath, name: settings.modelName });
+      if (model) {
+        recordLive('brain', 'found on phone', { path: model.path, size: model.size });
+      } else {
+        recordLive('brain', 'download started', { system: hasSystemDownloader() });
+        setBrainDownload({ progress: 0, done: false, failed: false });
+        try {
+          model = hasSystemDownloader()
+            ? await downloadWithSystem((view) => {
+                setBrainDownload(view);
+                if (view.progress !== null) onProgress?.(view.progress);
+              })
+            : await downloadRecommendedModel((progress) => {
+                setBrainDownload({ progress, done: false, failed: false });
+                onProgress?.(progress);
+              });
+        } finally {
+          setBrainDownload(null);
+        }
+        recordLive('brain', 'download finished', { path: model.path, size: model.size });
+
+        // Validate a fresh download before selecting it: a corrupt file must
+        // never become the configured model.
+        if (Platform.OS === 'android') {
+          try {
+            const runtime = await getRuntime();
+            await runtime.validateGguf(model.path);
+          } catch (error) {
+            deleteModelFile(model.path);
+            throw new Error(`GGUF validation failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+
+      if (settings.modelPath !== model.path || settings.modelName !== model.name) {
+        const next = { ...settings, modelPath: model.path, modelName: model.name, modelSize: model.size };
+        setSettings(next);
+        await saveSettings(next);
+      }
+      await loadModel({ path: model.path, name: model.name });
+      return model;
+    })();
+    brainJob.current = job;
+    void job.catch(() => undefined).finally(() => {
+      brainJob.current = null;
+    });
+    return job;
+  }, [loadModel, settings]);
+
+  const saveCloudKey = useCallback(async (id: CloudProviderId, key: string) => {
+    await setCloudKey(id, key);
+    setCloudProviders(await cloudProvidersWithKeys());
+  }, []);
+
+  const removeCloudKey = useCallback(async (id: CloudProviderId) => {
+    await clearCloudKey(id);
+    setCloudProviders(await cloudProvidersWithKeys());
+  }, []);
+
+  const cloudReady = settings.cloudFallbackEnabled && cloudProviders.length > 0;
+
+  useEffect(() => {
+    // "System information" reports the brain as the app knows it right now.
+    setBrainReader(() => ({
+      brain:
+        modelState.status === 'ready' ? 'ready' : modelState.status === 'loading' ? 'loading' : cloudReady ? 'cloud' : 'none',
+      name: shortModelName(modelState.modelName ?? settings.modelName),
+    }));
+  }, [modelState.status, modelState.modelName, settings.modelName, cloudReady]);
+
   const unloadModel = useCallback(async () => {
+    const runtime = await getRuntime();
     await runtime.unloadLocalModel();
     setPowerReading(null);
     setActiveRuntimePlan(null);
     setModelState(runtime.getModelRuntimeState());
   }, []);
 
+  useEffect(() => {
+    // At launch: load the brain already on the phone, or pick the download
+    // Android kept running while JARVIS was closed back up. Never starts a
+    // new download on its own.
+    if (!ready || brainBootTried.current) return;
+    brainBootTried.current = true;
+    void (async () => {
+      // Files an earlier build left in the app's own folder move to the
+      // permanent one first, so the lookup below finds them there.
+      try {
+        const moved = await moveModelsToPermanent();
+        if (moved) recordLive('brain', 'moved to Download/JARVIS', { files: moved });
+      } catch (error) {
+        recordLive('error', 'move to permanent folder failed', { raw: error instanceof Error ? error.message : String(error) });
+      }
+      let present = false;
+      try {
+        present = Boolean(findInstalledModel({ path: settings.modelPath, name: settings.modelName })) || hasPendingSystemDownload();
+      } catch (error) {
+        recordLive('error', 'brain lookup failed', { raw: error instanceof Error ? error.message : String(error) });
+      }
+      if (!present) {
+        recordLive('brain', 'none on phone');
+        return;
+      }
+      void installRecommendedModel().catch((error) =>
+        recordLive('error', 'brain start failed', { raw: error instanceof Error ? error.message : String(error) }),
+      );
+    })();
+  }, [ready, settings.modelPath, settings.modelName, installRecommendedModel]);
+
+  useEffect(() => {
+    // "All files access" is granted on Android's own page, outside the app:
+    // re-check whenever JARVIS comes back, and move files over the moment it is on.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const granted = hasPermanentStorage();
+      setPermanentStorage(granted);
+      if (granted && !backupChecked.current) {
+        void restoreBackupIfFresh()
+          .then((restored) => (restored ? refresh() : undefined))
+          .catch(() => undefined);
+      }
+      if (granted) {
+        void moveModelsToPermanent()
+          .then((moved) => {
+            if (moved) recordLive('brain', 'moved to Download/JARVIS', { files: moved });
+          })
+          .catch(() => undefined);
+      }
+    });
+    return () => subscription.remove();
+  }, [refresh, restoreBackupIfFresh]);
+
+  const requestPermanentStorage = useCallback(() => {
+    if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());
+  }, []);
+
+  useEffect(() => {
+    // The smarter 8B brain: when the phone only has the older 4B, JARVIS keeps
+    // answering with the 4B while Android downloads the 8B into the permanent
+    // folder, then switches to it. Once, and only with permanent storage, so
+    // the 5 GB file is never downloaded twice.
+    if (upgradeTried.current || modelState.status !== 'ready' || !permanentStorage || !hasSystemDownloader()) return;
+    if (modelState.modelName === BRAIN_FILE.name || findModelFile(BRAIN_FILE)) return;
+    upgradeTried.current = true;
+    recordLive('brain', 'upgrade to 8B started');
+    void downloadWithSystem(() => undefined, BRAIN_FILE)
+      .then(async (model) => {
+        const runtime = await getRuntime();
+        await runtime.validateGguf(model.path);
+        recordLive('brain', 'upgrade downloaded', { size: model.size });
+        await installRecommendedModel();
+      })
+      .catch((error) => recordLive('error', 'brain upgrade failed', { raw: error instanceof Error ? error.message : String(error) }));
+  }, [modelState.status, modelState.modelName, permanentStorage, installRecommendedModel]);
+
   const activeProject = projects.find((project) => project.status === 'active');
 
-  const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = []) => {
+  const ask = useCallback(async (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation: CompletionMessage[] = [],
+    options: { spoken?: boolean } = {},
+  ) => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
     const deterministic = routeDeterministicTool(text);
@@ -150,10 +465,50 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       const metrics: RuntimeMetrics = { totalMs: performance.now() - startedAt };
       setLastMetrics(metrics);
       if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
+      const said = toolSpeech(toolResult.data);
+      if (said) return { text: said.speech, metrics, source: 'tool' as AnswerSource, private: said.private };
       const dataSuffix = deterministic.call.tool === 'termux.system_status'
         ? `\n${JSON.stringify(toolResult.data, null, 2)}`
         : '';
-      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics };
+      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics, source: 'tool' as AnswerSource };
+    }
+
+    if (looksLikeToolRequest(text) && modelState.status === 'ready') {
+      const runtime = await getRuntime();
+      const allowedTools = [...listToolNames(), NO_TOOL];
+      const planner = await runtime.runCompletion({
+        messages: buildToolPlanningMessages(text, settings.language),
+        mode: 'fast',
+        grammar: buildToolCallGrammar(allowedTools),
+      });
+
+      try {
+        const planned = parseToolCall(planner.text, allowedTools);
+        if (planned.tool !== NO_TOOL) {
+          const toolResult = await executeToolWithAudit({
+            id: createId('tool'),
+            tool: planned.tool,
+            arguments: planned.arguments,
+          });
+          setLastMetrics(planner.metrics);
+
+          if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
+          const said = toolSpeech(toolResult.data);
+          if (said) return { text: said.speech, metrics: planner.metrics, source: 'tool' as AnswerSource, private: said.private };
+
+          const summary = settings.language === 'ar'
+            ? `تم تنفيذ ${planned.tool}.`
+            : `Done. ${planned.tool} completed.`;
+          const dataSuffix = toolResult.data === undefined
+            ? ''
+            : `\n${JSON.stringify(toolResult.data, null, 2)}`;
+          return { text: `${summary}${dataSuffix}`, metrics: planner.metrics, source: 'tool' as AnswerSource };
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message === 'CONFIRMATION_REQUIRED') throw error;
+        // If planning output is invalid or no executable tool was selected,
+        // continue to the normal assistant answer instead of pretending an action ran.
+      }
     }
 
     let memoryContext: string | undefined;
@@ -173,17 +528,52 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       // The Settings language toggle previously only changed the TTS voice, so
       // selecting Arabic still produced English answers. It now reaches the model.
       language: settings.language,
+      ownerProfileContext: settings.ownerProfile,
       projectContext,
       memoryContext,
       conversation: boundedConversation,
       userMessage: text,
+      spoken: options.spoken ?? false,
     });
+
+    // A loaded local brain always answers first. The cloud brain is only for
+    // when there is no local brain to ask — the exact state observed on the
+    // owner's ROG, where runCompletion threw MODEL_NOT_LOADED on every turn.
+    if (modelState.status !== 'ready' && settings.cloudFallbackEnabled) {
+      const answer = await askCloud({
+        messages,
+        mode,
+        keys: await readCloudKeys(),
+        models: settings.cloudModels,
+        fetchImpl: fetch as unknown as FetchLike,
+      });
+      // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
+      // goes through the same token callback, so the HUD's sentence-level
+      // speech handles it exactly as it handles the local brain.
+      // Cloud reasoning models can think out loud too; the same rule applies.
+      const cloudText = stripThinking(answer.text) || answer.text;
+      onToken?.(cloudText);
+      setLastMetrics(answer.metrics);
+      return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
+    }
+
+    const runtime = await getRuntime();
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
-    return result;
-  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language]);
+    return { ...result, source: 'local' as AnswerSource };
+  }, [
+    activeProject,
+    memories,
+    modelState.status,
+    settings.approvedMemoryEnabled,
+    settings.cloudFallbackEnabled,
+    settings.cloudModels,
+    settings.language,
+    settings.ownerProfile,
+  ]);
 
   const stopGeneration = useCallback(async () => {
+    const runtime = await getRuntime();
     await runtime.stopGeneration();
   }, []);
 
@@ -306,6 +696,14 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     loadModel,
     unloadModel,
     validateModel,
+    installRecommendedModel,
+    brainDownload,
+    permanentStorage,
+    requestPermanentStorage,
+    cloudProviders,
+    cloudReady,
+    saveCloudKey,
+    removeCloudKey,
     ask,
     stopGeneration,
     saveMemory,
@@ -315,7 +713,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setProjectStepStatus,
   }), [
     ready, initError, settings, modelState, memories, projects, activeProject, lastMetrics,
-    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, ask, stopGeneration,
+    powerReading, activeRuntimePlan, updateSettings, refresh, loadModel, unloadModel, validateModel, installRecommendedModel, brainDownload, permanentStorage, requestPermanentStorage, cloudProviders, cloudReady, saveCloudKey, removeCloudKey, ask, stopGeneration,
     saveMemory, createProject, setProjectStatus, addProjectStep, setProjectStepStatus,
   ]);
 

@@ -6,6 +6,25 @@
 >
 > Section numbers match `docs/ACCEPTANCE_TESTS.md`.
 
+## Current status — read this first (27 Sep 2026, session 10)
+
+Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
+features listed as missing) were true when written and are superseded by later
+ones. The newest session section at the end of this file is the current state.
+
+- **Latest APK:** build `250928b8` (source `71cb422`): every model (Qwen3 8B brain, eyes, Whisper/VAD/Kokoro voice) kept in Download/JARVIS/models with All files access, moved from older folders on launch; memories/projects/settings backed up to Download/JARVIS/backup.json; clean Settings with Advanced hidden. BUILD SUCCESSFUL 12m 14s, 0 Kotlin errors; `:expo-jarvis-brain:compileReleaseKotlin` ran. Default in `scripts/rog-setup.sh`.
+- **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
+- **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
+  on older builds only: the brain loads and answers (bc047ad7, owner's video),
+  37 s for one answer at 5.9 tok/s before the latency work. Under-5-s speech,
+  the new HUD, camera page, Arabic conversation, background wake word and the
+  floating orb are unverified until the owner's test.
+- **Not built (by design or not yet):** operating arbitrary apps (Accessibility /
+  screen reading), typing or scrolling in other apps, languages beyond EN/AR,
+  the Raspberry Pi satellite (design doc only).
+- **Live link privacy:** the default channel repository is public; words are only
+  sent to a repository GitHub confirms is private.
+
 ## Build under test
 
 | Field | Value |
@@ -193,4 +212,35 @@ Record every issue found. Do not hide incomplete hardware validation.
 
 | # | Problem | Severity | Status |
 |---|---|---|---|
-| | | | |
+| 1 | Raw heard/asked text posted to the public live channel | High (privacy) | Fixed a5b2471 — word counts by default |
+| 2 | phone.call could dial without confirmation | High (side effect) | Fixed ab1dc21 — dialler only |
+| 3 | GitHub Actions verify-and-build never starts (account billing) | Info | Owner-acknowledged; EAS builds unaffected |
+
+## Session 8 — 26 Sep 2026 (handoff pack integration)
+
+Source commit `7813fe4` (+ setup script `5bd0f0b`). EAS build `5e5991f6-7059-4f56-8d88-79a58a511122`,
+preview, FINISHED 05:06 UTC. APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c2GLoccdSAGvu66LE9DrxnTod35nk.apk
+
+| Gate | Result | Evidence |
+|---|---|---|
+| 1 Build — typecheck, lint, tests, smoke | PASS | 370/370 vitest, `pnpm smoke` PASS, `tsc` and lint clean (local, this session) |
+| 1 Build — Gradle release | PASS | EAS log: BUILD SUCCESSFUL in 11m 50s, 0 Kotlin errors; expo-jarvis-brain/overlay/phone compileReleaseKotlin |
+| 1 Build — native libs in APK | PASS (log), phone check pending | log shows rnllama_v8_2_dotprod_i8mm(+hexagon_opencl) built for arm64-v8a. APK zip not inspectable here (expo.dev → sandbox proxy 403); `scripts/rog-setup.sh` now prints SHA-256 and refuses to install unless librnllama*, audio-api and the JS bundle are inside |
+| 2 Real phone | NOT RUN (this build) | brain load on device proven on bc047ad7 (owner video); this build awaits the owner's live-link test |
+| 3 Video-2 parity (time, maths, system info, site search, language switch, share) | PASS in unit tests; device NOT RUN | tests/utilityCommands.test.ts (32) |
+| 4 Privacy: live log word counts by default | PASS in unit tests | tests/transcriptPolicy.test.ts — dictated name/number/code absent from snapshot() and toText() |
+| 4 Calls never auto-dial | PASS in unit tests + manifest | ACTION_DIAL only, CALL_PHONE removed; tests/callDialer.test.ts |
+
+## Session 9 — 26 Sep 2026 (the reference-video look)
+
+Source commit `2512167`. EAS build `ac59bd3c-6e8e-4a3a-800c-cbbf7de4c7a1`, preview, FINISHED 12:11 UTC.
+APK: https://expo.dev/artifacts/eas/2wJnoCVc0r3TdRTjGJ_VL7JWPdDBQ-56OUgR4NAvVTY.apk (setup-script default)
+
+| Gate | Result | Evidence |
+|---|---|---|
+| 1 Build — typecheck, lint, tests, smoke | PASS | 394/394 vitest, `pnpm smoke` PASS, `tsc` and lint clean |
+| 1 Build — Gradle release | PASS | EAS log: BUILD SUCCESSFUL in 11m 59s, 0 Kotlin errors; react-native-svg compiled; expo-camera 17.0.10 autolinked (prebuilt); rnllama_v8_2_dotprod_i8mm(+hexagon_opencl), arm64-v8a |
+| 3 Look — grid, reactor orb, clock under orb | PASS as design preview; device NOT RUN | browser render of the same geometry (not a phone screenshot); tests/orbGeometry.test.ts |
+| 3 Camera page, mini orb, "open the camera", look from live view | PASS in unit tests; device NOT RUN | tests/cameraPage.test.ts |
+| 3 Thinking filler after 1.2 s | PASS in unit tests; device NOT RUN | tests/thinkingFiller.test.ts; live log `fillerMs` |
+| 4 Camera privacy | PASS by construction | preview only while the page is visible and the app in front; capture unregistered on pause; no audio; photo deleted after description |

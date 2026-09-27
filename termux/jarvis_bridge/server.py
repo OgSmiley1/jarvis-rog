@@ -70,6 +70,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    ThreadingHTTPServer.allow_reuse_address = True
+    ThreadingHTTPServer.daemon_threads = True
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
     server.serve_forever()

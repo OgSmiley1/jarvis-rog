@@ -45,4 +45,9 @@ export interface RunCompletionInput {
    * structurally valid by construction rather than by parsing and hoping.
    */
   grammar?: string;
+  /**
+   * Let Qwen3-style models reason in <think> blocks first. Off unless asked:
+   * on a phone, reasoning costs tens of seconds before the first real word.
+   */
+  thinking?: boolean;
 }

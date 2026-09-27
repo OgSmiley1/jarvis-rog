@@ -116,3 +116,36 @@ describe('isThrottlingDown', () => {
     expect(isThrottlingDown(null, planRuntime({}))).toBe(false);
   });
 });
+
+describe('memory headroom on a 16 GB ROG Phone 8 Pro', () => {
+  it('raises the context when RAM is generous and the device is cool', () => {
+    const plan = planRuntime({ thermalStatus: ThermalStatus.None, totalRamGb: 16 });
+    expect(plan.contextSize).toBe(8192);
+    expect(plan.tier).toBe('full');
+    // Threads and GPU layers are a heat decision, not a memory one.
+    expect(plan.threads).toBe(6);
+    expect(plan.reason).toContain('16 GB RAM allows');
+  });
+
+  it('does not hand a throttling device a bigger working set', () => {
+    for (const status of [ThermalStatus.Moderate, ThermalStatus.Severe, ThermalStatus.Critical]) {
+      const plan = planRuntime({ thermalStatus: status, totalRamGb: 16 });
+      expect(plan.contextSize, ThermalStatus[status]).toBeLessThanOrEqual(4096);
+    }
+  });
+
+  it('leaves an ordinary phone exactly where it was', () => {
+    expect(planRuntime({ thermalStatus: ThermalStatus.None, totalRamGb: 8 }).contextSize).toBe(4096);
+    expect(planRuntime({ thermalStatus: ThermalStatus.None }).contextSize).toBe(4096);
+  });
+
+  it('still shrinks the context on a low-RAM device', () => {
+    const plan = planRuntime({ thermalStatus: ThermalStatus.None, totalRamGb: 6 });
+    expect(plan.tier).toBe('balanced');
+    expect(plan.contextSize).toBe(4096);
+  });
+
+  it('does not claim a thermal reading it never had', () => {
+    expect(planRuntime({ totalRamGb: 16 }).thermalSignalPresent).toBe(false);
+  });
+});

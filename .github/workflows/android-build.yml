@@ -49,7 +49,17 @@ jobs:
         run: yes | sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Audio API startup-crash backport
+        run: |
+          SRC="node_modules/react-native-audio-api/android/src/main/java/com/swmansion/audioapi/AudioAPIModule.kt"
+          grep -F 'context.assertOnJSQueueThread()' "$SRC"
+          grep -F 'mHybridData = initHybrid(workletsModule, jsContext, jsCallInvokerHolder)' "$SRC"
+          if grep -F 'mHybridData = initHybrid(workletsModule, reactContext.javaScriptContextHolder!!.get(), jsCallInvokerHolder)' "$SRC"; then
+            echo "::error::Vulnerable react-native-audio-api constructor-time initHybrid call is still present."
+            exit 1
+          fi
 
       # llama.rn ships its arm64 inference libraries via a postinstall download
       # rather than inside the npm tarball. pnpm blocks lifecycle scripts by
@@ -87,15 +97,15 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Build debug APK
+      - name: Build standalone personal APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Verify APK
         run: |
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
           ls -lh "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
@@ -105,7 +115,11 @@ jobs:
       # as a success.
       - name: Verify inference engine is inside the APK
         run: |
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          if ! unzip -Z1 "$APK" | grep '^assets/index.android.bundle$' > /dev/null; then
+            echo "::error::The APK has no bundled JavaScript and would require Metro."
+            exit 1
+          fi
           LIBS=$(unzip -Z1 "$APK" | grep '^lib/arm64-v8a/librnllama' || true)
           if [ -z "$LIBS" ]; then
             echo "::error::The APK contains no librnllama native library. Local GGUF inference would fail on the device."
@@ -114,13 +128,19 @@ jobs:
           fi
           echo "Bundled inference libraries:"
           echo "$LIBS"
+          for LIB in libreact-native-executorch.so libexecutorch.so libreact-native-audio-api.so; do
+            if ! unzip -Z1 "$APK" | grep -Fx "lib/arm64-v8a/$LIB" > /dev/null; then
+              echo "::error::Missing voice runtime library: $LIB"
+              exit 1
+            fi
+          done
 
       - name: Upload JARVIS APK
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-ROG-debug-APK
+          name: JARVIS-ROG-standalone-APK
           path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
             apk-sha256.txt
           if-no-files-found: error
           retention-days: 30

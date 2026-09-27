@@ -13,4 +13,7 @@ if kill -0 "$PID" 2>/dev/null; then
   kill "$PID"
 fi
 rm -f "$PIDFILE"
+if command -v termux-wake-unlock >/dev/null 2>&1; then
+  termux-wake-unlock >/dev/null 2>&1 || true
+fi
 echo "Stopped JARVIS bridge."

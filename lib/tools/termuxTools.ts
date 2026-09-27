@@ -4,6 +4,14 @@ import { callTermux } from './termuxClient';
 
 export const termuxTools: ToolDefinition[] = [
   {
+    name: 'termux.app_open',
+    description: 'Open an Android application by a validated package name through the authenticated local Termux bridge.',
+    target: 'TERMUX',
+    confirmation: 'none',
+    schema: z.object({ package: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$/) }),
+    execute: async ({ package: packageName }) => callTermux('app.open', { package: packageName }),
+  },
+  {
     name: 'termux.system_status',
     description: 'Read safe status information from the local Termux bridge.',
     target: 'TERMUX',

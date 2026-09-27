@@ -8,6 +8,9 @@ export interface JarvisSettings {
   defaultMode: IntelligenceMode;
   approvedMemoryEnabled: boolean;
   autoSpeak: boolean;
+  handsFreeEnabled: boolean;
+  wakeWord: string;
+  ownerProfile: string;
   contextSize: number;
   batchSize: number;
   threads: number;
@@ -18,11 +21,64 @@ export interface JarvisSettings {
    * pins the runtime to the explicit contextSize/batchSize/threads/gpuLayers.
    */
   adaptiveRuntime: boolean;
+  /**
+   * Offload the brain to the Adreno GPU (OpenCL). Off by default: on the ROG
+   * it measured 5.9 tok/s with Q4_K_M and hung System UI while loading, so
+   * the CPU path (dotprod + i8mm) is the default.
+   */
+  gpuAcceleration: boolean;
   modelPath?: string;
   modelName?: string;
   modelSize?: number;
   onlineFreeOnly: boolean;
   onlineModelId?: string;
+  /**
+   * A specific system voice the owner pinned in Settings. When unset, JARVIS
+   * ranks the installed voices and picks the best neural one for the language.
+   * If a pinned voice is later uninstalled, ranking takes over again.
+   */
+  ttsVoiceId?: string;
+  /**
+   * Allow Google's server-synthesised `-network` voices. They sound the best
+   * but need internet and add round-trip latency, so a local-first assistant
+   * leaves this off by default.
+   */
+  ttsAllowNetworkVoice: boolean;
+  /**
+   * Answer through the owner's free cloud keys (Cerebras → Groq → Gemini)
+   * when the local model is not loaded. Off by default: turning it on means a
+   * question can leave the phone, and that has to be the owner's choice. The
+   * keys themselves are in the Android keystore, never in these settings.
+   */
+  cloudFallbackEnabled: boolean;
+  /**
+   * Keep the floating JARVIS orb over other apps. Only takes effect once the
+   * owner has granted "Display over other apps"; JARVIS never assumes it.
+   */
+  floatingOrbEnabled: boolean;
+  /**
+   * Speak English replies with Kokoro, an on-device neural voice (British,
+   * "Daniel"). About 351 MB, downloaded once when switched on. Arabic keeps
+   * the phone's best voice: Kokoro has no Arabic model.
+   */
+  neuralVoiceEnabled: boolean;
+  /** Remind the owner to charge (notification, and spoken when on screen). */
+  chargeReminderEnabled: boolean;
+  /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */
+  chargeReminderLevel: number;
+  /** Per-provider model overrides; unset uses the provider's default. */
+  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
+  /**
+   * Where the live test link posts: a private GitHub repository, and
+   * optionally an issue or PR number in it (unset opens one issue per
+   * session). The token is in the Android keystore, never here.
+   */
+  liveChannel?: { owner: string; repo: string; number?: number };
+  /**
+   * Until when (epoch ms) the live test log may include the owner's actual
+   * words. Unset or past: only word counts are logged. See transcriptPolicy.ts.
+   */
+  liveTranscriptsUntil?: number;
 }
 
 export interface MemoryRecord {

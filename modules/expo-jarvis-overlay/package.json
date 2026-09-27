@@ -1,0 +1,7 @@
+{
+  "name": "expo-jarvis-overlay",
+  "version": "1.0.0",
+  "description": "The floating JARVIS orb drawn over other apps (TYPE_APPLICATION_OVERLAY). Local Expo module, autolinked from ./modules, not published.",
+  "license": "UNLICENSED",
+  "private": true
+}

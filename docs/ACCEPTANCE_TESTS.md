@@ -11,10 +11,12 @@ broken build would still have passed.
 
 | # | Test | Pass condition | Fails if |
 |---|---|---|---|
-| 0.1 | Inference engine present | `unzip -Z1 app-debug.apk \| grep '^lib/arm64-v8a/librnllama'` lists at least one library. | No match. The APK would install and launch with local inference dead. |
+| 0.1 | Inference engine present | `unzip -Z1 app-release.apk \| grep '^lib/arm64-v8a/librnllama'` lists at least one library. | No match. The APK would install and launch with local inference dead. |
 | 0.2 | Target ABI | The APK contains `lib/arm64-v8a/`. | Only other ABIs present. |
 | 0.3 | Acceleration declared | `AndroidManifest.xml` declares `libOpenCL.so` and `libcdsprpc.so`. | Absent. |
 | 0.4 | APK identity | sha256 of the installed file matches the artifact that CI or EAS produced. | Any mismatch: you are not testing the built APK. |
+| 0.5 | Standalone JavaScript | `assets/index.android.bundle` exists inside the APK. | Missing bundle; app depends on a development server. |
+| 0.6 | Voice runtime present | arm64 `libreact-native-executorch.so`, `libexecutorch.so`, and `libreact-native-audio-api.so` exist inside the APK. | Missing speech or recorder native library. |
 
 ## 1. Launch and model lifecycle
 
@@ -80,7 +82,7 @@ Put the device in **airplane mode** for this whole section.
 | 5.3 | STT is real | A spoken test phrase produces a transcript matching what was said. | Placeholder or canned text appears. |
 | 5.4 | Model-not-ready honesty | Before the local STT model is ready, the UI says so. | It shows listening with no engine loaded. |
 | 5.5 | Stop releases the mic | The Android microphone indicator disappears after Stop. | The indicator persists. |
-| 5.6 | Background releases the mic | Backgrounding during a session releases the microphone. | |
+| 5.6 | Background hands-free session | With Hands-free ON, backgrounding/minimizing the app keeps the visible foreground microphone session active and wake commands are still processed. | The microphone stops unexpectedly, no foreground-service indication exists, or wake commands stop being processed. |
 | 5.7 | Rapid start/stop | Start and stop repeatedly. No stale transcript from an earlier session appears. | |
 | 5.8 | TTS | The device speaks a generated response. | |
 | 5.9 | TTS language | With Arabic selected, the Arabic reply is spoken with an Arabic voice. | |
