@@ -6,13 +6,13 @@
 >
 > Section numbers match `docs/ACCEPTANCE_TESTS.md`.
 
-## Current status — read this first (27 Sep 2026)
+## Current status — read this first (27 Sep 2026, session 10)
 
 Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
 features listed as missing) were true when written and are superseded by later
 ones. The newest session section at the end of this file is the current state.
 
-- **Latest APK:** build `42362cf1` (source `b12f5df`: reference-video look, camera page, thinking filler, public-channel privacy fix), the default in `scripts/rog-setup.sh`. BUILD SUCCESSFUL, 0 Kotlin errors.
+- **Latest APK:** build `250928b8` (source `71cb422`): every model (Qwen3 8B brain, eyes, Whisper/VAD/Kokoro voice) kept in Download/JARVIS/models with All files access, moved from older folders on launch; memories/projects/settings backed up to Download/JARVIS/backup.json; clean Settings with Advanced hidden. BUILD SUCCESSFUL 12m 14s, 0 Kotlin errors; `:expo-jarvis-brain:compileReleaseKotlin` ran. Default in `scripts/rog-setup.sh`.
 - **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
 - **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
   on older builds only: the brain loads and answers (bc047ad7, owner's video),

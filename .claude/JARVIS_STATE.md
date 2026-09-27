@@ -963,3 +963,22 @@ covered by session 8 except the thinking filler.
 
 394 tests, lint, typecheck and smoke green. EAS build `ac59bd3c` on 2512167.
 Device gates: NOT RUN — awaiting the owner's live-link test.
+
+## SESSION 10 — nothing downloaded twice (27 Sep 2026)
+
+Owner (Arabic, angry): every app close meant downloading again; wants all of
+it kept on the phone for good — even across uninstall — a bigger brain, and
+no keys/links on screen. Cause found: Whisper/Kokoro downloaded in-app into the
+library's private cache (restart from 0% when the app closed), and everything
+lived in app-private folders that Android wipes on uninstall.
+
+| Commit | What | Verified |
+|---|---|---|
+| 6638f5c | Download/JARVIS/models permanent folder (MANAGE_EXTERNAL_STORAGE, one-tap banner); DownloadManager writes there; legacy files moved on launch; lookups search all folders; Qwen3 8B (5.03 GB) primary, 4B kept, 8B fetched once in background then switched | tests/permanentStorage.test.ts (7) |
+| 3da003b | voice files (Whisper, FSMN VAD, Kokoro) in Download/JARVIS/models/voice, adopted from the old cache or fetched by DownloadManager; library loads local file:// configs | tests/voiceFiles.test.ts (5) |
+| 10446c4 | Settings: essentials only, Advanced button for keys/live link/runtime/diagnostics; drawer drops AI hub; backup.json of memories/projects/settings, restored only on a fresh install | tests/backup.test.ts (4) |
+| 71cb422 | rog-setup.sh: grants All files access, moves old files, downloads 8B + eyes + 9 voice files to the app's exact paths | dry run with stub adb/curl: 12 files placed; 2nd run downloads only the APK |
+
+415 tests, lint, typecheck, smoke green. EAS build `250928b8` FINISHED, BUILD SUCCESSFUL, 0 Kotlin errors.
+APK: https://expo.dev/artifacts/eas/PtZO4gmC1komc3Y3tK5wYYb6FSM-XXVphLVBEYnOTHY.apk (setup default).
+Device: NOT RUN. Open question: 8B latency vs 4B on the ROG — measure on the owner's test.
