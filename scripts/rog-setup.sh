@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # JARVIS ROG — everything in one go, from Termux, no PC:
-#   the app, every permission, the 2.5 GB brain and the eyes, put where JARVIS finds them.
+#   the app, every permission, the brain (Qwen3 8B, 5 GB), the eyes and the voice,
+#   all saved for good in Download/JARVIS on this phone. That folder survives
+#   closing, updating and even uninstalling the app: nothing is downloaded twice.
 # Safe to run again at any time: it resumes the brain download, skips what is
 # already done, and updates the app while keeping your data.
 #
@@ -18,10 +20,13 @@ set -euo pipefail
 PKG="com.app.localjarviscoach"
 LATEST_APK="https://expo.dev/artifacts/eas/VcRP_41cPa0Xw4MwXCq0d30CqSDvtRZ8k86hyuqDWis.apk"
 APK_URL="${1:-$LATEST_APK}"
-BRAIN_NAME="Qwen3-4B-Q4_K_M.gguf"
-BRAIN_URL="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
-BRAIN_MIN_BYTES=2000000000
-MODEL_DIR="/sdcard/Android/data/${PKG}/files/models"
+BRAIN_NAME="Qwen3-8B-Q4_K_M.gguf"
+BRAIN_URL="https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
+BRAIN_MIN_BYTES=4500000000
+# The permanent folder (needs "All files access", granted below).
+MODEL_DIR="/sdcard/Download/JARVIS/models"
+# Where builds before this one kept the files; moved over, never downloaded again.
+OLD_DIR="/sdcard/Android/data/${PKG}/files/models"
 WORK="$HOME/jarvis-rog-setup"
 mkdir -p "$WORK"
 
@@ -78,6 +83,7 @@ done
 adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow 2>/dev/null && ok "display over other apps (floating orb)" || skip "display over other apps" "refused"
 adb shell dumpsys deviceidle whitelist "+$PKG" >/dev/null 2>&1 && ok "battery optimisation off" || skip "battery optimisation" "refused"
 adb shell cmd appops set "$PKG" RUN_ANY_IN_BACKGROUND allow 2>/dev/null && ok "run in background" || skip "run in background" "refused"
+adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow 2>/dev/null && ok "all files access (keeps everything in Download/JARVIS)" || skip "all files access" "allow it in the app when asked"
 if adb shell cmd role add-role-holder android.app.role.ASSISTANT "$PKG" 0 2>/dev/null; then
   ok "default digital assistant"
 else
@@ -91,6 +97,7 @@ put_model() {
   local name="$1" url="$2" min="$3" label="$4"
   local on_phone size free_kb expected actual
   on_phone=$(adb shell "stat -c %s '$MODEL_DIR/$name' 2>/dev/null" | tr -d '\r' || true)
+  mkdir -p "$(dirname "$WORK/$name")"
   if [ -n "$on_phone" ] && [ "$on_phone" -ge "$min" ]; then
     ok "$label already in place ($((on_phone / 1048576)) MB)"
     return 0
@@ -114,7 +121,7 @@ put_model() {
     fi
     ok "$label checksum matches"
   fi
-  adb shell mkdir -p "$MODEL_DIR"
+  adb shell mkdir -p "$(dirname "$MODEL_DIR/$name")"
   adb shell rm -f "$MODEL_DIR/$name.part"
   adb push "$WORK/$name" "$MODEL_DIR/$name"
   on_phone=$(adb shell "stat -c %s '$MODEL_DIR/$name'" | tr -d '\r')
@@ -123,18 +130,43 @@ put_model() {
   ok "$label in place ($((size / 1048576)) MB)"
 }
 
-step "The brain (Qwen3 4B, 2.5 GB) and the eyes (SmolVLM2, 546 MB) — all offline"
+step "Moving files from older builds into Download/JARVIS"
 # Stop the app so it cannot start its own download of the same files meanwhile.
 adb shell am force-stop "$PKG" || true
+adb shell mkdir -p "$MODEL_DIR"
+moved=$(adb shell "n=0; for f in '$OLD_DIR'/*.gguf; do [ -f \"\$f\" ] || continue; mv -n \"\$f\" '$MODEL_DIR'/ && n=\$((n+1)); done; echo \$n" | tr -d '\r' || echo 0)
+ok "moved ${moved:-0} file(s) — nothing to download again"
+
+step "The brain (Qwen3 8B, 5 GB), the eyes (SmolVLM2, 546 MB) and the voice — all offline"
 put_model "$BRAIN_NAME" "$BRAIN_URL" "$BRAIN_MIN_BYTES" "brain"
 EYES_REPO="https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main"
 put_model "mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 100000000 "eyes projector"
 put_model "SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 400000000 "eyes"
 
+# The voice: speech recognition (Whisper), voice detection and the neural
+# voice (Kokoro). Same paths the app uses (lib/voice/voiceFiles.ts).
+SM="https://huggingface.co/software-mansion/react-native-executorch"
+V="v0.9.0"
+for f in \
+  "whisper-tiny|xnnpack/whisper_tiny_xnnpack_fp32.pte" \
+  "whisper-tiny|tokenizer.json" \
+  "fsmn-vad|xnnpack/fsmn_vad_xnnpack_fp32.pte" \
+  "kokoro|xnnpack/standard/duration_predictor_std.pte" \
+  "kokoro|xnnpack/standard/synthesizer_std.pte" \
+  "kokoro|voices/bm_daniel.bin" \
+  "kokoro|phonemizer/en-gb/tags.json" \
+  "kokoro|phonemizer/en-gb/lexicon.json" \
+  "kokoro|phonemizer/en-gb/phonemizer_en_gb.pte"; do
+  model="${f%%|*}"; path="${f#*|}"
+  put_model "voice/$model/$V/$path" "$SM-$model/resolve/$V/$path" 1 "voice: $model/$(basename "$path")"
+done
+
 step "Verifying"
 adb shell dumpsys package "$PKG" | grep -o "android.permission.[A-Z_]*: granted=[a-z]*" \
   | grep -E "RECORD_AUDIO|POST_NOTIFICATIONS|READ_CONTACTS|READ_SMS|READ_CALL_LOG|READ_CALENDAR|CAMERA" | sort -u || true
 echo "  overlay: $(adb shell appops get "$PKG" SYSTEM_ALERT_WINDOW | tr -d '\r')"
+echo "  all files access: $(adb shell appops get "$PKG" MANAGE_EXTERNAL_STORAGE | tr -d '\r')"
+echo "  saved in Download/JARVIS: $(adb shell "du -sh $MODEL_DIR 2>/dev/null" | tr -d '\r')"
 adb shell dumpsys deviceidle whitelist | grep -q "$PKG" && echo "  battery: exempt" || echo "  battery: optimised"
 
 step "Launching JARVIS"
@@ -142,7 +174,8 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 
 cat <<'NEXT'
 
-Done. JARVIS loads the brain by itself in a few seconds — no download button.
+Done. Everything is saved in Download/JARVIS on this phone — JARVIS loads it
+by itself in a few seconds and never downloads it again, even after a reinstall.
   1. Say: "Jarvis, how much battery"  /  "Jarvis, open the camera", then "what do you see"
   2. Settings -> Live test link -> Start live link, so Claude can watch the test.
 Run this same command again any time to update JARVIS; the brain stays.
