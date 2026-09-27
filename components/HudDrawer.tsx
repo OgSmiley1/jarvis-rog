@@ -16,7 +16,6 @@ const DESTINATIONS: Destination[] = [
   { route: '/memory', en: 'Memory', ar: 'ذاكرة' },
   { route: '/understand', en: 'Understand', ar: 'تحليل' },
   { route: '/reflect', en: 'Reflect', ar: 'مراجعة' },
-  { route: '/online', en: 'Free AI Hub', ar: 'نماذج مجانية' },
 ];
 
 export function HudDrawer({ language, children }: { language: 'auto' | 'en' | 'ar'; children?: React.ReactNode }) {

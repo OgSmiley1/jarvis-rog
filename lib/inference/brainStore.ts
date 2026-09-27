@@ -19,6 +19,8 @@ interface ExpoJarvisBrainNativeModule {
   openStorageAccessSettings?(): boolean;
   moveToPermanent?(): Promise<number>;
   adoptFile?(source: string, fileName: string): Promise<boolean>;
+  readJarvisFile?(name: string): string | null;
+  writeJarvisFile?(name: string, text: string): Promise<boolean>;
   fileSize(path: string): number;
   deleteFile(path: string): boolean;
   activeDownload(fileName: string): number | null;
@@ -173,4 +175,19 @@ export function deleteModelFile(path: string): void {
   }
   const file = new File(path);
   if (file.exists) file.delete();
+}
+
+/** A small text file in Download/JARVIS itself, or null (no file, or no permanent storage). */
+export function readJarvisFile(name: string): string | null {
+  try {
+    return native?.readJarvisFile?.(name) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Writes a small text file into Download/JARVIS. False without permanent storage. */
+export async function writeJarvisFile(name: string, text: string): Promise<boolean> {
+  if (!native?.writeJarvisFile) return false;
+  return native.writeJarvisFile(name, text);
 }

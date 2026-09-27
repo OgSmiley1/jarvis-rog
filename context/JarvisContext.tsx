@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   listMemories,
   listProjects,
+  hasSavedSettings,
   listProjectSteps,
   loadSettings,
   saveSettings,
@@ -12,6 +13,7 @@ import {
   upsertProject,
   upsertProjectStep,
 } from '@/lib/storage/database';
+import { BACKUP_FILE, buildBackup, parseBackup, shouldRestore } from '@/lib/storage/backup';
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
 import { buildMessages } from '@/lib/inference/promptBuilder';
@@ -39,6 +41,8 @@ import {
   hasPermanentStorage,
   hasSystemDownloader,
   moveModelsToPermanent,
+  readJarvisFile,
+  writeJarvisFile,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { stripThinking } from '@/lib/voice/stripThinking';
@@ -155,9 +159,31 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const upgradeTried = useRef(false);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
+  // Set once the backup in Download/JARVIS has been read (and restored onto a
+  // fresh install). Until then nothing is written over it: a fresh install
+  // without storage access must not replace a good backup with an empty one.
+  const backupChecked = useRef(false);
+
+  /** On a fresh install, bring back memories, projects and settings from Download/JARVIS/backup.json. */
+  const restoreBackupIfFresh = useCallback(async (): Promise<boolean> => {
+    if (backupChecked.current || !hasPermanentStorage()) return false;
+    backupChecked.current = true;
+    const backup = parseBackup(readJarvisFile(BACKUP_FILE));
+    const [settingsSaved, memoriesNow, projectsNow] = await Promise.all([hasSavedSettings(), listMemories(), listProjects()]);
+    if (!shouldRestore({ settingsSaved, memories: memoriesNow.length, projects: projectsNow.length }, backup)) return false;
+    await saveSettings({ ...DEFAULT_SETTINGS, ...backup.settings });
+    for (const memory of backup.memories) await upsertMemory(memory);
+    for (const project of backup.projects) await upsertProject(project);
+    for (const step of backup.steps) await upsertProjectStep(step);
+    recordLive('app', 'restored from Download/JARVIS', { memories: backup.memories.length, projects: backup.projects.length });
+    return true;
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
+      await restoreBackupIfFresh().catch((error) =>
+        recordLive('error', 'backup restore failed', { raw: error instanceof Error ? error.message : String(error) }),
+      );
       const [storedSettings, storedMemories, storedProjects] = await Promise.all([
         loadSettings(),
         listMemories(),
@@ -174,11 +200,24 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     } finally {
       setReady(true);
     }
-  }, []);
+  }, [restoreBackupIfFresh]);
 
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
+
+  useEffect(() => {
+    // Keep Download/JARVIS/backup.json current, a few seconds after the last change.
+    if (!ready || !permanentStorage || !backupChecked.current) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const steps = (await Promise.all(projects.map((project) => listProjectSteps(project.id)))).flat();
+        const backup = buildBackup({ settings, memories, projects, steps, now: Date.now() });
+        await writeJarvisFile(BACKUP_FILE, JSON.stringify(backup));
+      })().catch((error) => recordLive('error', 'backup failed', { raw: error instanceof Error ? error.message : String(error) }));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [ready, permanentStorage, settings, memories, projects]);
 
   useEffect(() => {
     // The voice choice has to reach the speech layer at launch, not only when
@@ -369,6 +408,11 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       if (state !== 'active') return;
       const granted = hasPermanentStorage();
       setPermanentStorage(granted);
+      if (granted && !backupChecked.current) {
+        void restoreBackupIfFresh()
+          .then((restored) => (restored ? refresh() : undefined))
+          .catch(() => undefined);
+      }
       if (granted) {
         void moveModelsToPermanent()
           .then((moved) => {
@@ -378,7 +422,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       }
     });
     return () => subscription.remove();
-  }, []);
+  }, [refresh, restoreBackupIfFresh]);
 
   const requestPermanentStorage = useCallback(() => {
     if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());

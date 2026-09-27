@@ -61,6 +61,25 @@ class ExpoJarvisBrainModule : Module() {
       true
     }
 
+    // Small text files in Download/JARVIS itself (the memory backup). Null
+    // or false without "All files access", so nothing is ever half-written.
+    Function("readJarvisFile") { name: String ->
+      if (!hasStorageAccess()) return@Function null
+      val file = File(permanentDir().parentFile, name)
+      if (file.isFile) file.readText() else null
+    }
+
+    AsyncFunction("writeJarvisFile") { name: String, text: String ->
+      if (!hasStorageAccess()) return@AsyncFunction false
+      val dir = permanentDir().parentFile ?: return@AsyncFunction false
+      dir.mkdirs()
+      val tmp = File(dir, "$name.part")
+      tmp.writeText(text)
+      val target = File(dir, name)
+      if (target.exists()) target.delete()
+      tmp.renameTo(target)
+    }
+
     Function("fileSize") { path: String ->
       val file = File(path.removePrefix("file://"))
       if (file.isFile) file.length().toDouble() else -1.0

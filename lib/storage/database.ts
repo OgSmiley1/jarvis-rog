@@ -113,6 +113,12 @@ export async function loadSettings(): Promise<JarvisSettings> {
   }
 }
 
+/** True once settings were ever saved on this install; false on a fresh one. */
+export async function hasSavedSettings(): Promise<boolean> {
+  const db = await getDb();
+  return Boolean(await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', 'app'));
+}
+
 export async function saveSettings(settings: JarvisSettings): Promise<void> {
   const db = await getDb();
   await db.runAsync(
