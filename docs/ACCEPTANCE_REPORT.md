@@ -12,7 +12,7 @@ Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
 features listed as missing) were true when written and are superseded by later
 ones. The newest session section at the end of this file is the current state.
 
-- **Latest APK:** build `ac59bd3c` (source `2512167`), the default in `scripts/rog-setup.sh`.
+- **Latest APK:** build `42362cf1` (source `b12f5df`: reference-video look, camera page, thinking filler, public-channel privacy fix), the default in `scripts/rog-setup.sh`. BUILD SUCCESSFUL, 0 Kotlin errors.
 - **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
 - **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
   on older builds only: the brain loads and answers (bc047ad7, owner's video),
