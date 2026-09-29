@@ -1,0 +1,17 @@
+diff --git a/android/src/main/cpp/audioapi/android/core/AndroidAudioRecorder.cpp b/android/src/main/cpp/audioapi/android/core/AndroidAudioRecorder.cpp
+index 636efbcf080365744f4f9842c4c62dac082a1ec5..cee648c598746fd7b7bf26e98b851ab6b02a683a 100644
+--- a/android/src/main/cpp/audioapi/android/core/AndroidAudioRecorder.cpp
++++ b/android/src/main/cpp/audioapi/android/core/AndroidAudioRecorder.cpp
+@@ -15,7 +15,11 @@ AndroidAudioRecorder::AndroidAudioRecorder(
+     const std::shared_ptr<AudioEventHandlerRegistry> &audioEventHandlerRegistry)
+     : AudioRecorder(sampleRate, bufferLength, audioEventHandlerRegistry) {
+   AudioStreamBuilder builder;
+-  builder.setSharingMode(SharingMode::Exclusive)
++  // JARVIS: shared mode + VoiceCommunication turns on the phone's own echo
++  // canceller and noise suppressor (exclusive/MMAP streams bypass them), so
++  // the hands-free loop does not hear its own voice through the speaker.
++  builder.setSharingMode(SharingMode::Shared)
++      ->setInputPreset(InputPreset::VoiceCommunication)
+       ->setDirection(Direction::Input)
+       ->setFormat(AudioFormat::Float)
+       ->setFormatConversionAllowed(true)

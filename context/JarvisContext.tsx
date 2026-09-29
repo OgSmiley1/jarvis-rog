@@ -15,6 +15,14 @@ import {
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
 import { buildMessages } from '@/lib/inference/promptBuilder';
+import { brainOrder } from '@/lib/inference/brainOrder';
+import { askCloud, usableProviders, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
+import { readCloudKeys } from '@/lib/online/cloudKeys';
+import { stripThinking } from '@/lib/voice/stripThinking';
+
+/** Which brain answered: shown so the owner always knows whether a reply left the phone. */
+export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
+import { warmVoice } from '@/lib/voice/voiceResponse';
 import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
@@ -50,7 +58,14 @@ type ContextValue = {
   loadModel: () => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
-  ask: (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation?: CompletionMessage[]) => Promise<{ text: string; metrics: RuntimeMetrics }>;
+  /** `options.voice`: the answer will be spoken, so the model's reasoning is switched off. */
+  ask: (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation?: CompletionMessage[],
+    options?: { voice?: boolean; spoken?: boolean },
+  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -103,6 +118,13 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const validateModel = useCallback(async (path: string) => runtime.validateGguf(path), []);
 
+  /** Pre-reads the voice system prompt into the model and wakes the phone's voice engine. */
+  const warmBrain = useCallback(() => {
+    const messages = buildMessages({ mode: 'fast', language: settings.language, conversation: [], userMessage: 'hi', spoken: true });
+    void runtime.warmUp(messages).catch(() => undefined);
+    warmVoice();
+  }, [settings.language]);
+
   const loadModel = useCallback(async () => {
     if (!settings.modelPath || !settings.modelName) throw new Error('NO_MODEL_SELECTED');
 
@@ -117,6 +139,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
       setModelState(state);
+      warmBrain();
       return;
     }
 
@@ -129,7 +152,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     });
     setActiveRuntimePlan(runtime.getActiveRuntimePlan());
     setModelState(state);
-  }, [settings]);
+    warmBrain();
+  }, [settings, warmBrain]);
 
   const unloadModel = useCallback(async () => {
     await runtime.unloadLocalModel();
@@ -140,7 +164,13 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const activeProject = projects.find((project) => project.status === 'active');
 
-  const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = []) => {
+  const ask = useCallback(async (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation: CompletionMessage[] = [],
+    options: { voice?: boolean; spoken?: boolean } = {},
+  ) => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
     const deterministic = routeDeterministicTool(text);
@@ -153,7 +183,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       const dataSuffix = deterministic.call.tool === 'termux.system_status'
         ? `\n${JSON.stringify(toolResult.data, null, 2)}`
         : '';
-      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics };
+      return { text: `${deterministic.successMessage}${dataSuffix}`, metrics, source: 'tool' as const };
     }
 
     let memoryContext: string | undefined;
@@ -177,11 +207,44 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       memoryContext,
       conversation: boundedConversation,
       userMessage: text,
+      spoken: options.spoken,
     });
-    const result = await runtime.runCompletion({ messages, mode, onToken });
-    setLastMetrics(result.metrics);
-    return result;
-  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language]);
+
+    // Offline-first: the phone's model unless the owner switched the free
+    // cloud on; then the cloud first and the phone's model on any failure.
+    const keys = settings.cloudBrainEnabled ? await readCloudKeys().catch(() => ({})) : {};
+    const order = brainOrder({
+      localReady: runtime.getModelRuntimeState().status === 'ready',
+      cloudEnabled: Boolean(settings.cloudBrainEnabled),
+      cloudKeys: usableProviders(keys, settings.cloudAllowTraining).length,
+    });
+    if (order.length === 0) throw new Error('MODEL_NOT_LOADED');
+
+    let lastError: unknown;
+    for (const brain of order) {
+      try {
+        if (brain === 'cloud') {
+          const answer = await askCloud({
+            messages,
+            mode,
+            keys,
+            allowTraining: settings.cloudAllowTraining,
+            fetchImpl: fetch as unknown as FetchLike,
+          });
+          const cloudText = stripThinking(answer.text);
+          if (!cloudText) throw new Error('EMPTY_COMPLETION');
+          setLastMetrics(answer.metrics);
+          return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as const };
+        }
+        const result = await runtime.runCompletion({ messages, mode, onToken, ...(options.voice ? { thinking: false } : {}) });
+        setLastMetrics(result.metrics);
+        return { ...result, source: 'local' as const };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language, settings.cloudBrainEnabled, settings.cloudAllowTraining]);
 
   const stopGeneration = useCallback(async () => {
     await runtime.stopGeneration();

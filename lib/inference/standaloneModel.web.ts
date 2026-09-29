@@ -25,3 +25,5 @@ export async function stopGeneration(): Promise<void> {}
 export async function runCompletion(_input: RunCompletionInput): Promise<never> {
   throw new Error('NATIVE_INFERENCE_UNAVAILABLE_ON_WEB');
 }
+
+export async function warmUp(_messages: unknown): Promise<void> {}

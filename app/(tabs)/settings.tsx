@@ -8,6 +8,7 @@ import { eraseAllJarvisData, listRecentToolRuns } from '@/lib/storage/database';
 import { clearTermuxSecret, setTermuxSecret } from '@/lib/tools/termuxClient';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { formatPerformance } from '@/lib/inference/performance';
+import { FreeCloudCard } from '@/components/FreeCloudCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -165,8 +166,18 @@ export default function SettingsScreen() {
           <AppText>Auto speak responses</AppText>
           <Switch value={jarvis.settings.autoSpeak} onValueChange={(value) => void jarvis.updateSettings({ autoSpeak: value })} />
         </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>Natural English voice (Kokoro, on the phone, ~350 MB once)</AppText>
+          <Switch
+            value={Boolean(jarvis.settings.neuralVoiceEnabled)}
+            onValueChange={(value) => void jarvis.updateSettings({ neuralVoiceEnabled: value })}
+          />
+        </View>
+        <AppText muted>Arabic answers use the phone&apos;s own Arabic voice: Kokoro has none yet.</AppText>
         <AppText muted>The microphone is used only during a visible session. Background microphone service is disabled in this build.</AppText>
       </Card>
+
+      <FreeCloudCard />
 
       <Card title="Memory">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
+import { cleanTranscript } from '@/lib/voice/transcriptClean';
+import { ensureExecutorch } from '@/lib/voice/executorch';
 
 export type VoiceState =
   | 'IDLE'
@@ -18,6 +20,9 @@ export interface UseLiveVoiceOptions {
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
+  // The voice library downloads its model files through this fetcher; without
+  // it registered, local speech recognition never becomes ready.
+  ensureExecutorch();
   const model = useSpeechToText({
     model: models.speech_to_text.whisper_tiny(),
     vad: models.vad.fsmn_vad(),
@@ -33,6 +38,9 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const sessionRef = useRef(0);
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
+  // Text already finalized in this session. A ref, so a new turn can clear it
+  // without restarting the microphone.
+  const finalizedRef = useRef('');
   const [error, setError] = useState<string | null>(null);
 
   const stop = useCallback(async () => {
@@ -74,6 +82,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     const session = sessionRef.current + 1;
     sessionRef.current = session;
     setError(null);
+    finalizedRef.current = '';
     setTranscript('');
     setState('REQUESTING_PERMISSION');
 
@@ -112,7 +121,6 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     });
 
     const consume = async () => {
-      let finalized = '';
       try {
         const language = optionsRef.current.language;
         const stream = stt.stream({
@@ -125,11 +133,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         for await (const { committed, nonCommitted } of stream) {
           if (!runningRef.current || sessionRef.current !== session) break;
           setState('TRANSCRIBING');
-          if (committed.text) {
-            finalized += committed.text;
-            optionsRef.current.onFinal?.(committed.text.trim());
+          const heard = cleanTranscript(committed.text ?? '');
+          if (heard) {
+            finalizedRef.current += ` ${heard}`;
+            optionsRef.current.onFinal?.(heard);
           }
-          setTranscript(`${finalized}${nonCommitted.text}`.trim());
+          setTranscript(`${finalizedRef.current} ${cleanTranscript(nonCommitted.text ?? '')}`.trim());
           if (runningRef.current) setState('LISTENING');
         }
       } catch (cause) {
@@ -177,6 +186,21 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     };
   }, [stop]);
 
+  /** Starts the next turn with an empty transcript, without stopping the microphone. */
+  const clearTranscript = useCallback(() => {
+    finalizedRef.current = '';
+    setTranscript('');
+  }, []);
+
+  /**
+   * One-shot transcription of a finished utterance, for the hands-free loop:
+   * it shares this Whisper instead of loading a second copy.
+   */
+  const transcribe = useCallback(async (audio: Float32Array, language: 'en' | 'ar'): Promise<string> => {
+    const result = await modelRef.current.transcribe(audio, { language });
+    return cleanTranscript(result.text ?? '');
+  }, []);
+
   return {
     state,
     transcript,
@@ -185,5 +209,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     downloadProgress: model.downloadProgress,
     start,
     stop,
+    clearTranscript,
+    transcribe,
   };
 }

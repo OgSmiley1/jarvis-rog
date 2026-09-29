@@ -12,7 +12,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
-    permissions: ['INTERNET', 'RECORD_AUDIO', 'POST_NOTIFICATIONS'],
+    // FOREGROUND_SERVICE_MICROPHONE keeps the hands-free loop hearing "Hey
+    // Jarvis" with the screen off, behind Android's visible mic notification.
+    permissions: ['INTERNET', 'RECORD_AUDIO', 'POST_NOTIFICATIONS', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_MICROPHONE'],
   },
   plugins: [
     'expo-router',
@@ -24,9 +26,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         iosBackgroundMode: false,
         iosMicrophonePermission: 'JARVIS uses the microphone only during a visible voice session you start.',
-        androidPermissions: ['android.permission.RECORD_AUDIO'],
-        androidForegroundService: false,
-        androidFSTypes: [],
+        androidPermissions: [
+          'android.permission.RECORD_AUDIO',
+          'android.permission.FOREGROUND_SERVICE',
+          'android.permission.FOREGROUND_SERVICE_MICROPHONE',
+        ],
+        androidForegroundService: true,
+        androidFSTypes: ['microphone'],
       },
     ],
     [
