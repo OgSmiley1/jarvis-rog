@@ -8,5 +8,6 @@ export function useLiveVoice() {
     start: async () => {},
     stop: async () => {},
     clearTranscript: () => {},
+    transcribe: async (_audio: Float32Array, _language: 'en' | 'ar') => '',
   };
 }

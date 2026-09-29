@@ -28,6 +28,8 @@ export interface SpeechQueueEvents {
   onSpeakingChange?: (speaking: boolean) => void;
   /** The first sound of this turn: the time-to-first-audio moment. */
   onFirstAudio?: () => void;
+  /** Each sentence as it is handed to the voice (the loop uses it to recognise its own echo). */
+  onSentence?: (text: string) => void;
 }
 
 export class SpeechQueue {
@@ -80,6 +82,7 @@ export class SpeechQueue {
       const text = this.waiting.shift()!;
       const epoch = this.epoch;
       this.inEngine += 1;
+      this.events.onSentence?.(text);
       const finished = () => {
         if (epoch !== this.epoch) return;
         this.inEngine = Math.max(0, this.inEngine - 1);
