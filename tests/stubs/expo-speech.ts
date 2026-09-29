@@ -12,6 +12,9 @@ export function speak(text: string, options?: unknown): void {
 export function stop(): void {
   stopCount += 1;
 }
+export async function getAvailableVoicesAsync(): Promise<unknown[]> {
+  return [];
+}
 export async function isSpeakingAsync(): Promise<boolean> {
   return false;
 }

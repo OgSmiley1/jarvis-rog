@@ -15,6 +15,7 @@ import {
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
 import { buildMessages } from '@/lib/inference/promptBuilder';
+import { warmVoice } from '@/lib/voice/voiceResponse';
 import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
@@ -110,6 +111,13 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const validateModel = useCallback(async (path: string) => runtime.validateGguf(path), []);
 
+  /** Pre-reads the voice system prompt into the model and wakes the phone's voice engine. */
+  const warmBrain = useCallback(() => {
+    const messages = buildMessages({ mode: 'fast', language: settings.language, conversation: [], userMessage: 'hi' });
+    void runtime.warmUp(messages).catch(() => undefined);
+    warmVoice();
+  }, [settings.language]);
+
   const loadModel = useCallback(async () => {
     if (!settings.modelPath || !settings.modelName) throw new Error('NO_MODEL_SELECTED');
 
@@ -124,6 +132,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       });
       setActiveRuntimePlan(runtime.getActiveRuntimePlan());
       setModelState(state);
+      warmBrain();
       return;
     }
 
@@ -136,7 +145,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     });
     setActiveRuntimePlan(runtime.getActiveRuntimePlan());
     setModelState(state);
-  }, [settings]);
+    warmBrain();
+  }, [settings, warmBrain]);
 
   const unloadModel = useCallback(async () => {
     await runtime.unloadLocalModel();

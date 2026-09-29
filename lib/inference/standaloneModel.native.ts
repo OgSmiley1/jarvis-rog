@@ -101,10 +101,34 @@ export async function stopGeneration(): Promise<void> {
   if (context) await context.stopCompletion();
 }
 
+/**
+ * One throwaway token right after loading, on the real system prompt: the
+ * first answer then starts with that prompt already evaluated and the
+ * backend's kernels already warm, instead of paying for both itself.
+ */
+let warming: Promise<unknown> | null = null;
+
+export async function warmUp(messages: RunCompletionInput['messages']): Promise<void> {
+  if (!context) return;
+  const run = context.completion({ messages, n_predict: 1, temperature: 0, enable_thinking: false });
+  warming = run;
+  try {
+    await run;
+  } finally {
+    if (warming === run) warming = null;
+  }
+}
+
 export async function runCompletion(input: RunCompletionInput): Promise<{ text: string; metrics: RuntimeMetrics }> {
   if (!context) throw new Error('MODEL_NOT_LOADED');
+  // A question asked while the warm-up token is still running waits for it:
+  // the context runs one completion at a time.
+  if (warming) await warming.catch(() => undefined);
 
-  await context.clearCache(false);
+  // No clearCache() here any more: the system prompt is the same every turn,
+  // and llama.cpp reuses its already-evaluated tokens when the new prompt
+  // starts the same way. Clearing threw that away and re-read the whole
+  // prompt before every answer — seconds of time-to-first-token on a phone.
   const mode = INTELLIGENCE_MODES[input.mode];
   const startedAt = performance.now();
   let firstTokenAt: number | undefined;
