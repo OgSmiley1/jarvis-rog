@@ -982,3 +982,15 @@ lived in app-private folders that Android wipes on uninstall.
 415 tests, lint, typecheck, smoke green. EAS build `250928b8` FINISHED, BUILD SUCCESSFUL, 0 Kotlin errors.
 APK: https://expo.dev/artifacts/eas/PtZO4gmC1komc3Y3tK5wYYb6FSM-XXVphLVBEYnOTHY.apk (setup default).
 Device: NOT RUN. Open question: 8B latency vs 4B on the ROG — measure on the owner's test.
+
+## SESSION 11 — integration branch (29 Sep 2026)
+
+Owner: "ignore the billing issue, do it from somewhere else, start the build once everything is done."
+GitHub Actions is left alone (billing block, never reaches a runner); the build runs on Expo's servers
+(EAS `preview`), tests run locally (`pnpm check/lint/test/smoke`) and on the phone.
+
+`feat/voice-10x-integrated` = PR #6 head + the parts of the 10x pack the line lacked (see
+docs/ACCEPTANCE_REPORT.md, Session 11). `feat/voice-10x` / PR #8 stays as the standalone version
+written against main. Audit found and fixed in this pass: cloud-first would have sent memories,
+projects and profile to a third party (now stripped in that mode); the cloud card counted providers that
+would never be tried; the 5 GB brain upgrade could run on mobile data (now Wi-Fi only).

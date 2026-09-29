@@ -16,3 +16,15 @@ export function cloudPlan(input: { cloudEnabled: boolean; localReady: boolean; c
   if (!input.localReady) return 'cloud-only';
   return input.cloudFirst ? 'cloud-then-local' : 'local';
 }
+
+/**
+ * What the cloud is allowed to see. When the phone's own brain is loaded and
+ * the cloud is only being asked because "cloud first" is on, the owner's
+ * memories, project notes and profile stay on the phone: the cloud gets the
+ * persona, the recent conversation and the question. When there is no local
+ * brain at all (the old fallback), the full prompt is sent, as the owner
+ * already agreed when switching the fallback on.
+ */
+export function cloudSeesPersonalContext(plan: CloudPlan): boolean {
+  return plan === 'cloud-only';
+}

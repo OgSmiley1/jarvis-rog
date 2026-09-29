@@ -24,7 +24,7 @@ interface ExpoJarvisBrainNativeModule {
   fileSize(path: string): number;
   deleteFile(path: string): boolean;
   activeDownload(fileName: string): number | null;
-  startDownload(url: string, fileName: string, title: string): number;
+  startDownload(url: string, fileName: string, title: string, wifiOnly?: boolean): number;
   downloadStatus(id: number): NativeDownloadStatus;
   finishDownload(fileName: string): string;
   cancelDownload(fileName: string): boolean;
@@ -137,6 +137,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function downloadWithSystem(
   onView: (view: DownloadView) => void,
   file: ModelFile = BRAIN_FILE,
+  options: { wifiOnly?: boolean } = {},
 ): Promise<InstalledModel> {
   if (!native) throw new Error('SYSTEM_DOWNLOADER_UNAVAILABLE');
   let id = native.activeDownload(file.name);
@@ -147,7 +148,7 @@ export async function downloadWithSystem(
       id = null;
     }
   }
-  id ??= native.startDownload(file.url, file.name, file.title);
+  id ??= native.startDownload(file.url, file.name, file.title, options.wifiOnly === true);
   for (;;) {
     const view = describeDownload(native.downloadStatus(id));
     onView(view);

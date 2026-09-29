@@ -12,7 +12,7 @@ Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
 features listed as missing) were true when written and are superseded by later
 ones. The newest session section at the end of this file is the current state.
 
-- **Latest APK:** build `250928b8` (source `71cb422`): every model (Qwen3 8B brain, eyes, Whisper/VAD/Kokoro voice) kept in Download/JARVIS/models with All files access, moved from older folders on launch; memories/projects/settings backed up to Download/JARVIS/backup.json; clean Settings with Advanced hidden. BUILD SUCCESSFUL 12m 14s, 0 Kotlin errors; `:expo-jarvis-brain:compileReleaseKotlin` ran. Default in `scripts/rog-setup.sh`.
+- **Latest APK:** see Session 11 below; the default in `scripts/rog-setup.sh` is always the newest build.
 - **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
 - **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
   on older builds only: the brain loads and answers (bc047ad7, owner's video),
@@ -230,6 +230,21 @@ preview, FINISHED 05:06 UTC. APK: https://expo.dev/artifacts/eas/v9B55KckY1CwC0c
 | 3 Video-2 parity (time, maths, system info, site search, language switch, share) | PASS in unit tests; device NOT RUN | tests/utilityCommands.test.ts (32) |
 | 4 Privacy: live log word counts by default | PASS in unit tests | tests/transcriptPolicy.test.ts — dictated name/number/code absent from snapshot() and toText() |
 | 4 Calls never auto-dial | PASS in unit tests + manifest | ACTION_DIAL only, CALL_PHONE removed; tests/callDialer.test.ts |
+
+## Session 11 — 29 Sep 2026 (integration: PR #6 line + the voice-10x pack)
+
+Branch `feat/voice-10x-integrated`, cut from the PR #6 head (`f0efd01`). The owner's 10x build pack (`feat/voice-10x`, PR #8) was written against `main`; most of it already exists on the PR #6 line (think-leak filter, streaming speech, follow-up, halt, Kokoro, the cloud brain, the HUD), so the two were NOT merged wholesale: two implementations of the same features would only have produced conflicts and regressions. What the PR #6 line lacked was added:
+
+| Change | Verified |
+|---|---|
+| Optional on-device "hey jarvis" gate (openWakeWord, beta, off by default): while asleep, audio goes to the engine only and Whisper hears nothing; falls back to the speech-based wake word if the engine cannot start | unit: gate decision, PCM conversion, model-file checks (`tests/wakeGate.test.ts`); autolinking discovers `react-native-openwakeword` and `react-native-nitro-modules`; **native compile: build only** |
+| Cloud order Groq → Cerebras → Gemini; Gemini (free tier may train on prompts) only with its own switch; `cloudReady` honest about it | `tests/cloudBrain.test.ts` (15) |
+| Optional "cloud first" (~50x faster): cloud, then the phone in the same turn on any failure. Personal context (memories, projects, profile) is NOT sent in this mode | `tests/cloudPlan.test.ts` (8) |
+| Background 8B upgrade download waits for Wi-Fi instead of using mobile data | code review; native change compiles only in the build |
+
+Deliberately not brought over: the AEC recorder patch (it changes the capture path for everything and the mic is already muted while JARVIS speaks), a second hands-free loop, and the pack's Piper Arabic voice (a second large native library; add after this build proves the rest).
+
+Device gates for this build: NOT RUN.
 
 ## Session 9 — 26 Sep 2026 (the reference-video look)
 

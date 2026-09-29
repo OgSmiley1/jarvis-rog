@@ -49,7 +49,7 @@ import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { shortModelName } from '@/lib/hud/dashboard';
 import { AppState, Platform } from 'react-native';
-import { cloudPlan } from '@/lib/online/cloudPlan';
+import { cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
 import { askCloud, providerById, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
 
@@ -442,7 +442,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (modelState.modelName === BRAIN_FILE.name || findModelFile(BRAIN_FILE)) return;
     upgradeTried.current = true;
     recordLive('brain', 'upgrade to 8B started');
-    void downloadWithSystem(() => undefined, BRAIN_FILE)
+    // Wi-Fi only: nobody asked for these 5 GB right now, so they must not spend mobile data.
+    void downloadWithSystem(() => undefined, BRAIN_FILE, { wifiOnly: true })
       .then(async (model) => {
         const runtime = await getRuntime();
         await runtime.validateGguf(model.path);
@@ -554,8 +555,20 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     });
     if (plan !== 'local') {
       try {
+        // In cloud-first mode the phone's memories, project notes and profile
+        // stay on the phone: the cloud is sent the persona, the recent
+        // conversation and the question only.
+        const cloudMessages = cloudSeesPersonalContext(plan)
+          ? messages
+          : buildMessages({
+              mode,
+              language: settings.language,
+              conversation: boundedConversation,
+              userMessage: text,
+              spoken: options.spoken ?? false,
+            });
         const answer = await askCloud({
-          messages,
+          messages: cloudMessages,
           mode,
           keys: await readCloudKeys(),
           models: settings.cloudModels,

@@ -133,7 +133,10 @@ class ExpoJarvisBrainModule : Module() {
       if (id < 0) null else id.toDouble()
     }
 
-    Function("startDownload") { url: String, fileName: String, title: String ->
+    // wifiOnly: for big downloads nobody asked for right now (the background
+    // upgrade to the 8B brain). Android then waits for Wi-Fi ("Waiting for
+    // Wi-Fi…") instead of spending the owner's mobile data.
+    Function("startDownload") { url: String, fileName: String, title: String, wifiOnly: Boolean? ->
       val context = context() ?: throw IllegalStateException("NO_CONTEXT")
       val manager = manager(context)
       val existing = prefs(context).getLong(key(fileName), -1L)
@@ -146,8 +149,8 @@ class ExpoJarvisBrainModule : Module() {
         .setTitle(title)
         .setDescription("JARVIS · saved on this phone for good")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        .setAllowedOverMetered(true)
-        .setAllowedOverRoaming(true)
+        .setAllowedOverMetered(wifiOnly != true)
+        .setAllowedOverRoaming(wifiOnly != true)
       if (hasStorageAccess()) {
         val part = File(permanentDir(), "$fileName.part")
         part.parentFile?.mkdirs()

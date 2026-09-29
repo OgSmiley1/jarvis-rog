@@ -4,7 +4,7 @@ import { AppText, Button, Card, Row } from '@/components/Ui';
 import { colors } from '@/components/theme';
 import { useJarvis } from '@/context/JarvisContext';
 import { buildMessages } from '@/lib/inference/promptBuilder';
-import { CLOUD_PROVIDERS, askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
+import { CLOUD_PROVIDERS, askCloud, providerById, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { readCloudKeys } from '@/lib/online/cloudKeys';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 
@@ -64,6 +64,11 @@ export function CloudBrainCard() {
     }
   }
 
+  // Providers that will actually be tried: Gemini needs its own switch.
+  const usableCount = jarvis.cloudProviders.filter(
+    (id) => Boolean(jarvis.settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts,
+  ).length;
+
   return (
     <Card title="Cloud brain (fallback)">
       <View style={styles.switchRow}>
@@ -96,7 +101,7 @@ export function CloudBrainCard() {
       </View>
       <AppText muted>
         Status: {jarvis.cloudReady
-          ? `ready · ${jarvis.cloudProviders.length} provider${jarvis.cloudProviders.length === 1 ? '' : 's'}`
+          ? `ready · ${usableCount} provider${usableCount === 1 ? '' : 's'}`
           : jarvis.settings.cloudFallbackEnabled
             ? 'on, but no key saved yet'
             : 'off'}
