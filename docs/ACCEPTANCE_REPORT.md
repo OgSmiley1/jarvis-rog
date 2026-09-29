@@ -244,6 +244,9 @@ Branch `feat/voice-10x-integrated`, cut from the PR #6 head (`f0efd01`). The own
 
 Deliberately not brought over: the AEC recorder patch (it changes the capture path for everything and the mic is already muted while JARVIS speaks), a second hands-free loop, and the pack's Piper Arabic voice (a second large native library; add after this build proves the rest).
 
+**Build:** EAS `f597d161-c995-4728-8c16-26f3e0582567` (preview, source `e7311e8`), FINISHED 14:43 UTC. `BUILD SUCCESSFUL in 12m 33s`, 0 Kotlin errors, 0 FAILED tasks. Compiled for real (not skipped): `react-native-openwakeword` CMake native build + Kotlin, `react-native-nitro-modules`, `expo-jarvis-brain` (changed `startDownload`), `react-native-svg`, `rnllama_v8_2_dotprod_i8mm(+hexagon_opencl)` for `arm64-v8a`, `:app:assembleRelease`.
+APK: https://expo.dev/artifacts/eas/6MIeNwmq3MakHkPLno7ktK3rOT8qNGFXKr7ycVdi3jY.apk (default in `scripts/rog-setup.sh`; the script checks SHA-256 and the native libraries on the phone before installing).
+
 Device gates for this build: NOT RUN.
 
 ## Session 9 — 26 Sep 2026 (the reference-video look)
