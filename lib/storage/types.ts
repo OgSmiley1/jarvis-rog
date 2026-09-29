@@ -62,6 +62,13 @@ export interface JarvisSettings {
    * the phone's best voice: Kokoro has no Arabic model.
    */
   neuralVoiceEnabled: boolean;
+  /**
+   * Beta. Listen for "hey jarvis" with the on-device openWakeWord engine
+   * instead of transcribing everything said near the phone. Needs a one-time
+   * 3.6 MB download; if it cannot start, the assistant falls back to hearing
+   * "Jarvis" in speech, as before. Off by default until proven on the phone.
+   */
+  wakeEngineEnabled?: boolean;
   /** Remind the owner to charge (notification, and spoken when on screen). */
   chargeReminderEnabled: boolean;
   /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */

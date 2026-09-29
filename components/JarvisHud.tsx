@@ -31,6 +31,7 @@ import {
   type HudPage,
 } from '@/lib/hud/hudCommands';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
+import { createWakeWordEngine, type WakeWordEngine } from '@/lib/voice/wakeWordEngine';
 import { useNeuralVoice } from '@/hooks/useNeuralVoice';
 import { useChargeReminder } from '@/hooks/useChargeReminder';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
@@ -73,6 +74,8 @@ export default function JarvisHud() {
   // whether a reply stayed on the phone.
   const [answerSource, setAnswerSource] = useState<AnswerSource>();
   const awakeUntilRef = useRef(0);
+  // The "hey jarvis" engine, when the owner turned it on and it could start.
+  const [wakeEngine, setWakeEngine] = useState<WakeWordEngine | null>(null);
   const autoStartAttemptedRef = useRef(false);
   const speakingRef = useRef(false);
   const historyRef = useRef<CompletionMessage[]>([]);
@@ -402,7 +405,37 @@ export default function JarvisHud() {
     language: jarvis.settings.language,
     onFinal: handleVoiceFinal,
     shouldAcceptAudio: () => !speakingRef.current,
+    wakeGate: wakeEngine
+      ? {
+          engine: wakeEngine,
+          isAwake: () => awakeUntilRef.current > Date.now(),
+          onWake: () => {
+            // No spoken greeting here: JARVIS's own voice would mute the
+            // microphone and swallow the command that follows the wake word.
+            awakeUntilRef.current = Date.now() + 10_000;
+            recordLive('wake', 'wake word (openWakeWord)');
+          },
+        }
+      : undefined,
   });
+
+  // Start the wake-word engine when asked for; any failure leaves the
+  // speech-based wake word in charge.
+  useEffect(() => {
+    if (!jarvis.settings.wakeEngineEnabled || !jarvis.settings.handsFreeEnabled) {
+      setWakeEngine(null);
+      return;
+    }
+    let cancelled = false;
+    void createWakeWordEngine().then((engine) => {
+      if (cancelled) return;
+      setWakeEngine(engine);
+      recordLive('wake', engine ? 'wake engine ready' : 'wake engine unavailable — using speech');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [jarvis.settings.wakeEngineEnabled, jarvis.settings.handsFreeEnabled]);
   const { isReady: voiceReady, state: voiceState, start: startVoice } = voice;
 
   useEffect(() => {

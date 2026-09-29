@@ -6,6 +6,8 @@ import { ensureExecutorch } from '@/lib/voice/executorch';
 import { levelFromFrame } from '@/lib/voice/audioLevel';
 import { cleanTranscript } from '@/lib/voice/transcriptClean';
 import { useLocalVoiceModel } from '@/hooks/useLocalVoiceModel';
+import { gateFrame } from '@/lib/voice/wakeGate';
+import type { WakeWordEngine } from '@/lib/voice/wakeWordEngine';
 
 export type VoiceState =
   | 'IDLE'
@@ -20,6 +22,12 @@ export interface UseLiveVoiceOptions {
   language: 'auto' | 'en' | 'ar';
   onFinal?: (text: string) => void;
   shouldAcceptAudio?: () => boolean;
+  /**
+   * An optional "hey jarvis" engine in front of speech recognition. With it,
+   * frames reach Whisper only while `isAwake()` — the room is not transcribed
+   * while JARVIS is asleep. `onWake` fires on each detection.
+   */
+  wakeGate?: { engine: WakeWordEngine; isAwake: () => boolean; onWake: () => void };
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
@@ -136,7 +144,19 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       ) {
         const frame = chunk.buffer.getChannelData(0);
         levelRef.current = levelFromFrame(frame, levelRef.current);
-        stt.streamInsert(frame);
+        const gate = optionsRef.current.wakeGate;
+        const decision = gateFrame({ engineActive: Boolean(gate), accepting: true, awake: gate?.isAwake() ?? true });
+        if (gate && decision.toEngine) {
+          try {
+            if (gate.engine.process(frame)) {
+              gate.engine.reset();
+              gate.onWake();
+            }
+          } catch {
+            // A failing engine must never take the microphone down with it.
+          }
+        }
+        if (decision.toSpeech) stt.streamInsert(frame);
       } else {
         // Suppressed audio (JARVIS is speaking) must not drive the ring.
         levelRef.current = 0;

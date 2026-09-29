@@ -180,6 +180,17 @@ export default function SettingsScreen() {
             onValueChange={(value) => void jarvis.updateSettings({ handsFreeEnabled: value })}
           />
         </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>“Hey Jarvis” engine (beta)</AppText>
+          <Switch
+            value={Boolean(jarvis.settings.wakeEngineEnabled)}
+            onValueChange={(value) => void jarvis.updateSettings({ wakeEngineEnabled: value })}
+          />
+        </View>
+        <AppText muted>
+          Listens for the wake phrase on the phone without turning everything you say into text. Needs a one-time 3.6 MB
+          download and hands-free on; if it cannot start, JARVIS keeps listening for “Jarvis” in speech.
+        </AppText>
         <Field value={wakeWordDraft} onChangeText={setWakeWordDraft} placeholder="Wake word, e.g. Jarvis" />
         <Button
           title="Save wake word"
