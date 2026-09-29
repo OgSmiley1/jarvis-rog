@@ -33,6 +33,9 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const sessionRef = useRef(0);
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
+  // Text already finalized in this session. A ref, so a new turn can clear it
+  // without restarting the microphone.
+  const finalizedRef = useRef('');
   const [error, setError] = useState<string | null>(null);
 
   const stop = useCallback(async () => {
@@ -74,6 +77,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     const session = sessionRef.current + 1;
     sessionRef.current = session;
     setError(null);
+    finalizedRef.current = '';
     setTranscript('');
     setState('REQUESTING_PERMISSION');
 
@@ -112,7 +116,6 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     });
 
     const consume = async () => {
-      let finalized = '';
       try {
         const language = optionsRef.current.language;
         const stream = stt.stream({
@@ -126,10 +129,10 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           if (!runningRef.current || sessionRef.current !== session) break;
           setState('TRANSCRIBING');
           if (committed.text) {
-            finalized += committed.text;
+            finalizedRef.current += committed.text;
             optionsRef.current.onFinal?.(committed.text.trim());
           }
-          setTranscript(`${finalized}${nonCommitted.text}`.trim());
+          setTranscript(`${finalizedRef.current}${nonCommitted.text}`.trim());
           if (runningRef.current) setState('LISTENING');
         }
       } catch (cause) {
@@ -177,6 +180,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     };
   }, [stop]);
 
+  /** Starts the next turn with an empty transcript, without stopping the microphone. */
+  const clearTranscript = useCallback(() => {
+    finalizedRef.current = '';
+    setTranscript('');
+  }, []);
+
   return {
     state,
     transcript,
@@ -185,5 +194,6 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     downloadProgress: model.downloadProgress,
     start,
     stop,
+    clearTranscript,
   };
 }

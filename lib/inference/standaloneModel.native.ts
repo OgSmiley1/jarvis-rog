@@ -1,6 +1,7 @@
 import { initLlama, releaseAllLlama, loadLlamaModelInfo } from 'llama.rn';
 import { INTELLIGENCE_MODES } from './intelligenceModes';
 import { requireNonBlankCompletion } from './inferenceResponse';
+import { stripThinking } from '@/lib/voice/stripThinking';
 import { planRuntime, type DevicePowerState, type RuntimePlan } from './thermalPlan';
 import type { ModelRuntimeState, RunCompletionInput, RuntimeMetrics } from './types';
 
@@ -118,6 +119,7 @@ export async function runCompletion(input: RunCompletionInput): Promise<{ text: 
       top_k: mode.topK,
       stop: ['</s>', '<|end|>', '<|eot_id|>', '<|end_of_text|>', '<|im_end|>', '<|endoftext|>'],
       ...(input.grammar ? { grammar: input.grammar } : {}),
+      ...(input.thinking === false ? { enable_thinking: false } : {}),
     },
     (data) => {
       const token = data.token ?? '';
@@ -130,7 +132,8 @@ export async function runCompletion(input: RunCompletionInput): Promise<{ text: 
   );
 
   const endedAt = performance.now();
-  const text = requireNonBlankCompletion(result.text);
+  // Reasoning never leaves this function, whatever the template did.
+  const text = requireNonBlankCompletion(stripThinking(result.text ?? ''));
   const nativeTimings = result.timings;
   const metrics: RuntimeMetrics = {
     totalMs: endedAt - startedAt,

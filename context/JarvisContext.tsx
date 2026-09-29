@@ -50,7 +50,14 @@ type ContextValue = {
   loadModel: () => Promise<void>;
   unloadModel: () => Promise<void>;
   validateModel: (path: string) => Promise<unknown>;
-  ask: (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation?: CompletionMessage[]) => Promise<{ text: string; metrics: RuntimeMetrics }>;
+  /** `options.voice`: the answer will be spoken, so the model's reasoning is switched off. */
+  ask: (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation?: CompletionMessage[],
+    options?: { voice?: boolean },
+  ) => Promise<{ text: string; metrics: RuntimeMetrics }>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -140,7 +147,13 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const activeProject = projects.find((project) => project.status === 'active');
 
-  const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = []) => {
+  const ask = useCallback(async (
+    text: string,
+    mode: IntelligenceMode,
+    onToken?: (token: string) => void,
+    conversation: CompletionMessage[] = [],
+    options: { voice?: boolean } = {},
+  ) => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
     const deterministic = routeDeterministicTool(text);
@@ -178,7 +191,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       conversation: boundedConversation,
       userMessage: text,
     });
-    const result = await runtime.runCompletion({ messages, mode, onToken });
+    const result = await runtime.runCompletion({ messages, mode, onToken, ...(options.voice ? { thinking: false } : {}) });
     setLastMetrics(result.metrics);
     return result;
   }, [activeProject, memories, settings.approvedMemoryEnabled, settings.language]);

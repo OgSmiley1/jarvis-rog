@@ -45,4 +45,11 @@ export interface RunCompletionInput {
    * structurally valid by construction rather than by parsing and hoping.
    */
   grammar?: string;
+  /**
+   * False turns the model's <think> reasoning off at the chat template, so no
+   * reasoning tokens are generated at all: they cost seconds on a phone and
+   * would otherwise be shown and spoken. Voice turns always pass false.
+   * Omitted: the model's own default.
+   */
+  thinking?: boolean;
 }

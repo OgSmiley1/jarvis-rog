@@ -7,6 +7,8 @@ import { useJarvis } from '@/context/JarvisContext';
 import type { IntelligenceMode } from '@/lib/inference/types';
 import { formatPerformance } from '@/lib/inference/performance';
 import { speakResponse } from '@/lib/voice/voiceResponse';
+import { stripThinking } from '@/lib/voice/stripThinking';
+import { appendHeard, startTurn } from '@/lib/voice/voiceTurn';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 
@@ -18,7 +20,7 @@ export default function CoachScreen() {
   const [busy, setBusy] = useState(false);
   const voice = useLiveVoice({
     language: jarvis.settings.language,
-    onFinal: (text) => setInput((current) => `${current} ${text}`.trim()),
+    onFinal: (text) => setInput((current) => appendHeard(current, text)),
   });
 
   const orbState = useMemo<OrbState>(() => {
@@ -30,11 +32,20 @@ export default function CoachScreen() {
   }, [busy, jarvis.modelState.status, voice.state]);
 
   async function send() {
-    if (!input.trim() || busy) return;
+    const turn = startTurn(input);
+    if (!turn || busy) return;
+    // The box and the transcript empty the moment a turn starts, so nothing
+    // from this turn lingers into the next one.
+    setInput(turn.nextInput);
+    voice.clearTranscript();
     setBusy(true);
     setResponse('');
     try {
-      const result = await jarvis.ask(input, mode, (token) => setResponse((current) => current + token));
+      // This is the voice screen: the model's reasoning is switched off, so
+      // it is neither generated (seconds saved) nor shown nor spoken.
+      const result = await jarvis.ask(turn.command, mode, (token) => setResponse((current) => current + token), [], {
+        voice: true,
+      });
       setResponse(result.text);
       if (jarvis.settings.autoSpeak) speakResponse(result.text, jarvis.settings.language);
     } catch (error) {
@@ -91,9 +102,9 @@ export default function CoachScreen() {
         </Row>
       </Card>
 
-      {response ? (
+      {stripThinking(response) ? (
         <Card title="Response">
-          <AppText>{response}</AppText>
+          <AppText>{stripThinking(response)}</AppText>
           <Row>
             <Button title="Speak" onPress={() => speakResponse(response, jarvis.settings.language)} />
             <Button title="Save memory" onPress={() => void jarvis.saveMemory('Saved JARVIS insight', response)} />

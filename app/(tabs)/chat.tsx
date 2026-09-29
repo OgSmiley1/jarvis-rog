@@ -18,6 +18,7 @@ import { createId } from '@/lib/utils/ids';
 import { routeCommand } from '@/lib/understand/commandRouter';
 import { formatPerformance } from '@/lib/inference/performance';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
+import { stripThinking } from '@/lib/voice/stripThinking';
 
 function autoTitle(text: string): string {
   const clean = text.replace(/\s+/g, ' ').trim();
@@ -137,11 +138,16 @@ export default function ChatScreen() {
 
       {messages.map((message) => (
         <Card key={message.id} title={message.role === 'user' ? 'You' : 'JARVIS'}>
-          <AppText>{message.content}</AppText>
+          {/* Replies saved before reasoning was stripped at the source are filtered here too. */}
+          <AppText>{message.role === 'assistant' ? stripThinking(message.content) : message.content}</AppText>
           {message.metrics ? <AppText muted>{formatPerformance(message.metrics)}</AppText> : null}
         </Card>
       ))}
-      {streaming ? <Card title="JARVIS · streaming"><AppText>{streaming}</AppText></Card> : null}
+      {stripThinking(streaming) ? (
+        <Card title="JARVIS · streaming">
+          <AppText>{stripThinking(streaming)}</AppText>
+        </Card>
+      ) : null}
 
       <Card title="Message">
         <Field value={input} onChangeText={setInput} placeholder="Message JARVIS…" multiline />
