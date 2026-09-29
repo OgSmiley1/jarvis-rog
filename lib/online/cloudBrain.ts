@@ -40,24 +40,28 @@ export interface CloudProvider {
    * "model not found" error rather than a silent failure.
    */
   defaultModel: string;
-  /** Where the owner creates the free key. */
+  /** Where the owner creates the free key. All three free tiers need no card. */
   keyUrl: string;
+  /** True when the free tier may use prompts for training: skipped unless the owner allows it. */
+  trainsOnPrompts: boolean;
 }
 
 export const CLOUD_PROVIDERS: readonly CloudProvider[] = [
+  {
+    id: 'groq',
+    name: 'Groq',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    defaultModel: 'llama-3.3-70b-versatile',
+    keyUrl: 'https://console.groq.com/keys',
+    trainsOnPrompts: false,
+  },
   {
     id: 'cerebras',
     name: 'Cerebras',
     endpoint: 'https://api.cerebras.ai/v1/chat/completions',
     defaultModel: 'llama-3.3-70b',
     keyUrl: 'https://cloud.cerebras.ai/',
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-    defaultModel: 'llama-3.1-8b-instant',
-    keyUrl: 'https://console.groq.com/keys',
+    trainsOnPrompts: false,
   },
   {
     id: 'gemini',
@@ -65,6 +69,8 @@ export const CLOUD_PROVIDERS: readonly CloudProvider[] = [
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     defaultModel: 'gemini-2.5-flash',
     keyUrl: 'https://aistudio.google.com/apikey',
+    // Google's free tier may use prompts to improve its products.
+    trainsOnPrompts: true,
   },
 ] as const;
 
@@ -114,9 +120,14 @@ export function providerById(id: CloudProviderId): CloudProvider {
   return provider;
 }
 
-/** Providers that can actually be tried: in the configured order, with a key. */
-export function usableProviders(keys: CloudKeys): CloudProvider[] {
-  return CLOUD_PROVIDERS.filter((provider) => Boolean(keys[provider.id]?.trim()));
+/**
+ * Providers that can actually be tried: in order, with a key, and — unless
+ * the owner allowed it — only those whose free tier does not train on prompts.
+ */
+export function usableProviders(keys: CloudKeys, allowTraining = false): CloudProvider[] {
+  return CLOUD_PROVIDERS.filter(
+    (provider) => Boolean(keys[provider.id]?.trim()) && (allowTraining || !provider.trainsOnPrompts),
+  );
 }
 
 export function buildChatBody(model: string, messages: CompletionMessage[], mode: IntelligenceMode): Record<string, unknown> {
@@ -168,6 +179,8 @@ export interface AskCloudInput {
   fetchImpl: FetchLike;
   /** Per-provider budget. A voice assistant cannot wait long on one host. */
   timeoutMs?: number;
+  /** Include providers whose free tier may train on prompts (Gemini). Default false. */
+  allowTraining?: boolean;
   now?: () => number;
 }
 
@@ -177,7 +190,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   const attempts: CloudAttempt[] = [];
   const startedAt = now();
 
-  for (const provider of usableProviders(input.keys)) {
+  for (const provider of usableProviders(input.keys, input.allowTraining)) {
     const model = input.models?.[provider.id]?.trim() || provider.defaultModel;
     const key = input.keys[provider.id]!.trim();
     const attemptStartedAt = now();

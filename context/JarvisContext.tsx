@@ -49,7 +49,8 @@ import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { shortModelName } from '@/lib/hud/dashboard';
 import { AppState, Platform } from 'react-native';
-import { askCloud, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
+import { cloudPlan } from '@/lib/online/cloudPlan';
+import { askCloud, providerById, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
 
 /**
@@ -351,7 +352,11 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setCloudProviders(await cloudProvidersWithKeys());
   }, []);
 
-  const cloudReady = settings.cloudFallbackEnabled && cloudProviders.length > 0;
+  // Ready means a provider that will actually be tried: a Gemini-only key does
+  // nothing until the owner allows providers that train on prompts.
+  const cloudReady =
+    settings.cloudFallbackEnabled &&
+    cloudProviders.some((id) => Boolean(settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts);
 
   useEffect(() => {
     // "System information" reports the brain as the app knows it right now.
@@ -536,25 +541,42 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       spoken: options.spoken ?? false,
     });
 
-    // A loaded local brain always answers first. The cloud brain is only for
-    // when there is no local brain to ask — the exact state observed on the
-    // owner's ROG, where runCompletion threw MODEL_NOT_LOADED on every turn.
-    if (modelState.status !== 'ready' && settings.cloudFallbackEnabled) {
-      const answer = await askCloud({
-        messages,
-        mode,
-        keys: await readCloudKeys(),
-        models: settings.cloudModels,
-        fetchImpl: fetch as unknown as FetchLike,
-      });
-      // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
-      // goes through the same token callback, so the HUD's sentence-level
-      // speech handles it exactly as it handles the local brain.
-      // Cloud reasoning models can think out loud too; the same rule applies.
-      const cloudText = stripThinking(answer.text) || answer.text;
-      onToken?.(cloudText);
-      setLastMetrics(answer.metrics);
-      return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
+    // By default a loaded local brain always answers and the cloud is only for
+    // when there is none — the state observed on the owner's ROG, where
+    // runCompletion threw MODEL_NOT_LOADED on every turn. With "cloud first"
+    // on, the cloud is tried first and the phone answers in the same turn if it
+    // fails (429, quota, offline, bad key), so the assistant never goes quiet.
+    const localReady = modelState.status === 'ready';
+    const plan = cloudPlan({
+      cloudEnabled: settings.cloudFallbackEnabled,
+      localReady,
+      cloudFirst: Boolean(settings.cloudFirst),
+    });
+    if (plan !== 'local') {
+      try {
+        const answer = await askCloud({
+          messages,
+          mode,
+          keys: await readCloudKeys(),
+          models: settings.cloudModels,
+          allowTraining: settings.cloudAllowTraining,
+          fetchImpl: fetch as unknown as FetchLike,
+        });
+        // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
+        // goes through the same token callback, so the HUD's sentence-level
+        // speech handles it exactly as it handles the local brain.
+        // Cloud reasoning models can think out loud too; the same rule applies.
+        const cloudText = stripThinking(answer.text) || answer.text;
+        onToken?.(cloudText);
+        setLastMetrics(answer.metrics);
+        return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
+      } catch (error) {
+        // No local brain to fall back to: the cloud's own error is the answer.
+        if (plan === 'cloud-only') throw error;
+        recordLive('brain', 'cloud failed, answering on the phone', {
+          reason: error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160),
+        });
+      }
     }
 
     const runtime = await getRuntime();
@@ -567,6 +589,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     modelState.status,
     settings.approvedMemoryEnabled,
     settings.cloudFallbackEnabled,
+    settings.cloudFirst,
+    settings.cloudAllowTraining,
     settings.cloudModels,
     settings.language,
     settings.ownerProfile,

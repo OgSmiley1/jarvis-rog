@@ -52,6 +52,7 @@ export function CloudBrainCard() {
         mode: 'fast',
         keys: await readCloudKeys(),
         models: jarvis.settings.cloudModels,
+        allowTraining: jarvis.settings.cloudAllowTraining,
         fetchImpl: fetch as unknown as FetchLike,
       });
       const tried = answer.attempts.map((attempt) => `${attempt.provider} ${attempt.ok ? 'OK' : attempt.error} (${attempt.ms} ms)`);
@@ -74,9 +75,25 @@ export function CloudBrainCard() {
       </View>
       <AppText muted>
         Off by default. When on, and only while no local brain is loaded, your question and the recent conversation are
-        sent to the first provider below that answers. A loaded local brain always answers first and never sends anything.
-        Keys are stored in the Android keystore and never shown again.
+        sent to the first provider below that answers. A loaded local brain answers first and sends nothing, unless you
+        switch on “Cloud first” below. Every provider here has a free tier with no card. Keys are stored in the Android
+        keystore and never shown again.
       </AppText>
+      <View style={styles.switchRow}>
+        <AppText>Cloud first — much faster; the phone answers if the cloud fails</AppText>
+        <Switch
+          value={Boolean(jarvis.settings.cloudFirst)}
+          disabled={!jarvis.settings.cloudFallbackEnabled}
+          onValueChange={(value) => void jarvis.updateSettings({ cloudFirst: value })}
+        />
+      </View>
+      <View style={styles.switchRow}>
+        <AppText>Also use Gemini (its free tier may train on what you send)</AppText>
+        <Switch
+          value={Boolean(jarvis.settings.cloudAllowTraining)}
+          onValueChange={(value) => void jarvis.updateSettings({ cloudAllowTraining: value })}
+        />
+      </View>
       <AppText muted>
         Status: {jarvis.cloudReady
           ? `ready · ${jarvis.cloudProviders.length} provider${jarvis.cloudProviders.length === 1 ? '' : 's'}`

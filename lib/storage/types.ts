@@ -52,6 +52,14 @@ export interface JarvisSettings {
    */
   cloudFallbackEnabled: boolean;
   /**
+   * With the cloud on: ask it FIRST (about 50x faster than the phone) and let
+   * the phone answer in the same turn if the cloud fails or is rate limited.
+   * Off (default): the cloud only answers when no local brain is loaded.
+   */
+  cloudFirst?: boolean;
+  /** Also use providers whose free tier may train on prompts (Gemini). Off by default. */
+  cloudAllowTraining?: boolean;
+  /**
    * Keep the floating JARVIS orb over other apps. Only takes effect once the
    * owner has granted "Display over other apps"; JARVIS never assumes it.
    */

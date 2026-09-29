@@ -39,18 +39,18 @@ const GEMINI = 'generativelanguage.googleapis.com';
 
 describe('cloud brain failover', () => {
   it('answers from the first provider that works', async () => {
-    const net = fakeFetch({ [CEREBRAS]: { body: reply('It is nine.') } });
+    const net = fakeFetch({ [GROQ]: { body: reply('It is nine.') } });
     const answer = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { cerebras: 'k1', groq: 'k2' }, fetchImpl: net.impl });
 
     expect(answer.text).toBe('It is nine.');
-    expect(answer.provider).toBe('cerebras');
+    expect(answer.provider).toBe('groq');
     expect(net.calls).toHaveLength(1);
   });
 
-  it('fails over Cerebras → Groq → Gemini in that order', async () => {
+  it('fails over Groq → Cerebras → Gemini in that order (Gemini only when allowed)', async () => {
     const net = fakeFetch({
-      [CEREBRAS]: { status: 429 },
-      [GROQ]: { status: 503 },
+      [GROQ]: { status: 429 },
+      [CEREBRAS]: { status: 503 },
       [GEMINI]: { body: reply('Gemini here.') },
     });
     const answer = await askCloud({
@@ -58,15 +58,32 @@ describe('cloud brain failover', () => {
       mode: 'fast',
       keys: { cerebras: 'a', groq: 'b', gemini: 'c' },
       fetchImpl: net.impl,
+      allowTraining: true,
     });
 
-    expect(net.calls.map((call) => new URL(call.url).host)).toEqual([CEREBRAS, GROQ, GEMINI]);
+    expect(net.calls.map((call) => new URL(call.url).host)).toEqual([GROQ, CEREBRAS, GEMINI]);
     expect(answer.provider).toBe('gemini');
     expect(answer.attempts.map((attempt) => [attempt.provider, attempt.ok, attempt.error])).toEqual([
-      ['cerebras', false, 'rate limited'],
-      ['groq', false, 'provider error 503'],
+      ['groq', false, 'rate limited'],
+      ['cerebras', false, 'provider error 503'],
       ['gemini', true, undefined],
     ]);
+  });
+
+  it('never sends to a provider that trains on prompts unless the owner allows it', async () => {
+    const net = fakeFetch({ [GROQ]: { status: 429 } });
+    const failure = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { groq: 'a', gemini: 'c' }, fetchImpl: net.impl }).catch(
+      (error: unknown) => error,
+    );
+    expect(net.calls.map((call) => new URL(call.url).host)).toEqual([GROQ]);
+    expect(failure).toBeInstanceOf(CloudBrainUnavailableError);
+  });
+
+  it('a Gemini-only key does nothing until it is allowed', async () => {
+    const net = fakeFetch({ [GEMINI]: { body: reply('ok') } });
+    const failure = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { gemini: 'c' }, fetchImpl: net.impl }).catch((error: unknown) => error);
+    expect((failure as Error).message).toBe('CLOUD_NO_KEYS');
+    expect(net.calls).toHaveLength(0);
   });
 
   it('skips a provider the owner has no key for, rather than sending an empty key', async () => {
@@ -78,7 +95,7 @@ describe('cloud brain failover', () => {
   });
 
   it('moves on from a provider that hangs, instead of hanging the assistant', async () => {
-    const net = fakeFetch({ [CEREBRAS]: { hang: true }, [GROQ]: { body: reply('Fast fallback.') } });
+    const net = fakeFetch({ [GROQ]: { hang: true }, [CEREBRAS]: { body: reply('Fast fallback.') } });
     const answer = await askCloud({
       messages: MESSAGES,
       mode: 'fast',
@@ -87,18 +104,18 @@ describe('cloud brain failover', () => {
       timeoutMs: 20,
     });
 
-    expect(answer.provider).toBe('groq');
-    expect(answer.attempts[0]).toMatchObject({ provider: 'cerebras', ok: false, error: 'timed out' });
+    expect(answer.provider).toBe('cerebras');
+    expect(answer.attempts[0]).toMatchObject({ provider: 'groq', ok: false, error: 'timed out' });
   });
 
   it('treats an empty reply as a failure, so it never speaks silence', async () => {
-    const net = fakeFetch({ [CEREBRAS]: { body: reply('   ') }, [GROQ]: { body: reply('Real answer.') } });
+    const net = fakeFetch({ [GROQ]: { body: reply('   ') }, [CEREBRAS]: { body: reply('Real answer.') } });
     const answer = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { cerebras: 'a', groq: 'b' }, fetchImpl: net.impl });
     expect(answer.text).toBe('Real answer.');
   });
 
   it('survives a network error on one provider', async () => {
-    const net = fakeFetch({ [CEREBRAS]: { throws: 'Network request failed' }, [GROQ]: { body: reply('OK.') } });
+    const net = fakeFetch({ [GROQ]: { throws: 'Network request failed' }, [CEREBRAS]: { body: reply('OK.') } });
     const answer = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { cerebras: 'a', groq: 'b' }, fetchImpl: net.impl });
     expect(answer.attempts[0]!.error).toBe('Network request failed');
   });
@@ -127,14 +144,14 @@ describe('cloud brain failover', () => {
       messages: MESSAGES,
       mode: 'fast',
       keys: { groq: 'k' },
-      models: { groq: 'llama-3.3-70b-versatile' },
+      models: { groq: 'llama-3.1-8b-instant' },
       fetchImpl: net.impl,
     });
-    expect(net.calls[0]!.body.model).toBe('llama-3.3-70b-versatile');
+    expect(net.calls[0]!.body.model).toBe('llama-3.1-8b-instant');
 
-    const defaults = fakeFetch({ [GEMINI]: { body: reply('ok') } });
-    await askCloud({ messages: MESSAGES, mode: 'fast', keys: { gemini: 'k' }, fetchImpl: defaults.impl });
-    expect(defaults.calls[0]!.body.model).toBe(CLOUD_PROVIDERS.find((provider) => provider.id === 'gemini')!.defaultModel);
+    const defaults = fakeFetch({ [CEREBRAS]: { body: reply('ok') } });
+    await askCloud({ messages: MESSAGES, mode: 'fast', keys: { cerebras: 'k' }, fetchImpl: defaults.impl });
+    expect(defaults.calls[0]!.body.model).toBe(CLOUD_PROVIDERS.find((provider) => provider.id === 'cerebras')!.defaultModel);
   });
 });
 
@@ -159,8 +176,9 @@ describe('cloud brain request and response', () => {
     expect(describeHttpFailure(502)).toBe('provider error 502');
   });
 
-  it('keeps the provider order Cerebras, Groq, Gemini', () => {
-    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['cerebras', 'groq', 'gemini']);
-    expect(usableProviders({ gemini: 'x', cerebras: 'y' }).map((provider) => provider.id)).toEqual(['cerebras', 'gemini']);
+  it('keeps the provider order Groq, Cerebras, Gemini; Gemini only when training is allowed', () => {
+    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini']);
+    expect(usableProviders({ gemini: 'x', cerebras: 'y' }).map((provider) => provider.id)).toEqual(['cerebras']);
+    expect(usableProviders({ gemini: 'x', cerebras: 'y' }, true).map((provider) => provider.id)).toEqual(['cerebras', 'gemini']);
   });
 });

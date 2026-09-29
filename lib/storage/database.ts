@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   ttsAllowNetworkVoice: false,
   // Off by default: enabling it lets a question leave the phone.
   cloudFallbackEnabled: false,
+  cloudFirst: false,
+  cloudAllowTraining: false,
   floatingOrbEnabled: false,
   // Off by default: 351 MB should never start downloading on mobile data unasked.
   neuralVoiceEnabled: false,
