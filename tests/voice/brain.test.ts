@@ -29,3 +29,18 @@ describe('spoken answers are written to be heard', () => {
     expect(typed).not.toContain('SPOKEN REPLY');
   });
 });
+
+import { orbMood } from '@/lib/voice/orbState';
+
+describe('the orb shows what is really happening', () => {
+  const base = { speaking: false, busy: false, manualListening: false, modelStatus: 'ready' as const };
+  it('speaking is shown while JARVIS talks — the state the old screen never had', () => {
+    expect(orbMood({ ...base, speaking: true, busy: true })).toBe('SPEAKING');
+  });
+  it('thinking, then listening (including the follow-up window), then the brain state', () => {
+    expect(orbMood({ ...base, busy: true })).toBe('THINKING');
+    expect(orbMood({ ...base, loopPhase: 'FOLLOW_UP' })).toBe('LISTENING');
+    expect(orbMood({ ...base, loopPhase: 'IDLE' })).toBe('READY');
+    expect(orbMood({ ...base, modelStatus: 'unloaded' })).toBe('OFFLINE');
+  });
+});

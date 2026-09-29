@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Share } from 'react-native';
-import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
+import { AppText, Button, Card, Field, Row, Screen } from '@/components/Ui';
 import { JarvisOrb, type OrbState } from '@/components/JarvisOrb';
+import { DashboardClock } from '@/components/DashboardClock';
+import { orbMood } from '@/lib/voice/orbState';
 import { ModeSelector } from '@/components/ModeSelector';
 import { useJarvis } from '@/context/JarvisContext';
 import type { IntelligenceMode } from '@/lib/inference/types';
@@ -26,6 +28,8 @@ export default function CoachScreen() {
   const [busy, setBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [lastTurn, setLastTurn] = useState<TurnTiming>();
+  // The home screen is a dashboard; the technical cards open on request.
+  const [details, setDetails] = useState(false);
   // Which brain answered: the owner always sees whether a reply left the phone.
   const [source, setSource] = useState<string>();
   // When the last words were heard, and whether this turn came from the voice.
@@ -87,13 +91,6 @@ export default function CoachScreen() {
     },
   });
 
-  const orbState = useMemo<OrbState>(() => {
-    if (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING') return 'LISTENING';
-    if (busy) return 'THINKING';
-    if (jarvis.modelState.status === 'error') return 'ERROR';
-    if (jarvis.modelState.status === 'ready') return 'READY';
-    return 'OFFLINE';
-  }, [busy, jarvis.modelState.status, voice.state]);
 
   async function send() {
     const turn = startTurn(input);
@@ -205,75 +202,54 @@ export default function CoachScreen() {
 
   const voiceProgress = Math.max(0, Math.min(100, Math.round((voice.downloadProgress ?? 0) * 100)));
 
+  const orbState: OrbState = orbMood({
+    speaking,
+    busy,
+    loopPhase: handsFree.running ? handsFree.phase : undefined,
+    manualListening: voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING',
+    modelStatus: jarvis.modelState.status,
+  });
+  const headline = {
+    SPEAKING: 'Speaking — talk over me or say “stop” to interrupt',
+    THINKING: 'Thinking…',
+    LISTENING: handsFree.phase === 'FOLLOW_UP' ? 'Listening for a follow-up…' : 'Listening…',
+    READY: handsFree.running
+      ? handsFree.wakeEngine === 'openWakeWord'
+        ? 'Say “Hey Jarvis”'
+        : 'Say “Jarvis” and your question'
+      : 'Tap the orb for hands-free',
+    ERROR: 'The brain did not load — see Details',
+    OFFLINE: 'No brain loaded — Settings → Model',
+    PREPARING: 'Preparing…',
+    TOOL_RUNNING: 'Working…',
+    WATCHING: 'Looking…',
+  }[orbState];
+
+  /** The orb is the main control: stop JARVIS when it talks, otherwise start or stop hands-free. */
+  function tapOrb() {
+    if (speaking || busy) {
+      stopAll();
+      return;
+    }
+    if (handsFree.running) handsFree.stop();
+    else if (voice.isReady) void handsFree.start();
+  }
+
   return (
     <Screen>
-      <Title>JARVIS</Title>
-      <AppText muted>Local-first assistant · ROG Phone build 0.2</AppText>
-      <JarvisOrb state={orbState} />
-
-      <Card title="Runtime">
-        <AppText>Model: {jarvis.modelState.modelName ?? jarvis.settings.modelName ?? 'Not selected'}</AppText>
-        <AppText>Status: {jarvis.modelState.status}</AppText>
-        <AppText>Acceleration: {jarvis.modelState.gpu ? 'GPU/accelerated backend active' : jarvis.modelState.reasonNoGPU ?? 'Not measured'}</AppText>
-        <AppText>{formatPerformance(jarvis.lastMetrics)}</AppText>
-        {lastStages ? (
-          <AppText muted>
-            Last turn · first word {seconds(lastStages.firstTokenMs)} · first audio {seconds(lastStages.firstAudioMs)} · you waited{' '}
-            {seconds(lastStages.userWaitMs)}
-          </AppText>
-        ) : null}
-        <Button title="Share voice timings" onPress={() => void Share.share({ message: JSON.stringify(recentTurns()) })} />
-      </Card>
-
-      <Card title="Active project">
-        <AppText>{jarvis.activeProject?.name ?? 'No active project'}</AppText>
-        <AppText muted>{jarvis.activeProject?.objective ?? 'Create a project to give JARVIS continuity.'}</AppText>
-        {jarvis.activeProject?.lastCompletedStep ? <AppText>Last completed: {jarvis.activeProject.lastCompletedStep}</AppText> : null}
-        {jarvis.activeProject?.nextAction ? <AppText>Next action: {jarvis.activeProject.nextAction}</AppText> : null}
-      </Card>
-
-      <Card title="Intelligence">
-        <ModeSelector value={mode} onChange={setMode} />
-      </Card>
-
-      <Card title="Voice engine">
-        <AppText>State: {voice.state}</AppText>
-        <AppText>Local STT: {voice.isReady ? 'READY' : `PREPARING · ${voiceProgress}%`}</AppText>
-        <AppText muted>Voice resources are cached locally after the first successful preparation. The microphone stops when this session stops or the app backgrounds.</AppText>
-        {voice.error ? <AppText muted>Voice error: {voice.error}</AppText> : null}
-        <Button
-          title={handsFree.running ? 'Stop hands-free' : 'Start hands-free'}
-          disabled={!handsFree.running && !voice.isReady}
-          onPress={() => (handsFree.running ? handsFree.stop() : void handsFree.start())}
-        />
-        {handsFree.running ? (
-          <AppText muted>
-            {handsFree.wakeEngine === 'openWakeWord'
-              ? 'Say "Hey Jarvis" — nothing else is transcribed until you do.'
-              : 'Say "Jarvis" and your question in one breath.'}{' '}
-            {handsFree.phase === 'FOLLOW_UP' ? 'Listening for a follow-up…' : `(${handsFree.phase.toLowerCase()})`} Speak over JARVIS to
-            interrupt, or say “stop”.
-          </AppText>
-        ) : null}
-        {handsFree.error ? <AppText muted>Hands-free: {handsFree.error}</AppText> : null}
-      </Card>
-
-      <Card title="Ask JARVIS">
-        <Field value={input} onChangeText={setInput} placeholder="Type or use visible voice input…" multiline />
-        {voice.transcript ? <AppText muted>Voice: {voice.transcript}</AppText> : null}
-        <Row>
-          <Button title={busy ? 'Thinking…' : 'Send'} onPress={() => void send()} disabled={busy || !input.trim()} />
-          {busy || speaking ? <Button title="Stop" onPress={stopAll} /> : null}
-          <Button
-            title={voice.state === 'IDLE' || voice.state === 'ERROR' ? 'Start voice' : 'Stop voice'}
-            disabled={handsFree.running || ((voice.state === 'IDLE' || voice.state === 'ERROR') && !voice.isReady)}
-            onPress={() => void (voice.state === 'IDLE' || voice.state === 'ERROR' ? voice.start() : voice.stop())}
-          />
-        </Row>
-      </Card>
+      <JarvisOrb state={orbState} level={handsFree.level} onPress={tapOrb} label={headline} size={240} />
+      <DashboardClock
+        lang={jarvis.settings.language === 'ar' ? 'ar' : 'en'}
+        status={{
+          modelStatus: jarvis.modelState.status,
+          modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
+          cloudReady: Boolean(jarvis.settings.cloudBrainEnabled),
+          micOn: handsFree.running || voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING',
+        }}
+      />
 
       {stripThinking(response) ? (
-        <Card title="Response">
+        <Card>
           <AppText>{stripThinking(response)}</AppText>
           {source ? (
             <AppText muted>
@@ -291,6 +267,65 @@ export default function CoachScreen() {
             <Button title="Save memory" onPress={() => void jarvis.saveMemory('Saved JARVIS insight', response)} />
           </Row>
         </Card>
+      ) : null}
+
+      <Card>
+        <Field value={input} onChangeText={setInput} placeholder="Say “Jarvis…”, or type" multiline />
+        {voice.transcript ? <AppText muted>Voice: {voice.transcript}</AppText> : null}
+        <Row>
+          <Button title={busy ? 'Thinking…' : 'Send'} onPress={() => void send()} disabled={busy || !input.trim()} />
+          {busy || speaking ? <Button title="Stop" onPress={stopAll} /> : null}
+          <Button
+            title={handsFree.running ? 'Stop hands-free' : 'Hands-free'}
+            disabled={!handsFree.running && !voice.isReady}
+            onPress={() => (handsFree.running ? handsFree.stop() : void handsFree.start())}
+          />
+        </Row>
+        {handsFree.error ? <AppText muted>Hands-free: {handsFree.error}</AppText> : null}
+      </Card>
+
+      <Button title={details ? 'Hide details' : 'Details'} onPress={() => setDetails((value) => !value)} />
+      {details ? (
+        <>
+          <Card title="Runtime">
+            <AppText>Model: {jarvis.modelState.modelName ?? jarvis.settings.modelName ?? 'Not selected'}</AppText>
+            <AppText>Status: {jarvis.modelState.status}</AppText>
+            <AppText>
+              Acceleration: {jarvis.modelState.gpu ? 'GPU/accelerated backend active' : jarvis.modelState.reasonNoGPU ?? 'Not measured'}
+            </AppText>
+            <AppText>{formatPerformance(jarvis.lastMetrics)}</AppText>
+            {lastStages ? (
+              <AppText muted>
+                Last turn · first word {seconds(lastStages.firstTokenMs)} · first audio {seconds(lastStages.firstAudioMs)} · you waited{' '}
+                {seconds(lastStages.userWaitMs)}
+              </AppText>
+            ) : null}
+            <Button title="Share voice timings" onPress={() => void Share.share({ message: JSON.stringify(recentTurns()) })} />
+          </Card>
+
+          <Card title="Voice engine">
+            <AppText>Manual mic: {voice.state} · hands-free: {handsFree.running ? handsFree.phase : 'off'}</AppText>
+            <AppText>Wake word: {handsFree.wakeEngine === 'openWakeWord' ? 'openWakeWord “hey jarvis”' : handsFree.wakeEngine === 'spoken' ? '“Jarvis” heard in speech' : 'not started'}</AppText>
+            <AppText>Local STT: {voice.isReady ? 'READY' : `PREPARING · ${voiceProgress}%`}</AppText>
+            <AppText>Voice: {kokoro.ready && jarvis.settings.language === 'en' ? 'Kokoro (natural)' : 'phone system voice'}</AppText>
+            {voice.error ? <AppText muted>Voice error: {voice.error}</AppText> : null}
+            <Button
+              title={voice.state === 'IDLE' || voice.state === 'ERROR' ? 'Manual voice input' : 'Stop voice input'}
+              disabled={handsFree.running || ((voice.state === 'IDLE' || voice.state === 'ERROR') && !voice.isReady)}
+              onPress={() => void (voice.state === 'IDLE' || voice.state === 'ERROR' ? voice.start() : voice.stop())}
+            />
+          </Card>
+
+          <Card title="Active project">
+            <AppText>{jarvis.activeProject?.name ?? 'No active project'}</AppText>
+            <AppText muted>{jarvis.activeProject?.objective ?? 'Create a project to give JARVIS continuity.'}</AppText>
+            {jarvis.activeProject?.nextAction ? <AppText>Next action: {jarvis.activeProject.nextAction}</AppText> : null}
+          </Card>
+
+          <Card title="Intelligence (typed questions)">
+            <ModeSelector value={mode} onChange={setMode} />
+          </Card>
+        </>
       ) : null}
     </Screen>
   );
