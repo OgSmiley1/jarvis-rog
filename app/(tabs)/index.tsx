@@ -7,7 +7,9 @@ import { useJarvis } from '@/context/JarvisContext';
 import type { IntelligenceMode } from '@/lib/inference/types';
 import { formatPerformance } from '@/lib/inference/performance';
 import { speakResponse, systemSpeaker } from '@/lib/voice/voiceResponse';
-import { SpeechQueue } from '@/lib/voice/speechQueue';
+import { SpeechQueue, type Speaker } from '@/lib/voice/speechQueue';
+import { neuralSpeaker } from '@/lib/voice/neuralSpeaker';
+import { useKokoroVoice } from '@/hooks/useKokoroVoice';
 import { ReplyVoice } from '@/lib/voice/replyVoice';
 import { recentTurns, recordTurn, stages, type TurnTiming } from '@/lib/voice/latency';
 import { stripThinking } from '@/lib/voice/stripThinking';
@@ -24,6 +26,8 @@ export default function CoachScreen() {
   const [busy, setBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [lastTurn, setLastTurn] = useState<TurnTiming>();
+  // Which brain answered: the owner always sees whether a reply left the phone.
+  const [source, setSource] = useState<string>();
   // When the last words were heard, and whether this turn came from the voice.
   const heardAtRef = useRef<number | null>(null);
   const timingRef = useRef<TurnTiming | null>(null);
@@ -37,11 +41,27 @@ export default function CoachScreen() {
   // previous answer's promise is kept so a new one waits for it to stop.
   const turnRef = useRef(0);
   const activeTurnRef = useRef<Promise<void> | null>(null);
+  // English answers use Kokoro once it is on and loaded; everything else,
+  // and any sentence Kokoro cannot say, uses the phone's own voice.
+  const kokoro = useKokoroVoice(Boolean(jarvis.settings.neuralVoiceEnabled));
+  const neuralReadyRef = useRef(false);
+  neuralReadyRef.current = kokoro.ready && jarvis.settings.language === 'en';
+  const speaker = useMemo<Speaker>(() => {
+    const system = systemSpeaker(() => languageRef.current);
+    const neural = neuralSpeaker(kokoro.backend, system);
+    return {
+      speak: (text, callbacks) => (neuralReadyRef.current ? neural : system).speak(text, callbacks),
+      stop: () => {
+        neural.stop();
+        system.stop();
+      },
+    };
+  }, [kokoro.backend]);
   // One ordered voice for the whole screen: sentences play in order, and a
   // new turn or Stop silences it at once.
   const queue = useMemo(
     () =>
-      new SpeechQueue(systemSpeaker(() => languageRef.current), {
+      new SpeechQueue(speaker, {
         onSpeakingChange: (value) => {
           setSpeaking(value);
           if (value) loopReportRef.current?.({ type: 'REPLY_STARTED', at: Date.now() });
@@ -57,7 +77,7 @@ export default function CoachScreen() {
           }
         },
       }),
-    [],
+    [speaker],
   );
   const voice = useLiveVoice({
     language: jarvis.settings.language,
@@ -134,10 +154,11 @@ export default function CoachScreen() {
           reply?.push(token);
         },
         [],
-        { voice: true },
+        { voice: true, spoken: spokenTurn },
       );
       if (id !== turnRef.current) return;
       setResponse(result.text);
+      setSource(result.source);
       reply?.finish(result.text);
     } catch (error) {
       reply?.cancel();
@@ -254,6 +275,11 @@ export default function CoachScreen() {
       {stripThinking(response) ? (
         <Card title="Response">
           <AppText>{stripThinking(response)}</AppText>
+          {source ? (
+            <AppText muted>
+              {source === 'local' ? 'On this phone' : source === 'tool' ? 'Phone tool' : `Via ${source.slice('cloud:'.length)} (free cloud)`}
+            </AppText>
+          ) : null}
           <Row>
             <Button
               title="Speak"

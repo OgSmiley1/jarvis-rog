@@ -23,6 +23,16 @@ export interface JarvisSettings {
   modelSize?: number;
   onlineFreeOnly: boolean;
   onlineModelId?: string;
+  /**
+   * Answer through the owner's free cloud keys (Groq -> Cerebras -> Gemini),
+   * falling back to the phone's model on any failure. Off by default: nothing
+   * leaves the phone unless the owner turns this on. Keys live in the keystore.
+   */
+  cloudBrainEnabled?: boolean;
+  /** Also use providers whose free tier may train on prompts (Gemini). Off by default. */
+  cloudAllowTraining?: boolean;
+  /** Kokoro neural voice for English answers (~350 MB once). Off by default. */
+  neuralVoiceEnabled?: boolean;
 }
 
 export interface MemoryRecord {

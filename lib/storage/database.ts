@@ -25,6 +25,9 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   gpuLayers: 99,
   adaptiveRuntime: true,
   onlineFreeOnly: true,
+  cloudBrainEnabled: false,
+  cloudAllowTraining: false,
+  neuralVoiceEnabled: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

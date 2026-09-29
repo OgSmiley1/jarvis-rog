@@ -3,6 +3,7 @@ import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 import { cleanTranscript } from '@/lib/voice/transcriptClean';
+import { ensureExecutorch } from '@/lib/voice/executorch';
 
 export type VoiceState =
   | 'IDLE'
@@ -19,6 +20,9 @@ export interface UseLiveVoiceOptions {
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
+  // The voice library downloads its model files through this fetcher; without
+  // it registered, local speech recognition never becomes ready.
+  ensureExecutorch();
   const model = useSpeechToText({
     model: models.speech_to_text.whisper_tiny(),
     vad: models.vad.fsmn_vad(),
