@@ -54,7 +54,7 @@ Package manager is pnpm; scripts confirmed in `package.json` (`check`, `lint`, `
 
 ## Corrections to the brief, recorded so nobody re-derives them
 
-1. The brief assumes the 4B runs on GPU at 5.7 tok/s. This repo configures CPU. Treat that figure as owner-reported, unverified here.
+1. The brief assumes the 4B runs on GPU at 5.7 tok/s. This repo's own settings note records the GPU path measured at 5.9 tok/s with Q4_K_M **and hanging System UI while loading**, which is why CPU (dotprod + i8mm) is the default and GPU is an opt-in switch. Kept as is: no new model, no 1–2B downgrade, no change of default without a device measurement.
 2. The brief says "Free AI Hub + Model Guard exist". They exist as a screen-level filter only.
 3. Puter is a WebView side page, so "gate it" means adding a policy entry and a hard stop, not ripping out a core dependency.
 4. `<think>` handling (brief checkpoint 2) is largely already in this line; checkpoint 2 becomes audit-and-test-gaps rather than new work.
