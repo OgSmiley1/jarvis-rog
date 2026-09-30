@@ -18,7 +18,7 @@ set -euo pipefail
 # you leave that screen.
 
 PKG="com.app.localjarviscoach"
-LATEST_APK="https://expo.dev/artifacts/eas/6MIeNwmq3MakHkPLno7ktK3rOT8qNGFXKr7ycVdi3jY.apk"
+LATEST_APK="https://expo.dev/artifacts/eas/I2b2uKkXb6_MD8xpd9KKAu9B_RO3b2VAJkUsxMkRKSo.apk"
 APK_URL="${1:-$LATEST_APK}"
 BRAIN_NAME="Qwen3-8B-Q4_K_M.gguf"
 BRAIN_URL="https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
@@ -71,6 +71,11 @@ for want in "lib/arm64-v8a/librnllama" "lib/arm64-v8a/libreact-native-audio-api"
   if echo "$libs" | grep -q "^$want"; then ok "APK contains $want"; else echo "FAIL: APK is missing $want — do not install it, tell Claude."; exit 8; fi
 done
 echo "$libs" | grep "^lib/arm64-v8a/librnllama" | sed 's/^/        /'
+# The Core's drawing and animation engines (Skia, Reanimated). Reported, not
+# required: the names come from their build files and were not seen in an APK yet.
+for core in "lib/arm64-v8a/librnskia" "lib/arm64-v8a/libreanimated"; do
+  if echo "$libs" | grep -q "^$core"; then ok "APK contains $core"; else echo "  note: $core not found — send this line to Claude"; fi
+done
 adb install -r -g "$WORK/jarvis.apk"
 adb shell pm path "$PKG" >/dev/null || { echo "FAIL: $PKG is not installed."; exit 3; }
 ok "installed"
