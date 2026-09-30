@@ -1,5 +1,10 @@
 # Core + Free APIs — status
 
+> Follow-up source fixes: cloud cancellation/deadlines, reasoning-only and nested
+> reasoning filtering, and microphone permission cancellation. See
+> [VERIFICATION.md](VERIFICATION.md) for the current scripts. The EAS/APK evidence
+> below predates those fixes; a new native build and device acceptance are pending.
+
 Brief: unified zero-cost build pack (2026-09-30). Its verdict section is the correction list.
 
 | Field | Value |

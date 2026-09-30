@@ -51,6 +51,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const recorderRef = useRef<AudioRecorder | null>(null);
   const consumerRef = useRef<Promise<void> | null>(null);
   const runningRef = useRef(false);
+  const startingRef = useRef(false);
+  const stoppingRef = useRef(false);
   const sessionRef = useRef(0);
   const [state, setState] = useState<VoiceState>('IDLE');
   const [transcript, setTranscript] = useState('');
@@ -65,11 +67,18 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   const stop = useCallback(async () => {
     const recorder = recorderRef.current;
     const consumer = consumerRef.current;
-    if (!runningRef.current && !recorder && !consumer) return;
+    // Invalidate permission requests too: Stop must work before a recorder exists.
+    sessionRef.current += 1;
+    const stoppedSession = sessionRef.current;
+    startingRef.current = false;
+    if (!runningRef.current && !recorder && !consumer) {
+      setState('IDLE');
+      return;
+    }
 
+    stoppingRef.current = true;
     setState('STOPPING');
     runningRef.current = false;
-    sessionRef.current += 1;
 
     try {
       modelRef.current.streamStop();
@@ -91,6 +100,9 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       }
     }
 
+    // An older stop must not clear a recorder started while its stream drained.
+    if (sessionRef.current !== stoppedSession) return;
+    stoppingRef.current = false;
     recorderRef.current = null;
     consumerRef.current = null;
     levelRef.current = 0;
@@ -99,140 +111,150 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   }, []);
 
   const start = useCallback(async () => {
-    if (runningRef.current) return;
+    if (runningRef.current || startingRef.current || stoppingRef.current) return;
+    startingRef.current = true;
     const session = sessionRef.current + 1;
     sessionRef.current = session;
-    setError(null);
-    setTranscript('');
-    setState('REQUESTING_PERMISSION');
+    try {
+      setError(null);
+      setTranscript('');
+      setState('REQUESTING_PERMISSION');
 
-    if (Platform.OS !== 'android') {
-      setError('This production voice path is currently Android-first.');
-      setState('ERROR');
-      return;
-    }
-
-    const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-    if (sessionRef.current !== session) return;
-    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-      setError('Microphone permission denied.');
-      setState('ERROR');
-      return;
-    }
-
-    if (Platform.Version >= 33) {
-      try {
-        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-      } catch {
-        // Notification permission is helpful for the visible foreground-service
-        // notification, but a denial must not fake a microphone failure.
+      if (Platform.OS !== 'android') {
+        setError('This production voice path is currently Android-first.');
+        setState('ERROR');
+        return;
       }
-    }
 
-    const stt = modelRef.current;
-    if (!stt.isReady) {
-      setError(stt.error?.message ?? 'Local speech model is not ready yet.');
-      setState('ERROR');
-      return;
-    }
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (sessionRef.current !== session) return;
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        setError('Microphone permission denied.');
+        setState('ERROR');
+        return;
+      }
 
-    setState('INITIALIZING');
-    // react-native-audio-api takes the capture format in the constructor.
-    // 16 kHz mono is what the local Whisper STT graph expects.
-    const recorder = new AudioRecorder({ sampleRate: 16000, bufferLengthInSamples: 1600 });
-    const endpointer = new Endpointer();
-    recorderRef.current = recorder;
-    runningRef.current = true;
-
-    recorder.onAudioReady((chunk) => {
-      if (
-        runningRef.current &&
-        sessionRef.current === session &&
-        (optionsRef.current.shouldAcceptAudio?.() ?? true)
-      ) {
-        const frame = chunk.buffer.getChannelData(0);
-        levelRef.current = levelFromFrame(frame, levelRef.current);
-        const gate = optionsRef.current.wakeGate;
-        const decision = gateFrame({ engineActive: Boolean(gate), accepting: true, awake: gate?.isAwake() ?? true });
-        if (gate && decision.toEngine) {
-          try {
-            if (gate.engine.process(frame)) {
-              gate.engine.reset();
-              gate.onWake();
-            }
-          } catch {
-            // A failing engine must never take the microphone down with it.
-          }
+      if (Platform.Version >= 33) {
+        try {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        } catch {
+          // Notification permission is helpful for the visible foreground-service
+          // notification, but a denial must not fake a microphone failure.
         }
-        if (decision.toSpeech) {
-          stt.streamInsert(frame);
-          for (const event of endpointer.push(frame)) {
-            if (event.type === 'end') optionsRef.current.onSpeechEnd?.(DEFAULT_ENDPOINTER.endSilenceMs);
+      }
+
+      if (sessionRef.current !== session) return;
+      const stt = modelRef.current;
+      if (!stt.isReady) {
+        setError(stt.error?.message ?? 'Local speech model is not ready yet.');
+        setState('ERROR');
+        return;
+      }
+
+      setState('INITIALIZING');
+      // react-native-audio-api takes the capture format in the constructor.
+      // 16 kHz mono is what the local Whisper STT graph expects.
+      const recorder = new AudioRecorder({ sampleRate: 16000, bufferLengthInSamples: 1600 });
+      const endpointer = new Endpointer();
+      recorderRef.current = recorder;
+      runningRef.current = true;
+
+      recorder.onAudioReady((chunk) => {
+        if (
+          runningRef.current &&
+          sessionRef.current === session &&
+          (optionsRef.current.shouldAcceptAudio?.() ?? true)
+        ) {
+          const frame = chunk.buffer.getChannelData(0);
+          levelRef.current = levelFromFrame(frame, levelRef.current);
+          const gate = optionsRef.current.wakeGate;
+          const decision = gateFrame({ engineActive: Boolean(gate), accepting: true, awake: gate?.isAwake() ?? true });
+          if (gate && decision.toEngine) {
+            try {
+              if (gate.engine.process(frame)) {
+                gate.engine.reset();
+                gate.onWake();
+              }
+            } catch {
+              // A failing engine must never take the microphone down with it.
+            }
+          }
+          if (decision.toSpeech) {
+            stt.streamInsert(frame);
+            for (const event of endpointer.push(frame)) {
+              if (event.type === 'end') optionsRef.current.onSpeechEnd?.(DEFAULT_ENDPOINTER.endSilenceMs);
+            }
+          } else {
+            endpointer.reset();
           }
         } else {
+          // Suppressed audio (JARVIS is speaking) must not drive the ring.
+          levelRef.current = 0;
           endpointer.reset();
         }
-      } else {
-        // Suppressed audio (JARVIS is speaking) must not drive the ring.
-        levelRef.current = 0;
-        endpointer.reset();
-      }
-    });
+      });
 
-    const consume = async () => {
-      finalizedRef.current = '';
-      try {
-        const language = optionsRef.current.language;
-        const stream = stt.stream({
-          verbose: false,
-          useVAD: true,
-          vadDetectionMargin: 500,
-          ...(language === 'auto' ? {} : { language }),
-        });
+      const consume = async () => {
+        finalizedRef.current = '';
+        try {
+          const language = optionsRef.current.language;
+          const stream = stt.stream({
+            verbose: false,
+            useVAD: true,
+            vadDetectionMargin: 500,
+            ...(language === 'auto' ? {} : { language }),
+          });
 
-        for await (const { committed, nonCommitted } of stream) {
-          if (!runningRef.current || sessionRef.current !== session) break;
-          setState('TRANSCRIBING');
-          const heard = cleanTranscript(committed.text ?? '');
-          if (heard) {
-            finalizedRef.current = `${finalizedRef.current} ${heard}`.trim();
-            optionsRef.current.onFinal?.(heard);
+          for await (const { committed, nonCommitted } of stream) {
+            if (!runningRef.current || sessionRef.current !== session) break;
+            setState('TRANSCRIBING');
+            const heard = cleanTranscript(committed.text ?? '');
+            if (heard) {
+              finalizedRef.current = `${finalizedRef.current} ${heard}`.trim();
+              optionsRef.current.onFinal?.(heard);
+            }
+            setTranscript(`${finalizedRef.current} ${cleanTranscript(nonCommitted.text ?? '')}`.trim());
+            if (runningRef.current) setState('LISTENING');
           }
-          setTranscript(`${finalizedRef.current} ${cleanTranscript(nonCommitted.text ?? '')}`.trim());
-          if (runningRef.current) setState('LISTENING');
+        } catch (cause) {
+          if (sessionRef.current !== session) return;
+          runningRef.current = false;
+          setError(cause instanceof Error ? cause.message : String(cause));
+          setState('ERROR');
         }
+      };
+
+      consumerRef.current = consume();
+
+      try {
+        recorder.start();
+        if (sessionRef.current !== session) {
+          try {
+            recorder.stop();
+          } catch {
+            // Cleanup of a superseded session is best-effort.
+          }
+          return;
+        }
+        setState('LISTENING');
       } catch (cause) {
-        if (sessionRef.current !== session) return;
         runningRef.current = false;
+        try {
+          stt.streamStop();
+        } catch {}
+        try {
+          recorder.stop();
+        } catch {}
+        recorderRef.current = null;
         setError(cause instanceof Error ? cause.message : String(cause));
         setState('ERROR');
       }
-    };
-
-    consumerRef.current = consume();
-
-    try {
-      recorder.start();
-      if (sessionRef.current !== session) {
-        try {
-          recorder.stop();
-        } catch {
-          // Cleanup of a superseded session is best-effort.
-        }
-        return;
-      }
-      setState('LISTENING');
     } catch (cause) {
-      runningRef.current = false;
-      try {
-        stt.streamStop();
-      } catch {}
-      try {
-        recorder.stop();
-      } catch {}
-      recorderRef.current = null;
+      if (sessionRef.current !== session) return;
       setError(cause instanceof Error ? cause.message : String(cause));
       setState('ERROR');
+    } finally {
+      if (sessionRef.current === session) startingRef.current = false;
     }
   }, []);
 
