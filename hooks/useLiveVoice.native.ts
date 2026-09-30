@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_ENDPOINTER, Endpointer } from '@/lib/voice/endpointer';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
@@ -28,6 +29,12 @@ export interface UseLiveVoiceOptions {
    * while JARVIS is asleep. `onWake` fires on each detection.
    */
   wakeGate?: { engine: WakeWordEngine; isAwake: () => boolean; onWake: () => void };
+  /**
+   * The owner stopped talking, measured on the audio itself (energy
+   * endpointer, 0.8 s trailing silence): `msAgo` is how long ago the last
+   * speech frame was. Used to time end-of-speech → first audio honestly.
+   */
+  onSpeechEnd?: (msAgo: number) => void;
 }
 
 export function useLiveVoice(options: UseLiveVoiceOptions) {
@@ -133,6 +140,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     // react-native-audio-api takes the capture format in the constructor.
     // 16 kHz mono is what the local Whisper STT graph expects.
     const recorder = new AudioRecorder({ sampleRate: 16000, bufferLengthInSamples: 1600 });
+    const endpointer = new Endpointer();
     recorderRef.current = recorder;
     runningRef.current = true;
 
@@ -156,10 +164,18 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
             // A failing engine must never take the microphone down with it.
           }
         }
-        if (decision.toSpeech) stt.streamInsert(frame);
+        if (decision.toSpeech) {
+          stt.streamInsert(frame);
+          for (const event of endpointer.push(frame)) {
+            if (event.type === 'end') optionsRef.current.onSpeechEnd?.(DEFAULT_ENDPOINTER.endSilenceMs);
+          }
+        } else {
+          endpointer.reset();
+        }
       } else {
         // Suppressed audio (JARVIS is speaking) must not drive the ring.
         levelRef.current = 0;
+        endpointer.reset();
       }
     });
 

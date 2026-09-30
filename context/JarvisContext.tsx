@@ -47,6 +47,8 @@ import {
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
+import { setLiveSettingsReader } from '@/lib/tools/liveTools';
+import type { ToolRunContext } from '@/lib/tools/types';
 import { shortModelName } from '@/lib/hud/dashboard';
 import { AppState, Platform } from 'react-native';
 import { cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
@@ -58,6 +60,21 @@ import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } fro
  * whether a reply stayed on the phone or went to a cloud provider.
  */
 export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
+
+export interface AskOptions {
+  spoken?: boolean;
+  /** The voice turn's cancellation and deadline; tools stop when it is cancelled. */
+  turn?: ToolRunContext;
+}
+
+export interface AskResult {
+  text: string;
+  metrics: RuntimeMetrics;
+  source: AnswerSource;
+  private?: boolean;
+  /** What a tool returned alongside its sentence (a QR code, a verse, links, provenance). */
+  toolData?: unknown;
+}
 
 /** A phone tool's spoken sentence, when it returned one. */
 function toolSpeech(data: unknown): { speech: string; private: boolean } | null {
@@ -133,8 +150,8 @@ type ContextValue = {
     mode: IntelligenceMode,
     onToken?: (token: string) => void,
     conversation?: CompletionMessage[],
-    options?: { spoken?: boolean },
-  ) => Promise<{ text: string; metrics: RuntimeMetrics; source: AnswerSource; private?: boolean }>;
+    options?: AskOptions,
+  ) => Promise<AskResult>;
   stopGeneration: () => Promise<void>;
   saveMemory: (title: string, body: string) => Promise<void>;
   createProject: (name: string, objective: string) => Promise<void>;
@@ -367,6 +384,21 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }));
   }, [modelState.status, modelState.modelName, settings.modelName, cloudReady]);
 
+  useEffect(() => {
+    // Live-data tools read the zero-cost policy, home city and units from here.
+    setLiveSettingsReader(() => ({
+      policy: {
+        strict: settings.strictZeroCost ?? true,
+        puterConsent: settings.puterConsent,
+        puterExhaustedAt: settings.puterExhaustedAt,
+        allowTraining: settings.cloudAllowTraining,
+        ipLocation: settings.ipLocationAllowed,
+      },
+      homeCity: settings.homeCity ?? 'Ajman',
+      unit: settings.temperatureUnit ?? 'celsius',
+    }));
+  }, [settings.strictZeroCost, settings.puterConsent, settings.puterExhaustedAt, settings.cloudAllowTraining, settings.ipLocationAllowed, settings.homeCity, settings.temperatureUnit]);
+
   const unloadModel = useCallback(async () => {
     const runtime = await getRuntime();
     await runtime.unloadLocalModel();
@@ -460,19 +492,19 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     mode: IntelligenceMode,
     onToken?: (token: string) => void,
     conversation: CompletionMessage[] = [],
-    options: { spoken?: boolean } = {},
-  ) => {
+    options: AskOptions = {},
+  ): Promise<AskResult> => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
     const deterministic = routeDeterministicTool(text);
     if (deterministic) {
       const startedAt = performance.now();
-      const toolResult = await executeToolWithAudit(deterministic.call);
+      const toolResult = await executeToolWithAudit(deterministic.call, { turn: options.turn });
       const metrics: RuntimeMetrics = { totalMs: performance.now() - startedAt };
       setLastMetrics(metrics);
       if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
       const said = toolSpeech(toolResult.data);
-      if (said) return { text: said.speech, metrics, source: 'tool' as AnswerSource, private: said.private };
+      if (said) return { text: said.speech, metrics, source: 'tool' as AnswerSource, private: said.private, toolData: toolResult.data };
       const dataSuffix = deterministic.call.tool === 'termux.system_status'
         ? `\n${JSON.stringify(toolResult.data, null, 2)}`
         : '';
@@ -495,12 +527,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
             id: createId('tool'),
             tool: planned.tool,
             arguments: planned.arguments,
-          });
+          }, { turn: options.turn });
           setLastMetrics(planner.metrics);
 
           if (!toolResult.ok) throw new Error(toolResult.error ?? 'TOOL_EXECUTION_FAILED');
           const said = toolSpeech(toolResult.data);
-          if (said) return { text: said.speech, metrics: planner.metrics, source: 'tool' as AnswerSource, private: said.private };
+          if (said) return { text: said.speech, metrics: planner.metrics, source: 'tool' as AnswerSource, private: said.private, toolData: toolResult.data };
 
           const summary = settings.language === 'ar'
             ? `تم تنفيذ ${planned.tool}.`
