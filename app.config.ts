@@ -29,6 +29,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // Keeps the brain, eyes and voice in Download/JARVIS for good: they
       // survive closing, updating and reinstalling the app ("All files access").
       'MANAGE_EXTERNAL_STORAGE',
+      // Timers and alarms by voice, handed to the Clock app (a normal permission).
+      'com.android.alarm.permission.SET_ALARM',
     ],
   },
   plugins: [

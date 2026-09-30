@@ -1,8 +1,10 @@
 import { toolRegistry } from './registry';
-import type { JarvisToolCall, ToolResult } from './types';
+import type { JarvisToolCall, ToolResult, ToolRunContext } from './types';
 
 export interface ExecuteToolOptions {
   confirmed?: boolean;
+  /** Cancellation and deadline of the voice turn that asked for this. */
+  turn?: ToolRunContext;
 }
 
 export async function executeTool(
@@ -33,7 +35,7 @@ export async function executeTool(
   }
 
   try {
-    const data = await definition.execute(parsed.data);
+    const data = await definition.execute(parsed.data, options.turn);
     return { callId: call.id, tool: call.tool, ok: true, startedAt, finishedAt: Date.now(), data };
   } catch (error) {
     return {

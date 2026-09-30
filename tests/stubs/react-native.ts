@@ -24,6 +24,8 @@ export const Linking = {
     if (!/^https?:\/\//i.test(url)) throw new Error('INVALID_URL');
   },
   canOpenURL: async (): Promise<boolean> => true,
+  sendIntent: async (_action: string): Promise<void> => undefined,
+  openSettings: async (): Promise<void> => undefined,
 };
 
 export const PermissionsAndroid = {

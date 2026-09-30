@@ -28,6 +28,8 @@ import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/
  * Pure: `fetch` is injected, so the whole failover is tested off-device.
  */
 
+import { checkProvider, recordPolicy } from '@/lib/net/providerPolicy';
+
 export type CloudProviderId = 'cerebras' | 'groq' | 'gemini';
 
 export interface CloudProvider {
@@ -191,6 +193,13 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   const startedAt = now();
 
   for (const provider of usableProviders(input.keys, input.allowTraining)) {
+    // The zero-cost policy has the last word on every provider, every call.
+    const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining });
+    recordPolicy(provider.id, decision.allowed);
+    if (!decision.allowed) {
+      attempts.push({ provider: provider.id, model: '', ok: false, error: decision.reason, ms: 0 });
+      continue;
+    }
     const model = input.models?.[provider.id]?.trim() || provider.defaultModel;
     const key = input.keys[provider.id]!.trim();
     const attemptStartedAt = now();
