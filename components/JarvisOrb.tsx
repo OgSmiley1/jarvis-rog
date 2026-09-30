@@ -10,9 +10,11 @@ export type OrbState = HudState;
 /**
  * The Core — JARVIS's face, from the owner's LED reference clips.
  *
- * Near-black; a dark central aperture; concentric red LED tracks; a ring of
- * fine red spokes; restrained teal arcs; a slow radar sweep; one red burst
- * when the wake word lands. Procedural, not a looped video.
+ * Matched to the owner's reference photo: a dark hub in a violet dotted
+ * ring; a white fan sweeping round it; thin red rings and broken arcs with
+ * red seven-segment digits; a long red beam turning like a clock hand; a
+ * dense band of fine white radial light at the rim; one red burst when the
+ * wake word lands. Procedural, not a looped video.
  *
  * Every layer is a pre-built SVG path inside an Animated.View, and every
  * motion is a native-driver transform or opacity, so animation never
@@ -91,7 +93,7 @@ export function JarvisOrb({
 
   const motion = coreMotion(state, { reducedMotion, lowPower, hidden });
   const shapes = useMemo(() => coreShapes(size), [size]);
-  const tint = state === 'WATCHING' ? CORE_COLORS.watching : CORE_COLORS.teal;
+  const tint = state === 'WATCHING' ? CORE_COLORS.watching : CORE_COLORS.violet;
 
   const rotate = useRef(new Animated.Value(0)).current;
   const sweep = useRef(new Animated.Value(0)).current;
@@ -183,6 +185,9 @@ export function JarvisOrb({
   const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const counterSpin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
   const sweepSpin = sweep.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  // The beam starts where the reference photo has it (lower right) and turns
+  // a full turn with the rings, like a clock hand (no jump at the loop).
+  const beamSpin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['140deg', '500deg'] });
   const levelScale = amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, motion.levelGain] });
   const coreScale = Animated.add(
     Animated.add(breathe.interpolate({ inputRange: [0, 1], outputRange: [1 - motion.breatheScale, 1 + motion.breatheScale] }), levelScale),
@@ -209,16 +214,17 @@ export function JarvisOrb({
     </Svg>
   );
 
+  const stroke = Math.max(0.6, size * 0.0024);
   const body = (
     <Animated.View style={{ width: size, height: size, opacity: motion.opacity, transform: [{ scale: coreScale }] }} pointerEvents="none">
-      {/* Ambient red glow behind everything. */}
+      {/* Faint red haze under the light, as on the ground in the reference. */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: redGlow }]}>
         {layer(
           <>
             <Defs>
               <RadialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-                <Stop offset="0.3" stopColor={CORE_COLORS.red} stopOpacity={0} />
-                <Stop offset="0.62" stopColor={CORE_COLORS.red} stopOpacity={0.28} />
+                <Stop offset="0.15" stopColor={CORE_COLORS.red} stopOpacity={0} />
+                <Stop offset="0.6" stopColor={CORE_COLORS.red} stopOpacity={0.16} />
                 <Stop offset="1" stopColor={CORE_COLORS.red} stopOpacity={0} />
               </RadialGradient>
             </Defs>
@@ -227,72 +233,83 @@ export function JarvisOrb({
         )}
       </Animated.View>
 
-      {/* Outer LED tracks, turning slowly one way… */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: spin }] }]}>
-        {layer(
-          <G fill={CORE_COLORS.red}>
-            <Path d={shapes.outerDots} fillOpacity={0.35 + 0.6 * motion.red} />
-            {!compact ? <Path d={shapes.rimDots} fillOpacity={0.25 + 0.35 * motion.red} /> : null}
-          </G>,
-        )}
-      </Animated.View>
+      {/* Outer band of fine white radial light, turning slowly. */}
+      {!compact ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: spin }] }]}>
+          {layer(<Path d={shapes.rimDashes} stroke={CORE_COLORS.white} strokeOpacity={0.6} strokeWidth={stroke * 0.8} />)}
+        </Animated.View>
+      ) : null}
 
-      {/* …the middle track and the spoke ring the other way. */}
+      {/* Red rings, broken arcs and the LED digits: counter-rotating. */}
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: counterSpin }] }]}>
         {layer(
           <G>
-            <Path d={shapes.midDots} fill={CORE_COLORS.red} fillOpacity={0.3 + 0.55 * motion.red} />
-            {!compact ? <Path d={shapes.spokes} stroke={CORE_COLORS.red} strokeOpacity={0.18 + 0.4 * motion.red} strokeWidth={Math.max(0.6, size * 0.0022)} /> : null}
+            {shapes.redRings.map((r, index) => (
+              <Circle
+                key={r}
+                cx={c}
+                cy={c}
+                r={r}
+                fill="none"
+                stroke={CORE_COLORS.red}
+                strokeOpacity={(index === 0 ? 0.95 : 0.55) * (0.5 + 0.5 * motion.red)}
+                strokeWidth={index === 0 ? stroke * 2.4 : stroke * 1.2}
+              />
+            ))}
+            <G fill="none" stroke={CORE_COLORS.red} strokeLinecap="round" strokeWidth={stroke * 2.2} strokeOpacity={0.4 + 0.55 * motion.red}>
+              {shapes.redArcs.map((d, index) => (
+                <Path key={index} d={d} />
+              ))}
+            </G>
+            {!compact ? <Path d={shapes.glyphs} fill={CORE_COLORS.red} fillOpacity={0.45 + 0.5 * motion.red} /> : null}
+            {!compact ? <Path d={shapes.innerDashes} stroke={CORE_COLORS.white} strokeOpacity={0.35} strokeWidth={stroke * 0.7} /> : null}
           </G>,
         )}
       </Animated.View>
 
-      {/* Radar sweep. */}
-      {motion.sweepOpacity > 0 ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: motion.sweepOpacity, transform: [{ rotate: sweepSpin }] }]}>
+      {/* The long red beam, sweeping like a clock hand. */}
+      {!compact ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: redGlow, transform: [{ rotate: beamSpin }] }]}>
           {layer(
             <>
               <Defs>
-                <RadialGradient id="sweepFade" cx="50%" cy="50%" r="50%">
-                  <Stop offset="0.25" stopColor={CORE_COLORS.red} stopOpacity={0} />
-                  <Stop offset="0.95" stopColor={CORE_COLORS.red} stopOpacity={0.55} />
+                <RadialGradient id="beamFade" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0.1" stopColor={CORE_COLORS.red} stopOpacity={1} />
+                  <Stop offset="1" stopColor={CORE_COLORS.red} stopOpacity={0.35} />
                 </RadialGradient>
               </Defs>
-              <Path d={shapes.sweep} fill="url(#sweepFade)" />
+              <Path d={shapes.beam} fill="url(#beamFade)" />
             </>,
           )}
         </Animated.View>
       ) : null}
 
-      {/* Teal arcs: restrained, brighter while listening, following the microphone. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: tealGlow, transform: [{ rotate: counterSpin }] }]}>
-        {layer(
-          <G fill="none" stroke={tint} strokeLinecap="round" strokeWidth={Math.max(1.2, size * 0.006)}>
-            {shapes.tealArcs.map((d, index) => (
-              <Path key={index} d={d} strokeOpacity={index % 2 ? 0.55 : 0.9} />
-            ))}
-          </G>,
-        )}
-      </Animated.View>
+      {/* The white fan around the hub: the radar sweep. */}
+      {motion.sweepOpacity > 0 ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: motion.sweepOpacity, transform: [{ rotate: sweepSpin }] }]}>
+          {layer(<Path d={shapes.fan} stroke={CORE_COLORS.white} strokeOpacity={0.9} strokeWidth={stroke * 0.9} />)}
+        </Animated.View>
+      ) : null}
 
-      {/* Listening: a teal ring drawn in from the hub outward. */}
+      {/* Listening: a violet ring drawn outward from the hub. */}
       {motion.ripple ? (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: rippleOpacity, transform: [{ scale: rippleScale }] }]}>
           {layer(<Circle cx={c} cy={c} r={size * 0.3} fill="none" stroke={tint} strokeWidth={Math.max(1, size * 0.005)} />)}
         </Animated.View>
       ) : null}
 
-      {/* Inner LED ring and the dark aperture with its inner glow. */}
+      {/* Violet dotted hub ring, brighter with the voice, and the dark centre. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: tealGlow }]}>
+        {layer(<Path d={shapes.violetDots} fill={motion.alarm ? CORE_COLORS.red : tint} />)}
+      </Animated.View>
       {layer(
         <>
           <Defs>
             <RadialGradient id="aperture" cx="50%" cy="50%" r="50%">
-              <Stop offset="0.7" stopColor={CORE_COLORS.aperture} stopOpacity={1} />
-              <Stop offset="1" stopColor={motion.alarm ? CORE_COLORS.red : tint} stopOpacity={0.35} />
+              <Stop offset="0.6" stopColor={CORE_COLORS.aperture} stopOpacity={1} />
+              <Stop offset="1" stopColor={motion.alarm ? CORE_COLORS.red : tint} stopOpacity={0.4} />
             </RadialGradient>
           </Defs>
-          <Path d={shapes.innerDots} fill={CORE_COLORS.red} fillOpacity={0.4 + 0.5 * motion.red} />
-          <Circle cx={c} cy={c} r={shapes.apertureRing} fill="none" stroke={motion.alarm ? CORE_COLORS.red : tint} strokeOpacity={0.5} strokeWidth={1} />
           <Circle cx={c} cy={c} r={shapes.aperture} fill="url(#aperture)" />
         </>,
       )}
@@ -313,9 +330,7 @@ export function JarvisOrb({
       </Animated.View>
 
       {/* Offline: the single 4 px marker, over whatever state is showing. */}
-      {offline && !compact ? (
-        <View style={[styles.offlineDot, { top: c + shapes.aperture * 0.55, left: c - 2 }]} />
-      ) : null}
+      {offline && !compact ? <View style={[styles.offlineDot, { top: c + shapes.aperture * 1.6, left: c - 2 }]} /> : null}
     </Animated.View>
   );
 
