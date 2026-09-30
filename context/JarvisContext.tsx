@@ -177,7 +177,6 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
   const cloudAbort = useRef<AbortController | null>(null);
   useEffect(() => () => cloudAbort.current?.abort(), []);
-  const upgradeTried = useRef(false);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
   // Set once the backup in Download/JARVIS has been read (and restored onto a
@@ -474,25 +473,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());
   }, []);
 
-  useEffect(() => {
-    // The smarter 8B brain: when the phone only has the older 4B, JARVIS keeps
-    // answering with the 4B while Android downloads the 8B into the permanent
-    // folder, then switches to it. Once, and only with permanent storage, so
-    // the 5 GB file is never downloaded twice.
-    if (upgradeTried.current || modelState.status !== 'ready' || !permanentStorage || !hasSystemDownloader()) return;
-    if (modelState.modelName === BRAIN_FILE.name || findModelFile(BRAIN_FILE)) return;
-    upgradeTried.current = true;
-    recordLive('brain', 'upgrade to 8B started');
-    // Wi-Fi only: nobody asked for these 5 GB right now, so they must not spend mobile data.
-    void downloadWithSystem(() => undefined, BRAIN_FILE, { wifiOnly: true })
-      .then(async (model) => {
-        const runtime = await getRuntime();
-        await runtime.validateGguf(model.path);
-        recordLive('brain', 'upgrade downloaded', { size: model.size });
-        await installRecommendedModel();
-      })
-      .catch((error) => recordLive('error', 'brain upgrade failed', { raw: error instanceof Error ? error.message : String(error) }));
-  }, [modelState.status, modelState.modelName, permanentStorage, installRecommendedModel]);
+  // Keep the owner's installed brain. A larger download/replacement happens
+  // only through the explicit model-install action, never as an idle upgrade.
+
 
   const activeProject = projects.find((project) => project.status === 'active');
 
@@ -527,6 +510,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
         messages: buildToolPlanningMessages(text, settings.language),
         mode: 'fast',
         grammar: buildToolCallGrammar(allowedTools),
+        signal: options.turn?.signal,
+        deadlineAt: options.turn?.deadlineAt,
       });
 
       try {
@@ -649,7 +634,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (options.turn?.signal?.aborted) throw new Error('TURN_CANCELLED');
     if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
     const runtime = await getRuntime();
-    const result = await runtime.runCompletion({ messages, mode, onToken });
+    const result = await runtime.runCompletion({ messages, mode, onToken, signal: options.turn?.signal, deadlineAt: options.turn?.deadlineAt, maxTokens: options.spoken && mode === 'fast' ? 128 : undefined });
     setLastMetrics(result.metrics);
     return { ...result, source: 'local' as AnswerSource };
   }, [

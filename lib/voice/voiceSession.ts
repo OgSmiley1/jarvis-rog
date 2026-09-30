@@ -71,6 +71,7 @@ export class VoiceSessionController {
   private current: { ctx: TurnContext; abort: AbortController; toolOps: number; activeReads: number } | null = null;
   private listeners = new Set<Listener>();
   private counter = 0;
+  private deadlineTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly now: () => number;
   private readonly idFactory: () => string;
   locale: string;
@@ -107,6 +108,11 @@ export class VoiceSessionController {
       timezone: this.timezone,
     };
     this.current = { ctx, abort, toolOps: 0, activeReads: 0 };
+    this.deadlineTimer = setTimeout(() => {
+      if (this.current?.ctx.turnId === ctx.turnId) this.cancel('deadline');
+    }, Math.max(0, timeoutMs));
+    // Node tests must not stay alive for an idle turn; React Native timers are numbers.
+    (this.deadlineTimer as { unref?: () => void }).unref?.();
     this.setState('thinking');
     return ctx;
   }
@@ -114,7 +120,7 @@ export class VoiceSessionController {
   /** True only for the live turn, before its deadline and not cancelled. */
   isCurrent(turnId: string): boolean {
     const turn = this.current;
-    return Boolean(turn && turn.ctx.turnId === turnId && !turn.abort.signal.aborted && this.now() <= turn.ctx.deadlineAt);
+    return Boolean(turn && turn.ctx.turnId === turnId && !turn.abort.signal.aborted && this.now() < turn.ctx.deadlineAt);
   }
 
   /** Run `apply` only if the result still belongs to the live turn. Returns whether it ran. */
@@ -133,6 +139,19 @@ export class VoiceSessionController {
     if (!turn || !this.isCurrent(turnId) || turn.toolOps >= MAX_TOOL_OPS) return false;
     turn.toolOps += 1;
     return true;
+  }
+
+  /** Acquire one actual network-read slot. Tool operations are reserved separately. */
+  reserveRead(turnId: string): (() => void) | null {
+    const turn = this.current;
+    if (!turn || !this.isCurrent(turnId) || turn.activeReads >= MAX_CONCURRENT_READS) return null;
+    turn.activeReads += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      turn.activeReads -= 1;
+    };
   }
 
   /** Run a network read inside the turn's concurrency and op budget. */
@@ -157,6 +176,7 @@ export class VoiceSessionController {
   /** The turn finished normally. */
   endTurn(turnId: string, next: InteractionState = 'idle'): void {
     if (this.current?.ctx.turnId !== turnId) return;
+    this.clearDeadline();
     this.current = null;
     this.setState(next);
   }
@@ -168,9 +188,10 @@ export class VoiceSessionController {
   cancel(reason: 'user' | 'superseded' | 'deadline' | 'error' = 'user'): string | null {
     const turn = this.current;
     if (!turn) return null;
+    this.clearDeadline();
     turn.abort.abort(reason);
     this.current = null;
-    this.setState(reason === 'error' ? 'error' : 'interrupted');
+    this.setState(reason === 'error' || reason === 'deadline' ? 'error' : 'interrupted');
     return turn.ctx.turnId;
   }
 
@@ -189,6 +210,11 @@ export class VoiceSessionController {
     if (next === this.connectivity) return;
     this.connectivity = next;
     this.emit();
+  }
+
+  private clearDeadline(): void {
+    if (this.deadlineTimer !== null) clearTimeout(this.deadlineTimer);
+    this.deadlineTimer = null;
   }
 
   private setState(next: InteractionState): boolean {
