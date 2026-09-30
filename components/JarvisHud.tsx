@@ -806,6 +806,9 @@ export default function JarvisHud() {
             interrupted={interruptedTick}
             offline={connectivity !== 'online'}
             showLabel={jarvis.settings.coreLabels}
+            speaking={speaking}
+            transcribing={voice.state === 'TRANSCRIBING'}
+            throttled={(jarvis.powerReading?.state.thermalStatus ?? 0) >= 2}
           />
           {jarvis.settings.coreLabels ? (
             <Row>
