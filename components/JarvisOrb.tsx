@@ -1,142 +1,208 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Stop } from 'react-native-svg';
-import { colors } from './theme';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, AppState, Easing, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
+import Svg, { Circle, Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import type { HudState } from '@/lib/hud/hudState';
-import { arcPath, particles, slashMarks, ticks } from '@/lib/hud/orbGeometry';
+import { BURST_MS, CORE_COLORS, INTERRUPT_CONTRACT_MS, coreMotion, coreShapes } from '@/lib/hud/coreGeometry';
 
 /** Kept as an alias so existing imports of `OrbState` continue to resolve. */
 export type OrbState = HudState;
 
-/** The reference video's electric blue. */
-const BLUE = '#3AA2FF';
-const WATCHING_TINT = '#B388FF';
-
 /**
- * The reactor from the owner's reference video: a black core with a thin
- * white ring and JARVIS set wide inside it; a thick electric-blue ring with a
- * soft glow; broken arcs orbiting at two radii; a ring of fine ticks with
- * "//" marks on the diagonals; and a scatter of particles.
+ * The Core — JARVIS's face, from the owner's LED reference clips.
  *
- * Each layer is its own SVG inside an Animated.View, so every motion is a
- * native-driver transform or opacity: nothing competes with the local brain
- * for the JS thread. The glow follows the measured microphone level, so when
- * it swells it is because the room got louder. Reduce-motion freezes it.
+ * Near-black; a dark central aperture; concentric red LED tracks; a ring of
+ * fine red spokes; restrained teal arcs; a slow radar sweep; one red burst
+ * when the wake word lands. Procedural, not a looped video.
  *
- * Motion per state: idle breathes; listening swells with your voice; thinking
- * spins the arcs hard; speaking pulses; watching turns violet.
+ * Every layer is a pre-built SVG path inside an Animated.View, and every
+ * motion is a native-driver transform or opacity, so animation never
+ * competes with the brain for the JS thread and nothing calls setState per
+ * frame. Geometry is built once per size.
+ *
+ * Honest about what drives it: while LISTENING the glow follows the measured
+ * microphone level; while SPEAKING it pulses on a fixed speech-activity
+ * rhythm, because the system voice exposes no playback amplitude — it is not
+ * an audio-reactive waveform and does not claim to be.
+ *
+ * Reduced motion or battery saver: a static glow that still shows state by
+ * colour. App in the background: no animation frames.
  */
 export function JarvisOrb({
   state,
   level = 0,
   onPress,
+  onLongPress,
+  onHistory,
   label,
-  size = 272,
+  size = 300,
   compact = false,
+  burst = 0,
+  interrupted = 0,
+  offline = false,
+  showLabel = false,
 }: {
   state: OrbState;
   /** Measured microphone level, 0..1. See lib/voice/audioLevel.ts. */
   level?: number;
   onPress?: () => void;
+  onLongPress?: () => void;
+  /** Accessibility action "history" — the edge gesture's equivalent. */
+  onHistory?: () => void;
   label?: string;
   size?: number;
-  /** The small corner orb on the camera page: rings only, no ticks or caption. */
+  /** The small corner Core on the camera page: tracks only. */
   compact?: boolean;
+  /** Increment to fire one wake burst. */
+  burst?: number;
+  /** Increment to play the brief interruption contraction. */
+  interrupted?: number;
+  /** Connectivity marker: one small dot, no text. */
+  offline?: boolean;
+  /** Accessibility mode: a visible state label under the Core. */
+  showLabel?: boolean;
 }) {
-  const spinA = useRef(new Animated.Value(0)).current;
-  const spinB = useRef(new Animated.Value(0)).current;
-  const spinTicks = useRef(new Animated.Value(0)).current;
-  const breathe = useRef(new Animated.Value(0)).current;
-  const amplitude = useRef(new Animated.Value(0)).current;
-  const twinkle = useRef(new Animated.Value(0)).current;
-
-  const tint = tintFor(state);
-  const busy = state === 'THINKING' || state === 'TOOL_RUNNING';
-  const arcPeriod = busy ? 1600 : state === 'LISTENING' || state === 'SPEAKING' ? 7000 : 14000;
-  const pulsePeriod = state === 'SPEAKING' ? 450 : state === 'WATCHING' ? 700 : 1800;
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [lowPower, setLowPower] = useState(false);
+  const [hidden, setHidden] = useState(AppState.currentState !== 'active');
 
   useEffect(() => {
-    let cancelled = false;
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((value) => alive && setReducedMotion(value))
+      .catch(() => undefined);
+    const motionSub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
+    const appSub = AppState.addEventListener('change', (next) => setHidden(next !== 'active'));
+    // Battery saver: the native module is optional so a missing one never breaks the face.
+    let batterySub: { remove: () => void } | undefined;
+    void import('expo-battery')
+      .then(async (Battery) => {
+        if (!alive) return;
+        setLowPower(await Battery.isLowPowerModeEnabledAsync());
+        batterySub = Battery.addLowPowerModeListener(({ lowPowerMode }) => setLowPower(lowPowerMode));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      motionSub.remove();
+      appSub.remove();
+      batterySub?.remove();
+    };
+  }, []);
+
+  const motion = coreMotion(state, { reducedMotion, lowPower, hidden });
+  const shapes = useMemo(() => coreShapes(size), [size]);
+  const tint = state === 'WATCHING' ? CORE_COLORS.watching : CORE_COLORS.teal;
+
+  const rotate = useRef(new Animated.Value(0)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
+  const breathe = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const ripple = useRef(new Animated.Value(0)).current;
+  const amplitude = useRef(new Animated.Value(0)).current;
+  const flash = useRef(new Animated.Value(0)).current;
+  const contract = useRef(new Animated.Value(0)).current;
+
+  // One effect per motion signature: loops restart only when the state's motion changes.
+  const signature = `${motion.animate}|${motion.breatheMs}|${motion.rotateMs}|${motion.sweepMs}|${motion.ripple}|${motion.speakPulseMs}`;
+  useEffect(() => {
     const loops: Animated.CompositeAnimation[] = [];
     const loop = (animation: Animated.CompositeAnimation) => {
       const looped = Animated.loop(animation);
       loops.push(looped);
       looped.start();
     };
-    const begin = (reduce: boolean) => {
-      if (cancelled || reduce) return;
-      spinA.setValue(0);
-      spinB.setValue(0);
-      loop(Animated.timing(spinA, { toValue: 1, duration: arcPeriod, easing: Easing.linear, useNativeDriver: true }));
-      loop(Animated.timing(spinB, { toValue: 1, duration: arcPeriod * 1.6, easing: Easing.linear, useNativeDriver: true }));
-      loop(Animated.timing(spinTicks, { toValue: 1, duration: 60000, easing: Easing.linear, useNativeDriver: true }));
-      loop(
-        Animated.sequence([
-          Animated.timing(breathe, { toValue: 1, duration: pulsePeriod, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(breathe, { toValue: 0, duration: pulsePeriod, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-      );
-      loop(
-        Animated.sequence([
-          Animated.timing(twinkle, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          Animated.timing(twinkle, { toValue: 0, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        ]),
-      );
-    };
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(begin)
-      .catch(() => begin(false));
+    if (motion.animate) {
+      if (motion.rotateMs) {
+        rotate.setValue(0);
+        loop(Animated.timing(rotate, { toValue: 1, duration: motion.rotateMs, easing: Easing.linear, useNativeDriver: true }));
+      }
+      if (motion.sweepMs) {
+        sweep.setValue(0);
+        loop(Animated.timing(sweep, { toValue: 1, duration: motion.sweepMs, easing: Easing.linear, useNativeDriver: true }));
+      }
+      if (motion.breatheMs) {
+        loop(
+          Animated.sequence([
+            Animated.timing(breathe, { toValue: 1, duration: motion.breatheMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(breathe, { toValue: 0, duration: motion.breatheMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          ]),
+        );
+      }
+      if (motion.speakPulseMs) {
+        loop(
+          Animated.sequence([
+            Animated.timing(pulse, { toValue: 1, duration: motion.speakPulseMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 0.25, duration: motion.speakPulseMs * 1.3, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+          ]),
+        );
+      } else {
+        pulse.setValue(0);
+      }
+      if (motion.ripple) {
+        ripple.setValue(0);
+        loop(Animated.timing(ripple, { toValue: 1, duration: 1600, easing: Easing.out(Easing.cubic), useNativeDriver: true }));
+      } else {
+        ripple.setValue(0);
+      }
+    } else {
+      breathe.setValue(0.5);
+      pulse.setValue(0);
+      ripple.setValue(0);
+    }
     return () => {
-      cancelled = true;
       for (const running of loops) running.stop();
     };
-  }, [arcPeriod, pulsePeriod, spinA, spinB, spinTicks, breathe, twinkle]);
+    // `signature` captures every motion field these loops read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
 
   useEffect(() => {
     Animated.timing(amplitude, {
-      toValue: Math.max(0, Math.min(1, level)),
+      toValue: motion.levelGain ? Math.max(0, Math.min(1, level)) : 0,
       duration: 90,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [amplitude, level]);
+  }, [amplitude, level, motion.levelGain]);
 
-  const c = size / 2;
-  const R = {
-    core: size * 0.215,
-    whiteRing: size * 0.222,
-    blueRing: size * 0.262,
-    arcA: size * 0.305,
-    arcB: size * 0.335,
-    tick: size * 0.395,
-    slash: size * 0.45,
-  };
+  useEffect(() => {
+    if (!burst || reducedMotion) return;
+    flash.setValue(0);
+    Animated.sequence([
+      Animated.timing(flash, { toValue: 1, duration: BURST_MS * 0.25, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(flash, { toValue: 0, duration: BURST_MS * 0.75, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  }, [burst, flash, reducedMotion]);
 
-  const shapes = useMemo(
-    () => ({
-      ticks: ticks(c, c, R.tick, size * 0.012, 60, 5),
-      slashes: slashMarks(c, c, R.slash, size * 0.035),
-      dots: particles(c, c, size * 0.3, size * 0.49, 26),
-    }),
-    // Geometry depends only on the size.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [size],
+  useEffect(() => {
+    if (!interrupted || reducedMotion) return;
+    contract.setValue(1);
+    Animated.timing(contract, { toValue: 0, duration: INTERRUPT_CONTRACT_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+  }, [interrupted, contract, reducedMotion]);
+
+  const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const counterSpin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
+  const sweepSpin = sweep.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const levelScale = amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, motion.levelGain] });
+  const coreScale = Animated.add(
+    Animated.add(breathe.interpolate({ inputRange: [0, 1], outputRange: [1 - motion.breatheScale, 1 + motion.breatheScale] }), levelScale),
+    Animated.add(
+      pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.018] }),
+      contract.interpolate({ inputRange: [0, 1], outputRange: [0, -0.08] }),
+    ),
   );
-
-  const rotateA = spinA.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const rotateB = spinB.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
-  const rotateTicks = spinTicks.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const glowOpacity = Animated.add(
-    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.85] }),
-    amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+  const redGlow = Animated.add(
+    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.35 * motion.red, 0.6 * motion.red] }),
+    pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
   );
-  const glowScale = Animated.add(
-    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1.03] }),
-    amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
+  const tealGlow = Animated.add(
+    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.55 * motion.teal, 0.85 * motion.teal] }),
+    amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, 0.3] }),
   );
-  const dotsOpacity = twinkle.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
-  const dim = state === 'OFFLINE' ? 0.45 : 1;
+  const rippleScale = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.12] });
+  const rippleOpacity = ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.7, 0] });
 
+  const c = shapes.c;
   const layer = (children: React.ReactNode) => (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
       {children}
@@ -144,132 +210,153 @@ export function JarvisOrb({
   );
 
   const body = (
-    <View style={{ width: size, height: size, opacity: dim }} pointerEvents="none">
-      {/* Glow halo and the thick blue ring: breathe, and swell with the voice. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]}>
+    <Animated.View style={{ width: size, height: size, opacity: motion.opacity, transform: [{ scale: coreScale }] }} pointerEvents="none">
+      {/* Ambient red glow behind everything. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: redGlow }]}>
         {layer(
           <>
             <Defs>
-              <RadialGradient id="halo" cx="50%" cy="50%" r="50%">
-                <Stop offset="0.42" stopColor={tint} stopOpacity={0} />
-                <Stop offset="0.52" stopColor={tint} stopOpacity={0.55} />
-                <Stop offset="0.6" stopColor={tint} stopOpacity={0.22} />
-                <Stop offset="0.8" stopColor={tint} stopOpacity={0} />
+              <RadialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+                <Stop offset="0.3" stopColor={CORE_COLORS.red} stopOpacity={0} />
+                <Stop offset="0.62" stopColor={CORE_COLORS.red} stopOpacity={0.28} />
+                <Stop offset="1" stopColor={CORE_COLORS.red} stopOpacity={0} />
               </RadialGradient>
             </Defs>
-            <Circle cx={c} cy={c} r={size / 2} fill="url(#halo)" />
-            <Circle cx={c} cy={c} r={R.blueRing} fill="none" stroke={tint} strokeWidth={size * 0.028} />
-            <Circle cx={c} cy={c} r={R.blueRing} fill="none" stroke="#DDF1FF" strokeOpacity={0.55} strokeWidth={1.2} />
+            <Circle cx={c} cy={c} r={size / 2} fill="url(#coreGlow)" />
           </>,
         )}
       </Animated.View>
 
-      {/* Outer broken arcs, clockwise. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateA }] }]}>
+      {/* Outer LED tracks, turning slowly one way… */}
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: spin }] }]}>
         {layer(
-          <G fill="none" strokeLinecap="round">
-            <Path d={arcPath(c, c, R.arcA, 200, 262)} stroke="#FFFFFF" strokeOpacity={0.9} strokeWidth={2.6} />
-            <Path d={arcPath(c, c, R.arcA, 20, 58)} stroke={tint} strokeOpacity={0.9} strokeWidth={2} />
-            {!compact ? <Path d={arcPath(c, c, R.arcA, 300, 312)} stroke="#FFFFFF" strokeOpacity={0.7} strokeWidth={2} /> : null}
+          <G fill={CORE_COLORS.red}>
+            <Path d={shapes.outerDots} fillOpacity={0.35 + 0.6 * motion.red} />
+            {!compact ? <Path d={shapes.rimDots} fillOpacity={0.25 + 0.35 * motion.red} /> : null}
           </G>,
         )}
       </Animated.View>
 
-      {/* Inner broken arcs, counter-clockwise. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateB }] }]}>
+      {/* …the middle track and the spoke ring the other way. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: counterSpin }] }]}>
         {layer(
-          <G fill="none" strokeLinecap="round">
-            <Path d={arcPath(c, c, R.arcB, 110, 168)} stroke="#FFFFFF" strokeOpacity={0.75} strokeWidth={1.6} />
-            <Path d={arcPath(c, c, R.arcB, 250, 275)} stroke={tint} strokeOpacity={0.8} strokeWidth={1.6} />
+          <G>
+            <Path d={shapes.midDots} fill={CORE_COLORS.red} fillOpacity={0.3 + 0.55 * motion.red} />
+            {!compact ? <Path d={shapes.spokes} stroke={CORE_COLORS.red} strokeOpacity={0.18 + 0.4 * motion.red} strokeWidth={Math.max(0.6, size * 0.0022)} /> : null}
           </G>,
         )}
       </Animated.View>
 
-      {/* Tick ring, "//" marks and particles: slow drift. */}
-      {!compact ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateTicks }] }]}>
+      {/* Radar sweep. */}
+      {motion.sweepOpacity > 0 ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: motion.sweepOpacity, transform: [{ rotate: sweepSpin }] }]}>
           {layer(
-            <G>
-              {shapes.ticks.map((tick, index) => (
-                <Line
-                  key={`t${index}`}
-                  x1={tick.x1}
-                  y1={tick.y1}
-                  x2={tick.x2}
-                  y2={tick.y2}
-                  stroke="#FFFFFF"
-                  strokeOpacity={tick.major ? 0.75 : 0.28}
-                  strokeWidth={tick.major ? 1.4 : 1}
-                />
-              ))}
-              {shapes.slashes.map((mark, index) => (
-                <Line key={`s${index}`} x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} stroke="#FFFFFF" strokeOpacity={0.8} strokeWidth={1.6} />
-              ))}
-            </G>,
-          )}
-        </Animated.View>
-      ) : null}
-      {!compact ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: dotsOpacity }]}>
-          {layer(
-            <G>
-              {shapes.dots.map((dot, index) => (
-                <Circle key={index} cx={dot.x} cy={dot.y} r={dot.r} fill="#FFFFFF" fillOpacity={dot.opacity} />
-              ))}
-            </G>,
+            <>
+              <Defs>
+                <RadialGradient id="sweepFade" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0.25" stopColor={CORE_COLORS.red} stopOpacity={0} />
+                  <Stop offset="0.95" stopColor={CORE_COLORS.red} stopOpacity={0.55} />
+                </RadialGradient>
+              </Defs>
+              <Path d={shapes.sweep} fill="url(#sweepFade)" />
+            </>,
           )}
         </Animated.View>
       ) : null}
 
-      {/* The core: black, a thin white ring, JARVIS set wide. */}
+      {/* Teal arcs: restrained, brighter while listening, following the microphone. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: tealGlow, transform: [{ rotate: counterSpin }] }]}>
+        {layer(
+          <G fill="none" stroke={tint} strokeLinecap="round" strokeWidth={Math.max(1.2, size * 0.006)}>
+            {shapes.tealArcs.map((d, index) => (
+              <Path key={index} d={d} strokeOpacity={index % 2 ? 0.55 : 0.9} />
+            ))}
+          </G>,
+        )}
+      </Animated.View>
+
+      {/* Listening: a teal ring drawn in from the hub outward. */}
+      {motion.ripple ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: rippleOpacity, transform: [{ scale: rippleScale }] }]}>
+          {layer(<Circle cx={c} cy={c} r={size * 0.3} fill="none" stroke={tint} strokeWidth={Math.max(1, size * 0.005)} />)}
+        </Animated.View>
+      ) : null}
+
+      {/* Inner LED ring and the dark aperture with its inner glow. */}
       {layer(
         <>
-          <Circle cx={c} cy={c} r={R.core} fill="#06080D" />
-          <Circle cx={c} cy={c} r={R.whiteRing} fill="none" stroke="#FFFFFF" strokeOpacity={0.92} strokeWidth={1.4} />
+          <Defs>
+            <RadialGradient id="aperture" cx="50%" cy="50%" r="50%">
+              <Stop offset="0.7" stopColor={CORE_COLORS.aperture} stopOpacity={1} />
+              <Stop offset="1" stopColor={motion.alarm ? CORE_COLORS.red : tint} stopOpacity={0.35} />
+            </RadialGradient>
+          </Defs>
+          <Path d={shapes.innerDots} fill={CORE_COLORS.red} fillOpacity={0.4 + 0.5 * motion.red} />
+          <Circle cx={c} cy={c} r={shapes.apertureRing} fill="none" stroke={motion.alarm ? CORE_COLORS.red : tint} strokeOpacity={0.5} strokeWidth={1} />
+          <Circle cx={c} cy={c} r={shapes.aperture} fill="url(#aperture)" />
         </>,
       )}
-      <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Text style={[styles.word, { fontSize: Math.max(8, size * 0.052), letterSpacing: size * 0.02 }]}>JARVIS</Text>
-      </View>
-    </View>
+
+      {/* The wake burst: one full-core red pulse. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: flash }]}>
+        {layer(
+          <>
+            <Defs>
+              <RadialGradient id="burst" cx="50%" cy="50%" r="50%">
+                <Stop offset="0.2" stopColor={CORE_COLORS.red} stopOpacity={0.55} />
+                <Stop offset="1" stopColor={CORE_COLORS.red} stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx={c} cy={c} r={size / 2} fill="url(#burst)" />
+          </>,
+        )}
+      </Animated.View>
+
+      {/* Offline: the single 4 px marker, over whatever state is showing. */}
+      {offline && !compact ? (
+        <View style={[styles.offlineDot, { top: c + shapes.aperture * 0.55, left: c - 2 }]} />
+      ) : null}
+    </Animated.View>
   );
+
+  const accessibilityActions = [
+    { name: 'activate', label: 'Talk or stop' },
+    ...(onLongPress ? [{ name: 'longpress', label: 'Open menu' }] : []),
+    ...(onHistory ? [{ name: 'history', label: 'Open history' }] : []),
+  ];
+  const onAccessibilityAction = (event: AccessibilityActionEvent) => {
+    if (event.nativeEvent.actionName === 'activate') onPress?.();
+    if (event.nativeEvent.actionName === 'longpress') onLongPress?.();
+    if (event.nativeEvent.actionName === 'history') onHistory?.();
+  };
 
   return (
     <View style={styles.wrap}>
-      {onPress ? (
+      {onPress || onLongPress ? (
         <Pressable
           onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={450}
           accessibilityRole="button"
-          accessibilityLabel={label ?? `JARVIS ${state}`}
-          style={({ pressed }) => [{ borderRadius: size / 2 }, pressed && styles.pressed]}
+          accessibilityLabel={label ?? `JARVIS, ${state.toLowerCase()}`}
+          accessibilityHint="Tap to talk or stop. Long-press for the menu."
+          accessibilityActions={accessibilityActions}
+          onAccessibilityAction={onAccessibilityAction}
+          hitSlop={12}
+          style={{ borderRadius: size / 2 }}
         >
           {body}
         </Pressable>
       ) : (
         body
       )}
-      {!compact ? <Text style={[styles.label, { color: tint }]}>{label ?? state}</Text> : null}
+      {showLabel && !compact ? <Text style={styles.label}>{label ?? state}</Text> : null}
     </View>
   );
 }
 
-function tintFor(state: OrbState): string {
-  switch (state) {
-    case 'ERROR':
-      return colors.bad;
-    case 'WATCHING':
-      return WATCHING_TINT;
-    case 'OFFLINE':
-      return '#5D7288';
-    default:
-      return BLUE;
-  }
-}
-
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', justifyContent: 'center', gap: 6 },
-  pressed: { opacity: 0.8 },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  word: { color: '#FFFFFF', fontWeight: '300' },
-  label: { fontWeight: '700', letterSpacing: 4, fontSize: 11, opacity: 0.85 },
+  wrap: { alignItems: 'center', justifyContent: 'center', gap: 10 },
+  label: { color: '#E6EDF3', fontWeight: '600', letterSpacing: 1, fontSize: 14, textAlign: 'center', maxWidth: 320 },
+  offlineDot: { position: 'absolute', width: 4, height: 4, borderRadius: 2, backgroundColor: CORE_COLORS.offline },
 });
