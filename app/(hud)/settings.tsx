@@ -16,6 +16,7 @@ import { NeuralVoiceCard } from '@/components/NeuralVoiceCard';
 import { LiveTestCard } from '@/components/LiveTestCard';
 import { PhoneAccessCard } from '@/components/PhoneAccessCard';
 import { EyesCard } from '@/components/EyesCard';
+import { LiveDataCard } from '@/components/LiveDataCard';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -207,6 +208,8 @@ export default function SettingsScreen() {
       <PhoneAccessCard />
 
       <EyesCard />
+
+      <LiveDataCard />
 
       <Card title="Charge reminder">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

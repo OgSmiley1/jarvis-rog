@@ -15,6 +15,7 @@ import type { OnlineChatMessage, OnlineModel, PuterBridgeEvent } from '@/lib/onl
 import type { OnlineChatRecord } from '@/lib/storage/types';
 import { addOnlineMessage, clearOnlineMessages, listOnlineMessages } from '@/lib/storage/database';
 import { createId } from '@/lib/utils/ids';
+import { checkProvider, isAllowanceExhausted, recordPolicy } from '@/lib/net/providerPolicy';
 
 function eventMessage(payload: unknown): string {
   if (payload && typeof payload === 'object' && 'message' in payload) {
@@ -25,6 +26,12 @@ function eventMessage(payload: unknown): string {
 
 export default function OnlineScreen() {
   const jarvis = useJarvis();
+  const puterPolicy = {
+    strict: jarvis.settings.strictZeroCost ?? true,
+    puterConsent: jarvis.settings.puterConsent,
+    puterExhaustedAt: jarvis.settings.puterExhaustedAt,
+  };
+  const puterAllowed = checkProvider('puter', puterPolicy);
   const gateway = useRef<PuterGatewayHandle>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'signed_out' | 'signed_in' | 'error'>('loading');
   const [username, setUsername] = useState<string>();
@@ -125,6 +132,10 @@ export default function OnlineScreen() {
 
     if ((event.type === 'chat_error' || event.type === 'bridge_error') && (!event.requestId || event.requestId === requestRef.current)) {
       const message = eventMessage(event.payload);
+      // Allowance used up: hard stop for the month. No upgrade prompt is ever followed.
+      if (isAllowanceExhausted(message)) {
+        void jarvis.updateSettings({ puterExhaustedAt: Date.now() });
+      }
       setLastError(message);
       setBusy(false);
       setStreaming('');
@@ -137,6 +148,13 @@ export default function OnlineScreen() {
   async function send() {
     const clean = input.trim();
     if (!clean || busy) return;
+    // Puter is user-pays: the zero-cost policy decides, on every message.
+    const decision = checkProvider('puter', puterPolicy);
+    recordPolicy('puter', decision.allowed);
+    if (!decision.allowed) {
+      Alert.alert('Puter is off', decision.reason);
+      return;
+    }
     if (status !== 'signed_in') {
       Alert.alert('Connect first', 'Tap the Connect Puter button inside the gateway card. No API key is required.');
       return;
@@ -199,6 +217,23 @@ export default function OnlineScreen() {
     await clearOnlineMessages();
     setMessages([]);
     setStreaming('');
+  }
+
+  if (!puterAllowed.allowed) {
+    return (
+      <Screen>
+        <Title>Free AI Hub</Title>
+        <Card title="Puter is off">
+          <AppText>{puterAllowed.reason}.</AppText>
+          <AppText muted>
+            Puter is user-pays: it gives a free monthly allowance, then asks to upgrade. JARVIS does not load it at all
+            while strict zero-cost mode is on, so not even its page is fetched. Your local brain and the free cloud keys
+            (Groq, Cerebras) keep working. To try Puter: Settings → Live info &amp; zero cost → turn strict mode off, then
+            allow Puter.
+          </AppText>
+        </Card>
+      </Screen>
+    );
   }
 
   return (

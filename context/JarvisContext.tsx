@@ -48,6 +48,8 @@ import { recordLive } from '@/lib/telemetry/liveLog';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { setLiveSettingsReader } from '@/lib/tools/liveTools';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { liveCache } from '@/lib/net/cache';
 import type { ToolRunContext } from '@/lib/tools/types';
 import { shortModelName } from '@/lib/hud/dashboard';
 import { AppState, Platform } from 'react-native';
@@ -383,6 +385,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       name: shortModelName(modelState.modelName ?? settings.modelName),
     }));
   }, [modelState.status, modelState.modelName, settings.modelName, cloudReady]);
+
+  useEffect(() => {
+    // Weather, prayer and verified verses survive a restart, so an offline
+    // question can still get a dated answer.
+    liveCache.attachStore(AsyncStorage);
+  }, []);
 
   useEffect(() => {
     // Live-data tools read the zero-cost policy, home city and units from here.
