@@ -45,7 +45,6 @@ import {
   writeJarvisFile,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
-import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { setLiveSettingsReader } from '@/lib/tools/liveTools';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -176,6 +175,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
   const [brainDownload, setBrainDownload] = useState<DownloadView | null>(null);
   const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
+  const cloudAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => cloudAbort.current?.abort(), []);
   const upgradeTried = useRef(false);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
@@ -594,6 +595,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       cloudFirst: Boolean(settings.cloudFirst),
     });
     if (plan !== 'local') {
+      const abort = new AbortController();
+      cloudAbort.current?.abort();
+      cloudAbort.current = abort;
+      const onAbort = () => abort.abort();
+      options.turn?.signal?.addEventListener('abort', onAbort, { once: true });
+      if (options.turn?.signal?.aborted) abort.abort();
       try {
         // In cloud-first mode the phone's memories, project notes and profile
         // stay on the phone: the cloud is sent the persona, the recent
@@ -614,24 +621,33 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           models: settings.cloudModels,
           allowTraining: settings.cloudAllowTraining,
           fetchImpl: fetch as unknown as FetchLike,
+          signal: abort.signal,
+          deadlineAt: options.turn?.deadlineAt,
         });
         // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
         // goes through the same token callback, so the HUD's sentence-level
         // speech handles it exactly as it handles the local brain.
         // Cloud reasoning models can think out loud too; the same rule applies.
-        const cloudText = stripThinking(answer.text) || answer.text;
+        if (abort.signal.aborted) throw new Error('TURN_CANCELLED');
+        if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
+        const cloudText = answer.text;
         onToken?.(cloudText);
         setLastMetrics(answer.metrics);
         return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
       } catch (error) {
         // No local brain to fall back to: the cloud's own error is the answer.
-        if (plan === 'cloud-only') throw error;
+        if (abort.signal.aborted || (error instanceof Error && error.message === 'TURN_DEADLINE') || plan === 'cloud-only') throw error;
         recordLive('brain', 'cloud failed, answering on the phone', {
           reason: error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160),
         });
+      } finally {
+        options.turn?.signal?.removeEventListener('abort', onAbort);
+        if (cloudAbort.current === abort) cloudAbort.current = null;
       }
     }
 
+    if (options.turn?.signal?.aborted) throw new Error('TURN_CANCELLED');
+    if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
     const runtime = await getRuntime();
     const result = await runtime.runCompletion({ messages, mode, onToken });
     setLastMetrics(result.metrics);
@@ -650,6 +666,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   ]);
 
   const stopGeneration = useCallback(async () => {
+    cloudAbort.current?.abort();
     const runtime = await getRuntime();
     await runtime.stopGeneration();
   }, []);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CLOUD_PROVIDERS,
   CloudBrainUnavailableError,
@@ -180,5 +180,70 @@ describe('cloud brain request and response', () => {
     expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }).map((provider) => provider.id)).toEqual(['cerebras']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }, true).map((provider) => provider.id)).toEqual(['cerebras', 'gemini']);
+  });
+});
+
+
+describe('cloud turn cancellation and reasoning', () => {
+  const input = { messages: MESSAGES, mode: 'fast' as const, keys: { groq: 'a', cerebras: 'b' } };
+
+  it('refuses an already cancelled turn without sending a request', async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const fetchImpl = vi.fn<FetchLike>();
+    await expect(askCloud({ ...input, signal: abort.signal, fetchImpl })).rejects.toThrow('TURN_CANCELLED');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('cancels a hanging fetch and never tries the next provider', async () => {
+    const abort = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn<FetchLike>((_, init) => {
+      requestSignal = init.signal;
+      return new Promise(() => undefined);
+    });
+    const answer = askCloud({ ...input, signal: abort.signal, fetchImpl });
+    const rejected = expect(answer).rejects.toThrow('TURN_CANCELLED');
+    abort.abort();
+    await rejected;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels while reading the body, even if the transport ignores abort', async () => {
+    const abort = new AbortController();
+    const text = vi.fn(() => new Promise<string>(() => undefined));
+    const fetchImpl = vi.fn<FetchLike>(async () => ({ ok: true, status: 200, text }));
+    const answer = askCloud({ ...input, signal: abort.signal, fetchImpl });
+    const rejected = expect(answer).rejects.toThrow('TURN_CANCELLED');
+    await vi.waitFor(() => expect(text).toHaveBeenCalledTimes(1));
+    abort.abort();
+    await rejected;
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the total turn deadline instead of allowing another provider budget', async () => {
+    const net = fakeFetch({ [GROQ]: { hang: true } });
+    await expect(askCloud({ ...input, deadlineAt: Date.now() + 20, timeoutMs: 1000, fetchImpl: net.impl }))
+      .rejects.toThrow('TURN_DEADLINE');
+    expect(net.calls).toHaveLength(1);
+  });
+
+  it('rejects an expired deadline before making a request', async () => {
+    const net = fakeFetch({});
+    await expect(askCloud({ ...input, deadlineAt: 10, now: () => 10, fetchImpl: net.impl })).rejects.toThrow('TURN_DEADLINE');
+    expect(net.calls).toHaveLength(0);
+  });
+
+  it('fails over a reasoning-only answer instead of restoring hidden text', async () => {
+    const net = fakeFetch({ [GROQ]: { body: reply('<think>private reasoning</think>') }, [CEREBRAS]: { body: reply('Hello.') } });
+    const answer = await askCloud({ ...input, fetchImpl: net.impl });
+    expect(answer.text).toBe('Hello.');
+    expect(answer.provider).toBe('cerebras');
+  });
+
+  it('filters nested reasoning before returning display or speech text', () => {
+    expect(extractText(reply('<think>outer<think>inner</think>still hidden</think>Hello.'))).toBe('Hello.');
+    expect(() => extractText(reply('<think>unfinished'))).toThrow('empty reply after reasoning filter');
   });
 });
