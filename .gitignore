@@ -15,3 +15,6 @@ termux/**/*.pyc
 
 .build-cache/
 artifacts/
+
+modules/**/android/build/
+modules/**/android/.cxx/

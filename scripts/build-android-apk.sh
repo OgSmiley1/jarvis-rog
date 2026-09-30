@@ -13,7 +13,7 @@ else
 fi
 # Release optimization and an embedded JS bundle; Expo's generated debug
 # certificate is used for sideload testing. This is not a store release.
-(cd android && "$gradle_cmd" :app:assembleRelease -PreactNativeArchitectures=arm64-v8a \
+(cd android && "$gradle_cmd" :app:assembleRelease -PreactNativeArchitectures=arm64-v8a -PrnllamaBuildFromSource=false \
   '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' \
   --max-workers=2 --no-daemon --console=plain)
 version=$(node -p "require('./package.json').version")

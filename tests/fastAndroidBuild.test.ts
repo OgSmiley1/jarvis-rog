@@ -47,6 +47,13 @@ describe('EAS build stays inside the 45-minute limit', () => {
     expect(loader).toContain('System.loadLibrary("rnllama_jni")');
   });
 
+  it('uses the pinned engines rather than silently rebuilding all engine variants', () => {
+    expect(plugin.GRADLE_PROPERTIES.rnllamaBuildFromSource).toBe('false');
+    const profile = JSON.parse(readFileSync(resolve(process.cwd(), 'eas.json'), 'utf8'));
+    expect(profile.build.preview.android.gradleCommand).toContain('-PrnllamaBuildFromSource=false');
+    expect(readFileSync(resolve(process.cwd(), 'scripts/build-android-apk.sh'), 'utf8')).toContain('-PrnllamaBuildFromSource=false');
+  });
+
   it('pins the ABI so a build that forgets the flag cannot fall back to four', () => {
     // The seven cancelled builds had no -PreactNativeArchitectures flag and
     // compiled armeabi-v7a, x86 and x86_64 as well.
