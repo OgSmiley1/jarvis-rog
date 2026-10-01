@@ -44,6 +44,8 @@ export interface NeuralSpeechQueueOptions {
   fallback: (text: string) => Promise<void>;
   /** True while anything is being synthesised, playing, or waiting to. */
   onSpeakingChange?: (speaking: boolean) => void;
+  /** Scheduled playback/fallback activity; not a measured amplitude envelope. */
+  onPlaybackChange?: (playing: boolean) => void;
   /**
    * A tiny lead so the first clip is never scheduled in the audio clock's
    * past (which would clip its first syllable).
@@ -56,9 +58,11 @@ export class NeuralSpeechQueue {
   private readonly clips = new Set<ScheduledClip>();
   private nextStart = 0;
   private synthesising = false;
+  private synthesisEpoch: number | null = null;
   private fallbackActive = 0;
   private epoch = 0;
   private speaking = false;
+  private playing = false;
 
   constructor(private readonly options: NeuralSpeechQueueOptions) {}
 
@@ -84,7 +88,6 @@ export class NeuralSpeechQueue {
     }
     this.clips.clear();
     this.nextStart = 0;
-    this.synthesising = false;
     this.update();
   }
 
@@ -96,9 +99,10 @@ export class NeuralSpeechQueue {
     if (this.synthesising) return;
     const epoch = this.epoch;
 
-    while (this.pending.length > 0 && epoch === this.epoch) {
+    while (this.pending.length > 0 && epoch === this.epoch && this.clips.size < 2) {
       const text = this.pending.shift()!;
       this.synthesising = true;
+      this.synthesisEpoch = epoch;
       this.update();
 
       let samples: Float32Array | undefined;
@@ -110,7 +114,12 @@ export class NeuralSpeechQueue {
 
       // The owner said stop while this sentence was being synthesised: the
       // audio that just arrived belongs to an answer that no longer exists.
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch) {
+        this.synthesising = false;
+        this.update();
+        void this.pump();
+        return;
+      }
       this.synthesising = false;
 
       if (samples && samples.length > 0) {
@@ -137,6 +146,7 @@ export class NeuralSpeechQueue {
     clip.onEnded(() => {
       this.clips.delete(clip);
       this.update();
+      void this.pump();
     });
   }
 
@@ -169,7 +179,12 @@ export class NeuralSpeechQueue {
   }
 
   private update(): void {
-    const speaking = this.pending.length > 0 || this.synthesising || this.clips.size > 0 || this.fallbackActive > 0;
+    const playing = this.clips.size > 0 || this.fallbackActive > 0;
+    if (playing !== this.playing) {
+      this.playing = playing;
+      this.options.onPlaybackChange?.(playing);
+    }
+    const speaking = this.pending.length > 0 || (this.synthesising && this.synthesisEpoch === this.epoch) || this.clips.size > 0 || this.fallbackActive > 0;
     if (speaking === this.speaking) return;
     this.speaking = speaking;
     this.options.onSpeakingChange?.(speaking);

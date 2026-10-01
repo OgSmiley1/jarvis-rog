@@ -85,7 +85,9 @@ export function JarvisOrb({
     void import('expo-battery')
       .then(async (Battery) => {
         if (!alive) return;
-        setLowPower(await Battery.isLowPowerModeEnabledAsync());
+        const lowPowerMode = await Battery.isLowPowerModeEnabledAsync();
+        if (!alive) return;
+        setLowPower(lowPowerMode);
         batterySub = Battery.addLowPowerModeListener(({ lowPowerMode }) => setLowPower(lowPowerMode));
       })
       .catch(() => undefined);

@@ -39,6 +39,9 @@ export interface RunCompletionInput {
   messages: CompletionMessage[];
   mode: IntelligenceMode;
   onToken?: (token: string) => void;
+  signal?: AbortSignal;
+  deadlineAt?: number;
+  maxTokens?: number;
   /**
    * Optional GBNF grammar. When present the sampler can only emit tokens that
    * keep the output within the grammar, which is how tool calls are made

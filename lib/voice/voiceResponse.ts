@@ -22,6 +22,7 @@ export function ttsLanguage(language: VoiceLanguage): string {
 }
 
 let preference: VoicePreference = {};
+let speechEpoch = 0;
 let voiceCache: DeviceVoice[] | null = null;
 let lastChosen: { language: VoiceLanguage; chosen: RankedVoice | undefined } | null = null;
 
@@ -75,8 +76,10 @@ export async function describeVoices(language: VoiceLanguage): Promise<{
 
 /** Speak one short line so the owner can hear a voice before pinning it. */
 export async function previewVoice(identifier: string, language: VoiceLanguage): Promise<void> {
+  const epoch = ++speechEpoch;
   await Speech.stop();
   const voices = await deviceVoices();
+  if (epoch !== speechEpoch) return;
   const voice = voices.find((candidate) => candidate.identifier === identifier);
   const { rate, pitch } = prosodyFor(voice, language);
   const sample = language === 'ar'
@@ -104,8 +107,10 @@ export async function speakResponse(
   const clean = stripThinking(text).trim();
   if (!clean) throw new Error('TTS_EMPTY_TEXT');
 
+  const epoch = ++speechEpoch;
   await Speech.stop();
   const chosen = await chooseVoice(language);
+  if (epoch !== speechEpoch) return;
   const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve, reject) => {
@@ -152,7 +157,9 @@ export async function speakQueued(
   const clean = stripThinking(text).trim();
   if (!clean) return;
 
+  const epoch = speechEpoch;
   const chosen = await chooseVoice(language);
+  if (epoch !== speechEpoch) return;
   const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve) => {
@@ -181,5 +188,6 @@ export async function speakQueued(
 }
 
 export async function stopSpeaking(): Promise<void> {
+  speechEpoch += 1;
   await Speech.stop();
 }

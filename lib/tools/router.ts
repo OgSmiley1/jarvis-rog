@@ -35,7 +35,15 @@ export async function executeTool(
   }
 
   try {
-    const data = await definition.execute(parsed.data, options.turn);
+    const turn = options.turn;
+    const assertActive = () => {
+      if (turn?.signal?.aborted) throw new Error('TURN_CANCELLED');
+      if (turn?.deadlineAt !== undefined && Date.now() >= turn.deadlineAt) throw new Error('TURN_DEADLINE');
+    };
+    assertActive();
+    if (turn?.reserveTool && !turn.reserveTool()) throw new Error('TOOL_BUDGET_EXCEEDED');
+    const data = await definition.execute(parsed.data, turn);
+    assertActive();
     return { callId: call.id, tool: call.tool, ok: true, startedAt, finishedAt: Date.now(), data };
   } catch (error) {
     return {

@@ -45,7 +45,6 @@ import {
   writeJarvisFile,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
-import { stripThinking } from '@/lib/voice/stripThinking';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { setLiveSettingsReader } from '@/lib/tools/liveTools';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -176,7 +175,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [cloudProviders, setCloudProviders] = useState<CloudProviderId[]>([]);
   const [brainDownload, setBrainDownload] = useState<DownloadView | null>(null);
   const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
-  const upgradeTried = useRef(false);
+  const cloudAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => cloudAbort.current?.abort(), []);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
   // Set once the backup in Download/JARVIS has been read (and restored onto a
@@ -473,25 +473,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());
   }, []);
 
-  useEffect(() => {
-    // The smarter 8B brain: when the phone only has the older 4B, JARVIS keeps
-    // answering with the 4B while Android downloads the 8B into the permanent
-    // folder, then switches to it. Once, and only with permanent storage, so
-    // the 5 GB file is never downloaded twice.
-    if (upgradeTried.current || modelState.status !== 'ready' || !permanentStorage || !hasSystemDownloader()) return;
-    if (modelState.modelName === BRAIN_FILE.name || findModelFile(BRAIN_FILE)) return;
-    upgradeTried.current = true;
-    recordLive('brain', 'upgrade to 8B started');
-    // Wi-Fi only: nobody asked for these 5 GB right now, so they must not spend mobile data.
-    void downloadWithSystem(() => undefined, BRAIN_FILE, { wifiOnly: true })
-      .then(async (model) => {
-        const runtime = await getRuntime();
-        await runtime.validateGguf(model.path);
-        recordLive('brain', 'upgrade downloaded', { size: model.size });
-        await installRecommendedModel();
-      })
-      .catch((error) => recordLive('error', 'brain upgrade failed', { raw: error instanceof Error ? error.message : String(error) }));
-  }, [modelState.status, modelState.modelName, permanentStorage, installRecommendedModel]);
+  // Keep the owner's installed brain. A larger download/replacement happens
+  // only through the explicit model-install action, never as an idle upgrade.
+
 
   const activeProject = projects.find((project) => project.status === 'active');
 
@@ -526,6 +510,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
         messages: buildToolPlanningMessages(text, settings.language),
         mode: 'fast',
         grammar: buildToolCallGrammar(allowedTools),
+        signal: options.turn?.signal,
+        deadlineAt: options.turn?.deadlineAt,
       });
 
       try {
@@ -594,6 +580,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       cloudFirst: Boolean(settings.cloudFirst),
     });
     if (plan !== 'local') {
+      const abort = new AbortController();
+      cloudAbort.current?.abort();
+      cloudAbort.current = abort;
+      const onAbort = () => abort.abort();
+      options.turn?.signal?.addEventListener('abort', onAbort, { once: true });
+      if (options.turn?.signal?.aborted) abort.abort();
       try {
         // In cloud-first mode the phone's memories, project notes and profile
         // stay on the phone: the cloud is sent the persona, the recent
@@ -614,26 +606,35 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           models: settings.cloudModels,
           allowTraining: settings.cloudAllowTraining,
           fetchImpl: fetch as unknown as FetchLike,
+          signal: abort.signal,
+          deadlineAt: options.turn?.deadlineAt,
         });
         // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
         // goes through the same token callback, so the HUD's sentence-level
         // speech handles it exactly as it handles the local brain.
         // Cloud reasoning models can think out loud too; the same rule applies.
-        const cloudText = stripThinking(answer.text) || answer.text;
+        if (abort.signal.aborted) throw new Error('TURN_CANCELLED');
+        if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
+        const cloudText = answer.text;
         onToken?.(cloudText);
         setLastMetrics(answer.metrics);
         return { text: cloudText, metrics: answer.metrics, source: `cloud:${answer.provider}` as AnswerSource };
       } catch (error) {
         // No local brain to fall back to: the cloud's own error is the answer.
-        if (plan === 'cloud-only') throw error;
+        if (abort.signal.aborted || (error instanceof Error && error.message === 'TURN_DEADLINE') || plan === 'cloud-only') throw error;
         recordLive('brain', 'cloud failed, answering on the phone', {
           reason: error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160),
         });
+      } finally {
+        options.turn?.signal?.removeEventListener('abort', onAbort);
+        if (cloudAbort.current === abort) cloudAbort.current = null;
       }
     }
 
+    if (options.turn?.signal?.aborted) throw new Error('TURN_CANCELLED');
+    if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
     const runtime = await getRuntime();
-    const result = await runtime.runCompletion({ messages, mode, onToken });
+    const result = await runtime.runCompletion({ messages, mode, onToken, signal: options.turn?.signal, deadlineAt: options.turn?.deadlineAt, maxTokens: options.spoken && mode === 'fast' ? 128 : undefined });
     setLastMetrics(result.metrics);
     return { ...result, source: 'local' as AnswerSource };
   }, [
@@ -650,6 +651,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   ]);
 
   const stopGeneration = useCallback(async () => {
+    cloudAbort.current?.abort();
     const runtime = await getRuntime();
     await runtime.stopGeneration();
   }, []);

@@ -59,8 +59,15 @@ describe('think leak — the token stream', () => {
 
 describe('think leak — the screen', () => {
   it('handles nested, stray and case-varied tags', () => {
-    expect(stripThinking('<THINK>a<think>b</think>c</THINK>Answer')).not.toMatch(/think/i);
+    expect(stripThinking('<THINK>a<think>b</think>c</THINK>Answer')).toBe('Answer');
     expect(stripThinking('Answer</think>')).toBe('Answer');
     expect(stripThinking('No tags at all.')).toBe('No tags at all.');
   });
+});
+
+
+it('keeps nested reasoning hidden when both tags arrive in separate chunks', () => {
+  const filter = createThinkFilter();
+  const chunks = ['<think>outer<th', 'ink>inner</think>outer secret</thi', 'nk>Visible.'];
+  expect(chunks.map((token) => filter.push(token)).join('') + filter.end()).toBe('Visible.');
 });

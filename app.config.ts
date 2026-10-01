@@ -5,13 +5,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'JARVIS ROG',
   slug: 'smiley',
   owner: 'smiley007s-team',
-  version: '0.4.0',
+  version: '0.4.1',
   orientation: 'portrait',
   scheme: 'jarvisrog',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
+    versionCode: 2026093001,
     permissions: [
       'INTERNET',
       'RECORD_AUDIO',

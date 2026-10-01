@@ -101,6 +101,7 @@ export default function JarvisHud() {
   // finishes, the owner can reply for a few seconds without the wake word.
   const followUpRef = useRef(false);
   const [speaking, setSpeaking] = useState(false);
+  const [playing, setPlaying] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainBusy, setBrainBusy] = useState(false);
   // Which brain produced the last answer — shown so the owner always knows
@@ -139,6 +140,11 @@ export default function JarvisHud() {
   const coreSize = Math.round(Math.min(width, height) * 0.82);
 
   useEffect(() => session.setConnectivity(connectivity), [connectivity, session]);
+  useEffect(() => () => {
+    session.cancel('user');
+    speechEpochRef.current += 1;
+    void stopSpeaking();
+  }, [session]);
 
   /** The first audible moment of the current turn's answer. */
   function markFirstAudio() {
@@ -153,8 +159,10 @@ export default function JarvisHud() {
     onSpeakingChange: (speaking) => {
       speakingRef.current = speaking;
       setSpeaking(speaking);
-      if (speaking) markFirstAudio();
     },
+    // Neural activity follows scheduled playback, not synthesis. Its engine
+    // exposes no audible-start callback, so do not invent a firstAudio timing.
+    onPlaybackChange: setPlaying,
   });
 
   useChargeReminder({
@@ -181,13 +189,14 @@ export default function JarvisHud() {
     const release = () => {
       speakingRef.current = false;
       setSpeaking(false);
+      setPlaying(false);
     };
     const failed = (error?: unknown) => {
       recordLive('error', 'system voice failed', { error: error === undefined ? null : errorMessage(error) });
       release();
     };
     void speakResponse(text, language, {
-      onStart: markFirstAudio,
+      onStart: () => { setPlaying(true); markFirstAudio(); },
       onDone: release,
       onError: failed,
     }).catch(failed);
@@ -257,6 +266,23 @@ export default function JarvisHud() {
     // Tools share a short deadline (4 s requests, one retry); a spoken answer
     // from the phone's brain can legitimately take minutes, so it gets room.
     const turn = session.beginTurn(route ? 15_000 : 300_000);
+    const onTurnAbort = () => {
+      if (turn.signal.reason !== 'deadline' && Date.now() < turn.deadlineAt) return;
+      speechEpochRef.current += 1;
+      pendingSystemSegmentsRef.current = 0;
+      neural.stop();
+      void stopSpeaking();
+      void jarvis.stopGeneration().catch(() => undefined);
+      busyRef.current = false;
+      speakingRef.current = false;
+      setBusy(false);
+      setSpeaking(false);
+      setPlaying(false);
+      setToolRunning(false);
+      setWatching(false);
+      setResponse(jarvis.settings.language === 'ar' ? 'انتهت مهلة الطلب. حاول مرة أخرى.' : 'That request timed out. Please try again.');
+    };
+    turn.signal.addEventListener('abort', onTurnAbort, { once: true });
     const timer = new StageTimer();
     timerRef.current = timer;
     if (speechEndRef.current !== null) timer.mark('speechEnd', speechEndRef.current);
@@ -321,7 +347,15 @@ export default function JarvisHud() {
       setSpeaking(true);
       pendingSystemSegmentsRef.current += segments.length;
       for (const segment of segments) {
-        void speakQueued(segment, jarvis.settings.language, { onStart: filler ? undefined : markFirstAudio }).then(() => {
+        void speakQueued(segment, jarvis.settings.language, {
+          onStart: () => {
+            if (speechEpochRef.current !== epoch) return;
+            setPlaying(true);
+            if (!filler) markFirstAudio();
+          },
+          onDone: () => { if (speechEpochRef.current === epoch) setPlaying(false); },
+          onError: () => { if (speechEpochRef.current === epoch) setPlaying(false); },
+        }).then(() => {
           // A newer answer, or a halt, has already taken over the speaker.
           if (speechEpochRef.current !== epoch) return;
           pendingSystemSegmentsRef.current -= 1;
@@ -329,6 +363,7 @@ export default function JarvisHud() {
           pendingSystemSegmentsRef.current = 0;
           speakingRef.current = false;
           setSpeaking(false);
+      setPlaying(false);
         });
       }
     };
@@ -363,7 +398,7 @@ export default function JarvisHud() {
         // be heard: short spoken sentences, no markdown for the synthesiser to
         // stumble over. A neural voice reading a bulleted essay still sounds
         // like a machine.
-        { spoken: voiceOut, turn: { signal: turn.signal, deadlineAt: turn.deadlineAt } },
+        { spoken: voiceOut, turn: { signal: turn.signal, deadlineAt: turn.deadlineAt, reserveTool: () => session.reserveTool(turn.turnId), reserveRead: () => session.reserveRead(turn.turnId) } },
       );
       // A late answer from a cancelled or superseded turn is discarded, never spoken.
       if (!session.isCurrent(turn.turnId)) {
@@ -432,6 +467,7 @@ export default function JarvisHud() {
         Alert.alert('JARVIS error', message);
       }
     } finally {
+      turn.signal.removeEventListener('abort', onTurnAbort);
       clearTimeout(fillerTimer);
       // Clear the typed command whatever happened: old words must not linger.
       setInput('');
@@ -469,6 +505,7 @@ export default function JarvisHud() {
     setInterruptedTick((n) => n + 1);
     speakingRef.current = false;
     setSpeaking(false);
+    setPlaying(false);
     awakeUntilRef.current = 0;
     // Retire the current answer's speech epoch first: segments already queued
     // resolve into a stale epoch and are dropped instead of resuming after the
@@ -806,7 +843,7 @@ export default function JarvisHud() {
             interrupted={interruptedTick}
             offline={connectivity !== 'online'}
             showLabel={jarvis.settings.coreLabels}
-            speaking={speaking}
+            speaking={playing}
             transcribing={voice.state === 'TRANSCRIBING'}
             throttled={(jarvis.powerReading?.state.thermalStatus ?? 0) >= 2}
           />

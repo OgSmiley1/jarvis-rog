@@ -32,4 +32,6 @@ export interface ToolDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
 export interface ToolRunContext {
   signal?: AbortSignal;
   deadlineAt?: number;
+  reserveTool?: () => boolean;
+  reserveRead?: () => (() => void) | null;
 }

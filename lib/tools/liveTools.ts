@@ -48,7 +48,7 @@ export function setLiveFetch(fetchImpl: LiveDeps['fetchImpl']): void {
 }
 
 function deps(context?: ToolRunContext): LiveDeps {
-  return { policy: settingsReader().policy, fetchImpl: fetchOverride, signal: context?.signal, deadlineAt: context?.deadlineAt };
+  return { policy: settingsReader().policy, fetchImpl: fetchOverride, signal: context?.signal, deadlineAt: context?.deadlineAt, reserveRead: context?.reserveRead };
 }
 
 const lang = z.enum(['en', 'ar']).default('en');
