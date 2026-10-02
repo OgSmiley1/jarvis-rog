@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MAX_TOOL_OPS, VoiceSessionController, canTransition } from '@/lib/voice/voiceSession';
 import { StageTimer, distribution, formatLatencyReport, latencyReport, percentile, recordTurn, resetLatency } from '@/lib/telemetry/stageTimer';
 
@@ -146,4 +146,32 @@ describe('stage timer', () => {
     expect(row).toMatchObject({ scenario: 'local-command|warm|en', n: 3, median: 500, enough: false });
     expect(formatLatencyReport()).toContain('need 30');
   });
+});
+
+
+it('actively aborts a stuck turn at its deadline without waiting for a result', () => {
+  vi.useFakeTimers();
+  try {
+    const session = new VoiceSessionController();
+    const turn = session.beginTurn(100);
+    vi.advanceTimersByTime(100);
+    expect(turn.signal.aborted).toBe(true);
+    expect(session.snapshot()).toMatchObject({ turnId: null, state: 'error' });
+  } finally { vi.useRealTimers(); }
+});
+
+it('clears deadline timers when a turn finishes or is superseded', () => {
+  vi.useFakeTimers();
+  try {
+    const session = new VoiceSessionController();
+    const first = session.beginTurn(100);
+    session.endTurn(first.turnId);
+    expect(vi.getTimerCount()).toBe(0);
+    session.beginTurn(100);
+    const latest = session.beginTurn(1000);
+    vi.advanceTimersByTime(200);
+    expect(latest.signal.aborted).toBe(false);
+    session.endTurn(latest.turnId);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
 });

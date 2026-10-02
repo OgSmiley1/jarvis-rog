@@ -20,7 +20,8 @@ export function useConnectivity(): Connectivity {
     void import('expo-network')
       .then(async (Network) => {
         const state = await Network.getNetworkStateAsync();
-        if (alive) setValue(connectivityFrom(state));
+        if (!alive) return;
+        setValue(connectivityFrom(state));
         sub = Network.addNetworkStateListener((next) => alive && setValue(connectivityFrom(next)));
       })
       // No network module (older build): assume online and let requests say otherwise.

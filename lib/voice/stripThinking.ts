@@ -4,12 +4,8 @@
  * Deliberately dumb: only strips explicit tags, never guesses at prose.
  */
 export function stripThinking(text: string): string {
-  let out = text;
-  out = out.replace(/<think>[\s\S]*?<\/think>/gi, '');
-  out = out.replace(/<think>[\s\S]*$/gi, '');
-  out = out.replace(/<\/think>/gi, '');
-  out = out.replace(/\n{3,}/g, '\n\n').trim();
-  return out;
+  const filter = createThinkFilter();
+  return (filter.push(text) + filter.end()).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 const OPEN = '<think>';
@@ -31,22 +27,29 @@ function partialTagTail(text: string, tag: string): number {
  * safe to show and speak now; `end` flushes what is left.
  */
 export function createThinkFilter() {
-  let inside = false;
+  let depth = 0;
   let pending = '';
 
   function drain(final: boolean): string {
     let visible = '';
     for (;;) {
       const lower = pending.toLowerCase();
-      if (inside) {
+      if (depth > 0) {
+        const open = lower.indexOf(OPEN);
         const close = lower.indexOf(CLOSE);
+        if (open !== -1 && (close === -1 || open < close)) {
+          depth += 1;
+          pending = pending.slice(open + OPEN.length);
+          continue;
+        }
         if (close === -1) {
-          // Keep only a possible partial "</think>" at the end; the rest is reasoning.
-          pending = final ? '' : pending.slice(pending.length - partialTagTail(pending, CLOSE));
+          // Nested tags can be split across tokens too.
+          const hold = Math.max(partialTagTail(pending, OPEN), partialTagTail(pending, CLOSE));
+          pending = final ? '' : pending.slice(pending.length - hold);
           return visible;
         }
         pending = pending.slice(close + CLOSE.length);
-        inside = false;
+        depth -= 1;
         continue;
       }
       const open = lower.indexOf(OPEN);
@@ -59,7 +62,7 @@ export function createThinkFilter() {
       if (open !== -1) {
         visible += pending.slice(0, open);
         pending = pending.slice(open + OPEN.length);
-        inside = true;
+        depth = 1;
         continue;
       }
       const hold = final ? 0 : Math.max(partialTagTail(pending, OPEN), partialTagTail(pending, CLOSE));

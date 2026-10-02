@@ -44,6 +44,10 @@ const ROG_RNLLAMA_VARIANTS = [
 ].join(',');
 
 const GRADLE_PROPERTIES = {
+  // rc.1's own gradle.properties defaults to true. Use the verified release
+  // engines instead of compiling the whole engine three times. Build commands
+  // also pin this property so it overrides dependency-local defaults.
+  rnllamaBuildFromSource: 'false',
   rnllamaVariants: ROG_RNLLAMA_VARIANTS,
   reactNativeArchitectures: 'arm64-v8a',
   'org.gradle.jvmargs': '-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8',

@@ -1,6 +1,6 @@
 {
   "name": "jarvis-rog",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prebuild:android": "expo prebuild --platform android --clean",
-    "verify": "pnpm check && pnpm lint && pnpm test",
+    "verify": "node scripts/verify-project.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "acceptance": "node scripts/acceptance-report.mjs",
     "ios": "expo run:ios",

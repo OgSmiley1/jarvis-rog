@@ -29,6 +29,7 @@ export interface LiveDeps {
   now?: () => number;
   signal?: AbortSignal;
   deadlineAt?: number;
+  reserveRead?: () => (() => void) | null;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -38,6 +39,7 @@ function base(deps: LiveDeps) {
     fetchImpl: deps.fetchImpl,
     signal: deps.signal,
     deadlineAt: deps.deadlineAt,
+    reserveRead: deps.reserveRead,
     now: deps.now,
     sleep: deps.sleep,
   };

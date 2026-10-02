@@ -36,6 +36,7 @@ export interface RequestOptions {
   fetchImpl?: FetchLike;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  reserveRead?: () => (() => void) | null;
 }
 
 export const DEFAULT_TIMEOUT_MS = 4_000;
@@ -44,6 +45,8 @@ const BREAKER_OPEN_MS = 60_000;
 const MAX_RESPONSE_CHARS = 512_000;
 
 const breakers = new Map<string, { failures: number; openUntil: number }>();
+const signalScopes = new WeakMap<AbortSignal, number>();
+let nextScope = 0;
 const inFlight = new Map<string, Promise<HttpResult<unknown>>>();
 
 export function resetHttpState(): void {
@@ -87,34 +90,45 @@ function looksOffline(error: unknown): boolean {
 async function attempt<T>(url: string, options: RequestOptions, timeoutMs: number): Promise<HttpResult<T>> {
   const fetchImpl = options.fetchImpl ?? (globalThis.fetch as FetchLike);
   const controller = new AbortController();
-  const onOuterAbort = () => controller.abort();
-  options.signal?.addEventListener('abort', onOuterAbort);
+  let rejectStopped: (error: Error) => void = () => undefined;
+  const stopped = new Promise<never>((_, reject) => { rejectStopped = reject; });
+  const onOuterAbort = () => {
+    controller.abort();
+    rejectStopped(new Error('cancelled'));
+  };
+  options.signal?.addEventListener('abort', onOuterAbort, { once: true });
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
+    rejectStopped(new Error('timeout'));
   }, timeoutMs);
-  try {
+  const request = async (): Promise<HttpResult<T>> => {
     const response = await fetchImpl(url, {
       method: options.method ?? 'GET',
       headers: { Accept: 'application/json', ...options.headers },
       body: options.body,
       signal: controller.signal,
     });
+    if (controller.signal.aborted) throw new Error('cancelled');
     const now = (options.now ?? Date.now)();
     if (response.status === 429) {
       return { ok: false, code: 'rate-limited', retryAfterMs: parseRetryAfter(response.headers.get('retry-after'), now) };
     }
-    if (response.status === 401 || response.status === 403) return { ok: false, code: 'invalid-input', detail: `HTTP ${response.status}` };
     if (response.status >= 400 && response.status < 500) return { ok: false, code: 'invalid-input', detail: `HTTP ${response.status}` };
     if (!response.ok) return { ok: false, code: 'unavailable', detail: `HTTP ${response.status}` };
     const text = await response.text();
+    if (controller.signal.aborted) throw new Error('cancelled');
     if (text.length > MAX_RESPONSE_CHARS) return { ok: false, code: 'unavailable', detail: 'response too large' };
     try {
       return { ok: true, data: JSON.parse(text) as T, status: response.status };
     } catch {
       return { ok: false, code: 'unavailable', detail: 'malformed JSON' };
     }
+  };
+  try {
+    if (options.signal?.aborted) return { ok: false, code: 'unavailable', detail: 'cancelled' };
+    return await Promise.race([request(), stopped]);
   } catch (error) {
     if (options.signal?.aborted) return { ok: false, code: 'unavailable', detail: 'cancelled' };
     if (timedOut) return { ok: false, code: 'timeout' };
@@ -133,14 +147,25 @@ async function run<T>(url: string, options: RequestOptions): Promise<HttpResult<
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const idempotent = (options.method ?? 'GET') === 'GET';
 
-  let result = await attempt<T>(url, options, timeoutMs);
-  if (!result.ok && idempotent && retryable(result.code) && !options.signal?.aborted && result.detail !== 'cancelled') {
+  const attemptBudget = () => Math.min(timeoutMs, (options.deadlineAt ?? Infinity) - now());
+  if (options.signal?.aborted) return { ok: false, code: 'unavailable', detail: 'cancelled' };
+  if (attemptBudget() <= 0) return { ok: false, code: 'timeout', detail: 'turn deadline' };
+  let result = await attempt<T>(url, options, attemptBudget());
+  if (!result.ok && idempotent && retryable(result.code) && !options.signal?.aborted && result.detail !== 'cancelled' && result.detail !== 'malformed JSON' && result.detail !== 'response too large') {
     const base = result.retryAfterMs ?? 400 + Math.floor(Math.random() * 300);
     const remaining = (options.deadlineAt ?? Infinity) - now();
     // Only retry when the wait plus a full attempt still fits the turn.
     if (base + timeoutMs <= remaining) {
-      await sleep(base);
-      if (!options.signal?.aborted) result = await attempt<T>(url, options, timeoutMs);
+      let abortWait: (() => void) | undefined;
+      const cancelled = new Promise<void>((resolve) => { abortWait = resolve; });
+      options.signal?.addEventListener('abort', abortWait!, { once: true });
+      try {
+        await Promise.race([sleep(base), cancelled]);
+      } finally {
+        options.signal?.removeEventListener('abort', abortWait!);
+      }
+      if (options.signal?.aborted) return { ok: false, code: 'unavailable', detail: 'cancelled' };
+      if (attemptBudget() > 0) result = await attempt<T>(url, options, attemptBudget());
     }
   }
   if (!(!result.ok && result.detail === 'cancelled')) noteOutcome(options.provider, result.ok, now());
@@ -158,17 +183,25 @@ export async function requestJson<T = unknown>(url: string, options: RequestOpti
   }
   if (breakerOpen(options.provider, now)) return { ok: false, code: 'unavailable', detail: 'circuit open' };
 
-  const idempotent = (options.method ?? 'GET') === 'GET';
-  if (!idempotent) return run<T>(url, options);
-  const existing = inFlight.get(url);
-  if (existing) {
-    const shared = (await existing) as HttpResult<T>;
-    // The request we joined belonged to a turn that was cancelled; ours was
-    // not, so it gets a fresh request rather than someone else's "cancelled".
-    if (!shared.ok && shared.detail === 'cancelled' && !options.signal?.aborted) return requestJson<T>(url, options);
-    return shared;
+  if (options.signal?.aborted) return { ok: false, code: 'unavailable', detail: 'cancelled' };
+  if (options.deadlineAt !== undefined && now >= options.deadlineAt) return { ok: false, code: 'timeout', detail: 'turn deadline' };
+  // Share reads only within the same cancellation/deadline/header scope. A new
+  // turn must not inherit a request aborted by the previous turn.
+  let scope = 0;
+  if (options.signal) {
+    scope = signalScopes.get(options.signal) ?? ++nextScope;
+    signalScopes.set(options.signal, scope);
   }
-  const pending = run<T>(url, options).finally(() => inFlight.delete(url));
-  inFlight.set(url, pending as Promise<HttpResult<unknown>>);
+  const key = JSON.stringify([options.provider, url, scope, options.deadlineAt, options.headers]);
+  const idempotent = (options.method ?? 'GET') === 'GET';
+  const existing = idempotent ? inFlight.get(key) : undefined;
+  if (existing) return existing as Promise<HttpResult<T>>;
+  const release = options.reserveRead?.();
+  if (options.reserveRead && !release) return { ok: false, code: 'unavailable', detail: 'read budget exceeded' };
+  const pending = run<T>(url, options).finally(() => {
+    release?.();
+    if (idempotent) inFlight.delete(key);
+  });
+  if (idempotent) inFlight.set(key, pending as Promise<HttpResult<unknown>>);
   return pending;
 }

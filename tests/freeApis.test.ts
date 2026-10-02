@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveCache, localDate, nextLocalMidnight } from '@/lib/net/cache';
 import { parseRetryAfter, requestJson, resetHttpState, type FetchLike } from '@/lib/net/http';
 import { PROVIDERS, checkProvider, isAllowanceExhausted, policyAudit, providerForUrl } from '@/lib/net/providerPolicy';
@@ -135,7 +135,7 @@ describe('http client', () => {
 
   it('flags malformed JSON', async () => {
     const net = fakeNet(() => new Response('<html>oops', { status: 200 }));
-    const result = await requestJson('https://api.open-meteo.com/v1/e', opts(net.fetchImpl, { deadlineAt: Date.now() }));
+    const result = await requestJson('https://api.open-meteo.com/v1/e', opts(net.fetchImpl, { deadlineAt: Date.now() + 100 }));
     expect(result).toMatchObject({ ok: false, code: 'unavailable', detail: 'malformed JSON' });
   });
 
@@ -143,14 +143,14 @@ describe('http client', () => {
     const net = fakeNet(() => {
       throw new TypeError('Network request failed');
     });
-    const result = await requestJson('https://api.open-meteo.com/v1/f', opts(net.fetchImpl, { deadlineAt: Date.now() }));
+    const result = await requestJson('https://api.open-meteo.com/v1/f', opts(net.fetchImpl, { deadlineAt: Date.now() + 100 }));
     expect(result).toMatchObject({ ok: false, code: 'offline' });
   });
 
   it('times out after the configured timeout', async () => {
     const hang: FetchLike = (_url, init) =>
       new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
-    const result = await requestJson('https://api.open-meteo.com/v1/g', opts(hang, { timeoutMs: 10, deadlineAt: Date.now() }));
+    const result = await requestJson('https://api.open-meteo.com/v1/g', opts(hang, { timeoutMs: 10, deadlineAt: Date.now() + 100 }));
     expect(result).toMatchObject({ ok: false, code: 'timeout' });
   });
 
@@ -394,5 +394,58 @@ describe('review fixes', () => {
     old.abort();
     expect(await first).toMatchObject({ ok: false, detail: 'cancelled' });
     expect(await second).toMatchObject({ ok: true, data: { n: 2 } });
+  });
+});
+
+describe('live HTTP turn isolation', () => {
+  const url = 'https://api.open-meteo.com/v1/test';
+  const options = { provider: 'open-meteo', policy: STRICT };
+
+  it('does not issue requests after a deadline has expired', async () => {
+    const fetchImpl = vi.fn<FetchLike>();
+    expect(await requestJson(url, { ...options, fetchImpl, deadlineAt: Date.now() - 1 })).toMatchObject({ ok: false, code: 'timeout' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('cancels a response-body read even when a transport ignores abort', async () => {
+    const abort = new AbortController();
+    const text = vi.fn(() => new Promise<string>(() => undefined));
+    const fetchImpl = vi.fn<FetchLike>(async () => ({ ok: true, status: 200, text } as unknown as Response));
+    const pending = requestJson(url, { ...options, fetchImpl, signal: abort.signal });
+    await vi.waitFor(() => expect(text).toHaveBeenCalled());
+    abort.abort();
+    expect(await pending).toMatchObject({ ok: false, detail: 'cancelled' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share a previous turn's request with the new turn", async () => {
+    const old = new AbortController();
+    const current = new AbortController();
+    let calls = 0;
+    const fetchImpl = vi.fn<FetchLike>(() => ++calls === 1
+      ? new Promise(() => undefined) : Promise.resolve(json({ fresh: true })));
+    const first = requestJson(url, { ...options, signal: old.signal, fetchImpl });
+    const second = requestJson(url, { ...options, signal: current.signal, fetchImpl });
+    old.abort();
+    expect(await first).toMatchObject({ ok: false, detail: 'cancelled' });
+    expect(await second).toMatchObject({ ok: true, data: { fresh: true } });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces read slots on the actual network path and releases them', async () => {
+    const { VoiceSessionController } = await import('@/lib/voice/voiceSession');
+    const session = new VoiceSessionController();
+    const turn = session.beginTurn();
+    let release!: (response: Response) => void;
+    const fetchImpl = vi.fn<FetchLike>(() => new Promise((resolve) => { release = resolve; }));
+    const context = { ...options, signal: turn.signal, reserveRead: () => session.reserveRead(turn.turnId), fetchImpl };
+    const a = requestJson(url + 'a', context);
+    const b = requestJson(url + 'b', context);
+    expect(await requestJson(url + 'c', context)).toMatchObject({ ok: false, detail: 'read budget exceeded' });
+    session.cancel();
+    await Promise.all([a, b]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    // The transport can finish later without delivering its obsolete result.
+    release(json({ old: true }));
   });
 });

@@ -47,10 +47,25 @@ describe('EAS build stays inside the 45-minute limit', () => {
     expect(loader).toContain('System.loadLibrary("rnllama_jni")');
   });
 
+  it('uses the pinned engines rather than silently rebuilding all engine variants', () => {
+    expect(plugin.GRADLE_PROPERTIES.rnllamaBuildFromSource).toBe('false');
+    const profile = JSON.parse(readFileSync(resolve(process.cwd(), 'eas.json'), 'utf8'));
+    expect(profile.build.preview.android.gradleCommand).toContain('-PrnllamaBuildFromSource=false');
+    expect(readFileSync(resolve(process.cwd(), 'scripts/build-android-apk.sh'), 'utf8')).toContain('-PrnllamaBuildFromSource=false');
+  });
+
   it('pins the ABI so a build that forgets the flag cannot fall back to four', () => {
     // The seven cancelled builds had no -PreactNativeArchitectures flag and
     // compiled armeabi-v7a, x86 and x86_64 as well.
     expect(plugin.GRADLE_PROPERTIES.reactNativeArchitectures).toBe('arm64-v8a');
+  });
+
+  it('excludes only engines without bridges in the ROG build', () => {
+    const config = readFileSync(resolve(process.cwd(), 'app.config.ts'), 'utf8');
+    for (const variant of kept) expect(config).not.toContain(`'**/lib${variant}.so'`);
+    for (const unused of ['rnllama_v8', 'rnllama_v8_2', 'rnllama_v8_2_dotprod', 'rnllama_v8_2_i8mm']) {
+      expect(config).toContain(`'**/lib${unused}.so'`);
+    }
   });
 
   it('is registered in the app config, so prebuild actually applies it', () => {

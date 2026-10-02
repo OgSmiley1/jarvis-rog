@@ -79,7 +79,7 @@ function controlledSynth() {
 describe('neural speech queue', () => {
   it('never runs two syntheses at once, because Kokoro refuses that', async () => {
     const synth = controlledSynth();
-    const { player } = fakePlayer();
+    const { player, scheduled } = fakePlayer();
     const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player, fallback: async () => undefined });
 
     queue.enqueue('One.');
@@ -90,6 +90,9 @@ describe('neural speech queue', () => {
 
     await synth.release();
     await synth.release();
+    expect(synth.calls).toEqual(['One.', 'Two.']);
+    expect(scheduled).toHaveLength(2);
+    scheduled[0]!.end();
     await synth.release();
     expect(synth.calls).toEqual(['One.', 'Two.', 'Three.']);
     expect(synth.maxConcurrent()).toBe(1);
@@ -229,4 +232,33 @@ describe('neural speech queue', () => {
     expect(synth.calls).toEqual([]);
     expect(queue.isSpeaking).toBe(false);
   });
+});
+
+
+it('waits for an abandoned synthesis before starting the next turn', async () => {
+  const synth = controlledSynth();
+  const audio = fakePlayer();
+  const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player: audio.player, fallback: async () => undefined });
+  queue.enqueue('Old.');
+  queue.stop();
+  queue.enqueue('New.');
+  expect(synth.calls).toEqual(['Old.']);
+  await synth.release();
+  expect(synth.calls).toEqual(['Old.', 'New.']);
+  await synth.release();
+  expect(synth.maxConcurrent()).toBe(1);
+  expect(audio.scheduled).toHaveLength(1);
+});
+
+it('playback activity excludes synthesis-only time', async () => {
+  const synth = controlledSynth();
+  const audio = fakePlayer();
+  const playing: boolean[] = [];
+  const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player: audio.player, fallback: async () => undefined, onPlaybackChange: (value) => playing.push(value) });
+  queue.enqueue('Hi.');
+  expect(playing).toEqual([]);
+  await synth.release();
+  expect(playing).toEqual([true]);
+  audio.scheduled[0]!.end();
+  expect(playing).toEqual([true, false]);
 });

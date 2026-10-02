@@ -26,6 +26,7 @@ export interface UseNeuralVoiceOptions {
   enabled: boolean;
   language: 'en' | 'ar';
   onSpeakingChange?: (speaking: boolean) => void;
+  onPlaybackChange?: (playing: boolean) => void;
 }
 
 export interface NeuralVoiceController {
@@ -39,7 +40,7 @@ export interface NeuralVoiceController {
   stop: () => void;
 }
 
-export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeuralVoiceOptions): NeuralVoiceController {
+export function useNeuralVoice({ enabled, language, onSpeakingChange, onPlaybackChange }: UseNeuralVoiceOptions): NeuralVoiceController {
   ensureExecutorch();
 
   const usable = enabled && language === 'en';
@@ -55,6 +56,8 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
   ttsRef.current = tts;
   const speakingCallbackRef = useRef(onSpeakingChange);
   speakingCallbackRef.current = onSpeakingChange;
+  const playbackCallbackRef = useRef(onPlaybackChange);
+  playbackCallbackRef.current = onPlaybackChange;
 
   const contextRef = useRef<AudioContext | null>(null);
   const queueRef = useRef<NeuralSpeechQueue | null>(null);
@@ -106,6 +109,7 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
       // A sentence Kokoro cannot synthesise is still spoken, by the phone's voice.
       fallback: (text) => speakQueued(text, 'en'),
       onSpeakingChange: (speaking) => speakingCallbackRef.current?.(speaking),
+      onPlaybackChange: (playing) => playbackCallbackRef.current?.(playing),
     });
     return queueRef.current;
   }, []);
