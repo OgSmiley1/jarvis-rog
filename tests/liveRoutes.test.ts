@@ -98,3 +98,24 @@ describe('local QR', () => {
     expect(makeQr('x'.repeat(5000))).toBeNull();
   });
 });
+
+import { followUpCommand } from '@/lib/tools/liveRoutes';
+
+describe('reminders and follow-ups', () => {
+  it('remind me in … sets a labelled timer', () => {
+    expect(call('remind me in 10 minutes to stretch')).toMatchObject({ tool: 'local.timer', arguments: { seconds: 600, label: 'stretch' } });
+    expect(call('ذكرني بعد ٥ دقائق')).toMatchObject({ tool: 'local.timer', arguments: { seconds: 300 } });
+  });
+
+  it('a short follow-up stays on the last live tool', () => {
+    const weather = { tool: 'live.weather' as const, city: 'Ajman' };
+    expect(followUpCommand('and tomorrow?', weather)).toBe('weather in Ajman tomorrow');
+    expect(call(followUpCommand('and tomorrow?', weather)!)).toMatchObject({ tool: 'live.weather', arguments: { city: 'ajman', day: 'tomorrow' } });
+    expect(call(followUpCommand('what about Dubai', weather)!)).toMatchObject({ tool: 'live.weather', arguments: { city: 'dubai' } });
+    expect(call(followUpCommand('وبكرة؟', weather)!)?.tool).toBe('live.weather');
+    expect(call(followUpCommand('and tomorrow', { tool: 'live.prayer' })!)).toMatchObject({ tool: 'live.prayer', arguments: { all: true, tomorrow: true } });
+    expect(followUpCommand('what about you', weather)).toBeNull();
+    expect(followUpCommand('and tomorrow?', null)).toBeNull();
+    expect(followUpCommand('tell me a story', weather)).toBeNull();
+  });
+});

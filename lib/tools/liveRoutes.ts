@@ -145,6 +145,12 @@ export function routeLive(trimmed: string, normalized: string): LiveRoute | null
 
   // ── Timers and alarms ─────────────────────────────────────────────────
   if (/^(?:show|open)\s+(?:my\s+)?timers?$/.test(n) || /^(?:افتح|اعرض)\s+المؤقتات$/u.test(trimmed)) return route('local.show_timers', { lang });
+  // "remind me in 10 minutes to stretch" → a Clock-app timer labelled with the task.
+  const remind = /^remind\s+me\s+in\s+(.+?)(?:\s+to\s+(.+))?$/.exec(n) ?? /^(?:ذكرني|ذكّرني|نبهني)\s+(?:بعد|خلال)\s+(.+?)(?:\s+(?:عشان|ل|أن|ان)\s+(.+))?$/u.exec(trimmed);
+  if (remind?.[1]) {
+    const seconds = parseDuration(remind[1]);
+    if (seconds) return route('local.timer', { seconds, label: (remind[2] ?? 'JARVIS').slice(0, 60), lang });
+  }
   if (/\btimer\b|مؤقت|تايمر/u.test(n)) {
     const seconds = parseDuration(trimmed);
     if (seconds) return route('local.timer', { seconds, lang });
@@ -170,5 +176,35 @@ export function routeLive(trimmed: string, normalized: string): LiveRoute | null
     if (panel) return route('device.settings_panel', { panel: panel[1], lang });
   }
 
+  return null;
+}
+
+/** The last live answer, so a short follow-up can stay on the same tool. */
+export interface LiveContext {
+  tool: 'live.weather' | 'live.prayer';
+  city?: string;
+}
+
+/**
+ * "and tomorrow?", "what about Dubai?", «وبكرة؟», «وفي دبي؟» right after a
+ * weather or prayer answer → the full command, so it takes the same tool
+ * route instead of going to the brain. Null when the text is not a follow-up.
+ */
+export function followUpCommand(text: string, last: LiveContext | null): string | null {
+  if (!last) return null;
+  const t = text.trim().replace(/^(?:jarvis|جارفيس)[\s,]*/iu, '').replace(/[?؟.!]+$/u, '').trim();
+  const ar = /[\u0600-\u06FF]/.test(t);
+  const lower = t.toLowerCase();
+  const what = last.tool === 'live.weather' ? (ar ? 'الطقس' : 'weather') : ar ? 'مواقيت الصلاة' : 'prayer times';
+  const inCity = (city?: string) => (city ? (ar ? ` في ${city}` : ` in ${city}`) : '');
+
+  if (/^(?:and|what about|how about)\s+tomorrow$/.test(lower) || /^(?:و\s*)?(?:بكرة|بكره|غدا|غدًا|باكر)$/u.test(t)) {
+    return `${what}${inCity(last.city)} ${ar ? 'بكرة' : 'tomorrow'}`;
+  }
+  if (/^(?:and|what about|how about)\s+today$/.test(lower) || /^(?:و\s*)?(?:اليوم)$/u.test(t)) {
+    return `${what}${inCity(last.city)}`;
+  }
+  const city = /^(?:and|what about|how about)\s+(?:in\s+)?([a-z][a-z .'-]{1,40})$/.exec(lower)?.[1] ?? /^(?:و\s*)?(?:في|ب)\s*([^\s].{0,40})$/u.exec(t)?.[1];
+  if (city && !/^(?:you|me|it|that|this|him|her|them)$/.test(city.trim())) return `${what}${inCity(city.trim())}`;
   return null;
 }

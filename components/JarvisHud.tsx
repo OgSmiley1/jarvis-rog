@@ -15,6 +15,7 @@ import { appendExchange } from '@/lib/hud/conversation';
 import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
+import { followUpCommand, type LiveContext } from '@/lib/tools/liveRoutes';
 import { ECHO_SAFE, bargeInDecision, haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
 import { FILLER_AFTER_MS, thinkingFiller } from '@/lib/voice/thinkingFiller';
@@ -71,6 +72,9 @@ function extrasFrom(data: unknown): ToolExtras {
     stale: value.stale === true,
   };
 }
+
+/** How long a weather/prayer answer stays the context for "and tomorrow?". */
+const FOLLOW_UP_LIVE_MS = 120_000;
 
 /** How long after JARVIS finishes speaking a reply is heard without the wake word. */
 const FOLLOW_UP_MS = 8_000;
@@ -129,6 +133,7 @@ export default function JarvisHud() {
   const timerRef = useRef<StageTimer | null>(null);
   const speechEndRef = useRef<number | null>(null);
   const lastSpeechEndRef = useRef<number | null>(null);
+  const lastLiveRef = useRef<(LiveContext & { at: number }) | null>(null);
   const [sheet, setSheet] = useState<'none' | 'menu' | 'history'>('none');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [extras, setExtras] = useState<ToolExtras>({});
@@ -207,6 +212,9 @@ export default function JarvisHud() {
     // and queued speech are cancelled before this one starts.
     if (busyRef.current) {
       session.cancel('superseded');
+      // The Core shows it: a warp and a brief contraction, then the new turn.
+      setInterruptedTick((n) => n + 1);
+      recordLive('halt', 'superseded by a new command');
       speechEpochRef.current += 1;
       pendingSystemSegmentsRef.current = 0;
       neural.stop();
@@ -252,8 +260,16 @@ export default function JarvisHud() {
 
     // The deterministic router is the same function `ask` consults first, so
     // this reports the path the request will actually take rather than a guess.
-    const route = routeDeterministicTool(command);
+    // A short follow-up ("and tomorrow?", "what about Dubai?") right after a
+    // weather or prayer answer becomes the full command, so it stays on the tool.
+    const lastLive = lastLiveRef.current && Date.now() - lastLiveRef.current.at < FOLLOW_UP_LIVE_MS ? lastLiveRef.current : null;
+    const asked = followUpCommand(command, lastLive) ?? command;
+    const route = routeDeterministicTool(asked);
     const deterministic = Boolean(route);
+    if (route && (route.call.tool === 'live.weather' || route.call.tool === 'live.prayer')) {
+      const city = typeof route.call.arguments.city === 'string' ? route.call.arguments.city : lastLive?.city;
+      lastLiveRef.current = { tool: route.call.tool, city, at: Date.now() };
+    }
     // Tools share a short deadline (4 s requests, one retry); a spoken answer
     // from the phone's brain can legitimately take minutes, so it gets room.
     const turn = session.beginTurn(route ? 15_000 : 300_000);
@@ -346,7 +362,7 @@ export default function JarvisHud() {
 
     try {
       const result = await jarvis.ask(
-        command,
+        asked,
         turnMode,
         (token) => {
           // Tokens from a turn the owner has already moved on from are dropped.
@@ -443,7 +459,8 @@ export default function JarvisHud() {
       // superseded turn finishing late must not unset the new one's "busy".
       const current = session.snapshot().turnId;
       if (current === turn.turnId || current === null) {
-        session.endTurn(turn.turnId, voiceOut ? 'speaking' : 'idle');
+        // Speaking is tracked by the voice itself (setSpeaking), not assumed here.
+        session.endTurn(turn.turnId, 'idle');
         busyRef.current = false;
         setBusy(false);
         setToolRunning(false);

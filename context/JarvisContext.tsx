@@ -16,7 +16,7 @@ import {
 import { BACKUP_FILE, buildBackup, parseBackup, shouldRestore } from '@/lib/storage/backup';
 import { selectMemoryContext, formatMemoryContext } from '@/lib/memory/retriever';
 import { buildProjectContinuity, deriveProjectFields, formatProjectContinuity } from '@/lib/memory/projectContinuity';
-import { buildMessages } from '@/lib/inference/promptBuilder';
+import { buildMessages, situationLine } from '@/lib/inference/promptBuilder';
 import { readDevicePowerState, type PowerStateReading } from '@/lib/device/powerState';
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
@@ -569,6 +569,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }
 
     const boundedConversation = conversation.slice(-12);
+    const situation = situationLine(new Date(), settings.homeCity ?? 'Ajman', settings.language);
     const messages = buildMessages({
       mode,
       // The Settings language toggle previously only changed the TTS voice, so
@@ -580,6 +581,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       conversation: boundedConversation,
       userMessage: text,
       spoken: options.spoken ?? false,
+      situation,
     });
 
     // By default a loaded local brain always answers and the cloud is only for
@@ -606,6 +608,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
               conversation: boundedConversation,
               userMessage: text,
               spoken: options.spoken ?? false,
+              // Date and time are not personal; the home city stays on the phone.
+              situation: situationLine(new Date(), undefined, settings.language),
             });
         const answer = await askCloud({
           messages: cloudMessages,

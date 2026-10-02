@@ -98,18 +98,74 @@ export class LiveCache {
 
 export const liveCache = new LiveCache();
 
-/** Calendar date (YYYY-MM-DD) of `now` in `timeZone`; device local time if the zone is unusable. */
-export function localDate(now: number, timeZone?: string): string {
-  if (timeZone) {
+/**
+ * Standard UTC offsets (minutes) for the zones JARVIS knows by name. Used only
+ * when the platform's Intl cannot format a zone: none of the Gulf zones use
+ * daylight saving, so for them this is exact.
+ */
+const FIXED_OFFSETS: Record<string, number> = {
+  'Asia/Dubai': 240,
+  'Asia/Muscat': 240,
+  'Asia/Riyadh': 180,
+  'Asia/Qatar': 180,
+  'Asia/Kuwait': 180,
+  'Asia/Bahrain': 180,
+  'Africa/Khartoum': 120,
+};
+
+export interface ZoneParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+let intlWorks: boolean | null = null;
+
+/**
+ * Wall-clock date and time of `now` in `timeZone`.
+ *
+ * Reads Intl through formatToParts (which Hermes implements) rather than
+ * trusting a locale's default pattern, so it cannot be fooled by "30/09/2026"
+ * vs "2026-09-30". If the zone cannot be formatted, a fixed offset for the
+ * known DST-free zones is used; otherwise the phone's own zone.
+ */
+export function zoneParts(now: number, timeZone?: string, useIntl = true): ZoneParts {
+  if (timeZone && useIntl && intlWorks !== false) {
     try {
-      const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
-      if (/^\d{4}-\d{2}-\d{2}$/.test(parts)) return parts;
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+      }).formatToParts(new Date(now));
+      const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+      const result = { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24, minute: get('minute') };
+      if (Object.values(result).every(Number.isFinite) && result.year > 2000) {
+        intlWorks = true;
+        return result;
+      }
     } catch {
-      // Fall through to the device's own zone.
+      // Unknown zone, or no Intl zone data on this engine: fall through.
     }
   }
+  const offset = timeZone ? FIXED_OFFSETS[timeZone] : undefined;
+  if (offset !== undefined) {
+    const d = new Date(now + offset * 60_000);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(), hour: d.getUTCHours(), minute: d.getUTCMinutes() };
+  }
   const d = new Date(now);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes() };
+}
+
+/** Calendar date (YYYY-MM-DD) of `now` in `timeZone`. */
+export function localDate(now: number, timeZone?: string, useIntl = true): string {
+  const p = zoneParts(now, timeZone, useIntl);
+  return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
 /**

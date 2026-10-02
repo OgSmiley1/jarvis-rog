@@ -359,3 +359,40 @@ describe('places and news', () => {
     expect(net.calls).toHaveLength(0);
   });
 });
+
+import { zoneParts } from '@/lib/net/cache';
+import { looksLikeToolRequest } from '@/lib/tools/planner';
+
+describe('review fixes', () => {
+  it('zone time without Intl falls back to the fixed Gulf offset, never the device zone', () => {
+    const t = Date.UTC(2026, 8, 30, 21, 30); // 01:30 on 1 Oct in Dubai
+    expect(zoneParts(t, 'Asia/Dubai', false)).toMatchObject({ year: 2026, month: 10, day: 1, hour: 1, minute: 30 });
+    expect(zoneParts(t, 'Asia/Riyadh', false)).toMatchObject({ day: 1, hour: 0 });
+    expect(zoneParts(t, 'Asia/Dubai')).toEqual(zoneParts(t, 'Asia/Dubai', false));
+  });
+
+  it('natural phrasing of live requests reaches the tool planner', () => {
+    for (const text of ['is it going to be humid this weekend over in Sharjah', 'remind me in ten minutes to stretch', 'what did the news say about the Expo', 'هل الجو حار في العين']) {
+      expect(looksLikeToolRequest(text)).toBe(true);
+    }
+    expect(looksLikeToolRequest('tell me about the history of Ajman')).toBe(false);
+  });
+
+  it('a cancelled turn sharing a request does not hand "cancelled" to the next turn', async () => {
+    let calls = 0;
+    const slow: FetchLike = (_url, init) =>
+      new Promise((resolve, reject) => {
+        calls += 1;
+        const n = calls;
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        setTimeout(() => resolve(json({ n })), 20);
+      });
+    const old = new AbortController();
+    const opts = { provider: 'open-meteo', policy: STRICT, fetchImpl: slow, sleep: async () => undefined };
+    const first = requestJson('https://api.open-meteo.com/v1/race', { ...opts, signal: old.signal });
+    const second = requestJson<{ n: number }>('https://api.open-meteo.com/v1/race', opts);
+    old.abort();
+    expect(await first).toMatchObject({ ok: false, detail: 'cancelled' });
+    expect(await second).toMatchObject({ ok: true, data: { n: 2 } });
+  });
+});

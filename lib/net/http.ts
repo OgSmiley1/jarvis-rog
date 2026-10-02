@@ -161,7 +161,13 @@ export async function requestJson<T = unknown>(url: string, options: RequestOpti
   const idempotent = (options.method ?? 'GET') === 'GET';
   if (!idempotent) return run<T>(url, options);
   const existing = inFlight.get(url);
-  if (existing) return existing as Promise<HttpResult<T>>;
+  if (existing) {
+    const shared = (await existing) as HttpResult<T>;
+    // The request we joined belonged to a turn that was cancelled; ours was
+    // not, so it gets a fresh request rather than someone else's "cancelled".
+    if (!shared.ok && shared.detail === 'cancelled' && !options.signal?.aborted) return requestJson<T>(url, options);
+    return shared;
+  }
   const pending = run<T>(url, options).finally(() => inFlight.delete(url));
   inFlight.set(url, pending as Promise<HttpResult<unknown>>);
   return pending;

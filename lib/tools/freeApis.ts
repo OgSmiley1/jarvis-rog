@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { HOUR, MINUTE, liveCache, localDate, nextLocalMidnight, type LiveCache } from '@/lib/net/cache';
+import { HOUR, MINUTE, liveCache, localDate, nextLocalMidnight, zoneParts, type LiveCache } from '@/lib/net/cache';
 import { requestJson, type FailureCode, type FetchLike } from '@/lib/net/http';
 import { PROVIDERS, type PolicySettings } from '@/lib/net/providerPolicy';
 import { findKnownCity, type City } from './cities';
@@ -273,14 +273,8 @@ const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.
 
 /** The next of the five prayers after `now`, or null when Isha has passed (ask tomorrow's). */
 export function nextPrayer(schedule: PrayerSchedule, now: number): { prayer: Prayer; time: string } | null {
-  let local: string;
-  try {
-    local = new Intl.DateTimeFormat('en-GB', { timeZone: schedule.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(now));
-  } catch {
-    const d = new Date(now);
-    local = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-  const current = minutesOf(local);
+  const p = zoneParts(now, schedule.timezone);
+  const current = p.hour * 60 + p.minute;
   for (const prayer of PRAYERS) {
     if (prayer === 'Sunrise') continue;
     if (minutesOf(schedule.times[prayer]) > current) return { prayer, time: schedule.times[prayer] };
