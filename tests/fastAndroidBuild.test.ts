@@ -60,6 +60,14 @@ describe('EAS build stays inside the 45-minute limit', () => {
     expect(plugin.GRADLE_PROPERTIES.reactNativeArchitectures).toBe('arm64-v8a');
   });
 
+  it('excludes only engines without bridges in the ROG build', () => {
+    const config = readFileSync(resolve(process.cwd(), 'app.config.ts'), 'utf8');
+    for (const variant of kept) expect(config).not.toContain(`'**/lib${variant}.so'`);
+    for (const unused of ['rnllama_v8', 'rnllama_v8_2', 'rnllama_v8_2_dotprod', 'rnllama_v8_2_i8mm']) {
+      expect(config).toContain(`'**/lib${unused}.so'`);
+    }
+  });
+
   it('is registered in the app config, so prebuild actually applies it', () => {
     const appConfig = readFileSync(resolve(process.cwd(), 'app.config.ts'), 'utf8');
     expect(appConfig).toContain('./plugins/withFastAndroidBuild');
