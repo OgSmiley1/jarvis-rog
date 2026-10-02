@@ -4,6 +4,7 @@ import { Canvas, Circle, DashPathEffect, Group, RadialGradient, useClock, vec } 
 import type { HudState } from '@/lib/hud/hudState';
 import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, interactionFor, readoutFor } from '@/lib/core/CorePresets';
 import { useCoreController } from '@/lib/core/useCoreController';
+import { CoreErrorBoundary } from './CoreErrorBoundary';
 import { CORE_RED, CORE_TEAL, DottedRings, Hub, RadialSpokes, Readouts, Sweep, TealArcs, WarpParticles, staticRingRadii } from './core-layers';
 
 /** Kept as an alias so existing imports of `OrbState` continue to resolve. */
@@ -119,7 +120,9 @@ export function JarvisOrb({
 
   const body = (
     <View style={{ width: size, height: size }} pointerEvents="none">
-      {canvas}
+      <CoreErrorBoundary size={size} state={state}>
+        {canvas}
+      </CoreErrorBoundary>
       {offline && !compact ? <View style={[styles.offlineDot, { top: c + size * 0.07, left: c - 2 }]} /> : null}
     </View>
   );
