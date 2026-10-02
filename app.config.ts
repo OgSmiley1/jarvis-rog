@@ -89,6 +89,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           targetSdkVersion: 36,
           minSdkVersion: 24,
           usesCleartextTraffic: true,
+          // Compress JNI libraries for download; Android extracts them on install.
+          useLegacyPackaging: true,
         },
       },
     ],
