@@ -133,3 +133,12 @@ export function describeDownload(status: NativeDownloadStatus): DownloadView {
       return { progress, done: false, failed: false };
   }
 }
+
+/**
+ * After "All files access" is granted on a fresh install, the brain that was
+ * in Download/JARVIS all along becomes visible. Load it then — unless a brain
+ * is already running or loading.
+ */
+export function shouldLoadAfterAccess(modelStatus: string, brainFound: boolean): boolean {
+  return brainFound && modelStatus !== 'ready' && modelStatus !== 'loading';
+}

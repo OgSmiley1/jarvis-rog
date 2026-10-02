@@ -47,3 +47,24 @@ describe('the brain is found wherever it was saved', () => {
     expect(pickInstalledModel(brainCandidates([PERMANENT, APP], BRAINS, () => -1))).toBeNull();
   });
 });
+
+import { shouldLoadAfterAccess } from '@/lib/inference/brainPresence';
+import { readFileSync } from 'node:fs';
+
+describe('brain beside the app', () => {
+  it('loads the brain found after access is granted, once, with no Settings step', () => {
+    expect(shouldLoadAfterAccess('unloaded', true)).toBe(true);
+    expect(shouldLoadAfterAccess('error', true)).toBe(true);
+    expect(shouldLoadAfterAccess('loading', true)).toBe(false);
+    expect(shouldLoadAfterAccess('ready', true)).toBe(false);
+    expect(shouldLoadAfterAccess('unloaded', false)).toBe(false);
+  });
+
+  it('a phone with no brain at all gets the 4B, never a surprise 5 GB 8B', () => {
+    // brainStore loads native modules, so its default is read from source.
+    const store = readFileSync('lib/inference/brainStore.ts', 'utf8');
+    expect(store).toMatch(/export const BRAIN_FILE: ModelFile = \{\s*url: PREVIOUS_MODEL\.url,\s*name: PREVIOUS_MODEL\.name/);
+    expect(readFileSync('lib/inference/modelImport.ts', 'utf8')).toMatch(/PREVIOUS_MODEL[\s\S]*Qwen3-4B-Q4_K_M\.gguf/);
+    expect(readFileSync('scripts/rog-setup.sh', 'utf8')).toMatch(/BRAIN_NAME="Qwen3-4B-Q4_K_M\.gguf"/);
+  });
+});

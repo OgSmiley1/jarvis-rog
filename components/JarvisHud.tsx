@@ -831,7 +831,7 @@ export default function JarvisHud() {
                 : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
             : jarvis.modelState.status === 'error' && jarvis.modelState.error
               ? jarvis.modelState.error
-              : arabic ? 'Qwen3 8B · 5 جيجابايت · مرة واحدة · يعمل دون إنترنت' : 'Qwen3 8B · 5 GB · downloaded once · runs offline'}
+              : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مرة واحدة · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · downloaded once · runs offline'}
         </Text>
         {downloading ? (
           <View style={styles.brainTrack}>

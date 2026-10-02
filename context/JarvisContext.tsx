@@ -45,6 +45,7 @@ import {
   writeJarvisFile,
 } from '@/lib/inference/brainStore';
 import { recordLive } from '@/lib/telemetry/liveLog';
+import { shouldLoadAfterAccess } from '@/lib/inference/brainPresence';
 import { setBrainReader } from '@/lib/tools/utilityTools';
 import { setLiveSettingsReader } from '@/lib/tools/liveTools';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -179,6 +180,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   useEffect(() => () => cloudAbort.current?.abort(), []);
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
+  // Read by the AppState listener, which must not re-subscribe on every status change.
+  const modelStatusRef = useRef<string>('idle');
+  modelStatusRef.current = modelState.status;
   // Set once the backup in Download/JARVIS has been read (and restored onto a
   // fresh install). Until then nothing is written over it: a fresh install
   // without storage access must not replace a good backup with an empty one.
@@ -463,11 +467,22 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           .then((moved) => {
             if (moved) recordLive('brain', 'moved to Download/JARVIS', { files: moved });
           })
-          .catch(() => undefined);
+          .catch(() => undefined)
+          .then(() => {
+            // Fresh install: the brain was in Download/JARVIS all along but
+            // invisible until access was granted. Load it now — no restart,
+            // no picking it in Settings.
+            if (shouldLoadAfterAccess(modelStatusRef.current, Boolean(findInstalledModel()))) {
+              recordLive('brain', 'found in Download/JARVIS after access granted');
+              void installRecommendedModel().catch((error) =>
+                recordLive('error', 'brain start failed', { raw: error instanceof Error ? error.message : String(error) }),
+              );
+            }
+          });
       }
     });
     return () => subscription.remove();
-  }, [refresh, restoreBackupIfFresh]);
+  }, [refresh, restoreBackupIfFresh, installRecommendedModel]);
 
   const requestPermanentStorage = useCallback(() => {
     if (!askForPermanentStorage()) setPermanentStorage(hasPermanentStorage());
