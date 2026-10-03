@@ -49,3 +49,40 @@ describe('follow-up context', () => {
     expect(nextLiveContext(weather, null)).toBeNull();
   });
 });
+
+import { listToolNames } from '@/lib/tools/registry';
+import { TOOL_PROFILES } from '@/lib/tools/toolProfiles';
+import { executeTool } from '@/lib/tools/router';
+import { vi } from 'vitest';
+
+describe('tool profiles (spec §D)', () => {
+  it('every registered tool declares permissions, network use, a time limit and its outcome', () => {
+    const missing = listToolNames().filter((name) => !TOOL_PROFILES[name]);
+    expect(missing).toEqual([]);
+    const stale = Object.keys(TOOL_PROFILES).filter((name) => !listToolNames().includes(name));
+    expect(stale).toEqual([]);
+  });
+
+  it('only live.* tools use the internet; dialer and SMS only open a screen', () => {
+    for (const [name, profile] of Object.entries(TOOL_PROFILES)) expect(profile.network).toBe(name.startsWith('live.'));
+    expect(TOOL_PROFILES['phone.call']!.outcome).toBe('opens-screen');
+    expect(TOOL_PROFILES['phone.text']!.outcome).toBe('opens-screen');
+  });
+
+  it('the router stops a tool that runs past its limit', async () => {
+    vi.useFakeTimers();
+    try {
+      const { toolRegistry } = await import('@/lib/tools/registry');
+      const tool = toolRegistry.get('local.notes_read')!;
+      const original = tool.execute;
+      tool.execute = () => new Promise(() => undefined);
+      const pending = executeTool({ id: 't', tool: 'local.notes_read', arguments: {} });
+      await vi.advanceTimersByTimeAsync(TOOL_PROFILES['local.notes_read']!.timeoutMs + 1);
+      const result = await pending;
+      tool.execute = original;
+      expect(result).toMatchObject({ ok: false, error: 'TOOL_TIMEOUT' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

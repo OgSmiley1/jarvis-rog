@@ -39,6 +39,54 @@ export const CORE_PRESETS: Record<InteractionState, CoreParams> = {
   error:        { rings: 2, ringGap: 44, spokeDensity: 0.15, sweepSpeed: 0.1,  tealOpacity: 0.15, hubGlow: 0.25, breathAmp: 2,  breathPeriod: 2.5, redIntensity: 0.4 },
 };
 
+/**
+ * What JARVIS is doing on top of the voice state, so the Core reads it at a
+ * glance (spec §A): running a phone tool, fetching live data, a finished
+ * action, or a recoverable problem. Each one bends the state's preset; it never
+ * replaces it, so the 350 ms ease and every modifier still apply.
+ */
+export type CoreActivity = 'none' | 'tool' | 'online' | 'success' | 'warning';
+
+/** How long the momentary looks hold before the Core returns to its state. */
+export const SUCCESS_MS = 900;
+export const WARNING_MS = 1600;
+
+export function applyActivity(params: CoreParams, activity: CoreActivity): CoreParams {
+  'worklet';
+  switch (activity) {
+    case 'tool':
+      // Executing: a tight, fast sweep and dense spokes — a machine at work.
+      return { ...params, rings: 3, ringGap: 26, spokeDensity: Math.max(params.spokeDensity, 0.8), sweepSpeed: Math.max(params.sweepSpeed, 1.6), tealOpacity: 0.35 };
+    case 'online':
+      // Reaching out: teal leads, rings spread wide, a steady outward sweep.
+      return { ...params, rings: 6, ringGap: 26, tealOpacity: 1.0, sweepSpeed: Math.max(params.sweepSpeed, 0.7), redIntensity: params.redIntensity * 0.75 };
+    case 'success':
+      // Done: one full, bright breath.
+      return { ...params, hubGlow: 1.0, tealOpacity: 1.0, breathAmp: 12, breathPeriod: 0.9, sweepSpeed: 0.1, redIntensity: Math.max(params.redIntensity, 1.0) };
+    case 'warning':
+      // Recoverable trouble: the Core dims and slows; it does not turn to error.
+      return { ...params, rings: 2, spokeDensity: 0.12, sweepSpeed: 0.08, tealOpacity: 0.1, hubGlow: 0.3, breathPeriod: 2.0, redIntensity: params.redIntensity * 0.55 };
+    default:
+      return params;
+  }
+}
+
+/**
+ * The look while a turn runs: a live-data tool or the cloud brain reaches the
+ * internet ("online"); any other tool runs on the phone ("tool"); a question
+ * for the phone's own brain keeps the plain thinking look.
+ */
+export function activityDuring(tool: string | undefined, usesCloudBrain = false): CoreActivity {
+  if (tool) return tool.startsWith('live.') ? 'online' : 'tool';
+  return usesCloudBrain ? 'online' : 'none';
+}
+
+/** The momentary look after a turn: success for a finished tool, warning for a recoverable failure or stale data. */
+export function activityAfter(outcome: { ok: boolean; viaTool: boolean; stale?: boolean }): CoreActivity {
+  if (!outcome.ok || outcome.stale) return 'warning';
+  return outcome.viaTool ? 'success' : 'none';
+}
+
 /** Guide §7: thermally throttled → fewer rings and spokes, slow sweep. Never a black screen. */
 export const THERMAL_LIMITS = { rings: 2, spokeDensity: 0.2, sweepSpeed: 0.05 } as const;
 
@@ -96,9 +144,9 @@ export function lerpParams(from: CoreParams, to: CoreParams, t: number): CorePar
 }
 
 /** Applies the offline and thermal modifiers to a preset. */
-export function adjustParams(params: CoreParams, offline: boolean, throttled: boolean): CoreParams {
+export function adjustParams(params: CoreParams, offline: boolean, throttled: boolean, activity: CoreActivity = 'none'): CoreParams {
   'worklet';
-  let next = params;
+  let next = applyActivity(params, activity);
   if (throttled) {
     next = {
       ...next,
@@ -134,9 +182,9 @@ export function ringVisibility(rings: number, i: number): number {
 
 /**
  * Illustrative speech-activity envelope — NOT real audio-reactive output.
- * The system voice exposes no amplitude, so while JARVIS is actually playing
- * speech the spokes move with this rhythm, and only then. If a TTS engine
- * ever reports a true envelope, replace this and say so.
+ * Used only for the phone's own voice, which exposes no amplitude. The neural
+ * voice (Kokoro) reports a measured envelope (speechEnvelope in
+ * neuralSpeechQueue.ts), and the Core follows that instead.
  */
 export function speechActivity(t: number): number {
   'worklet';
@@ -247,7 +295,11 @@ export function particleBudget(burstAlive: boolean, warpAlive: boolean): { burst
 }
 
 /** Phase 2 readouts: short status glyphs on a ring — never sentences. */
-export function readoutFor(state: InteractionState): string {
+export function readoutFor(state: InteractionState, activity: CoreActivity = 'none'): string {
+  if (activity === 'tool') return '··· EXECUTING ··· ';
+  if (activity === 'online') return '··· ONLINE LINK ··· ';
+  if (activity === 'success') return '··· COMPLETE ··· ';
+  if (activity === 'warning') return '··· CAUTION ··· ';
   switch (state) {
     case 'thinking':
       return '··· PROCESSING ··· 0x2A ··· CORE 5 ··· ';

@@ -12,7 +12,12 @@ export function humanizeError(code: string): string {
   }
 
   const known: Record<string, string> = {
-    MODEL_NOT_LOADED: 'No brain is loaded yet. Tap "Download JARVIS brain" on the main screen, or add a free cloud key in Settings.',
+    MODEL_NOT_LOADED: 'No brain is loaded yet — phone tools, timers and live info still work. Tap "Download JARVIS brain" on the main screen, or add a free cloud key in Settings.',
+    TOOL_TIMEOUT: 'That took too long and was stopped. Nothing else is affected — try again.',
+    TURN_DEADLINE: 'That request timed out. Please try again.',
+    TURN_CANCELLED: 'Stopped.',
+    TOOL_BUDGET_EXCEEDED: 'Too many actions in one request. Ask for one thing at a time.',
+    UNKNOWN_TOOL: "JARVIS doesn't have that action.",
     CLOUD_NO_KEYS: 'The cloud brain is on, but no provider key is saved. Add a free Groq, Cerebras or Gemini key in Settings.',
     CLOUD_KEY_EMPTY: 'Paste the key before saving it.',
     NO_MODEL_SELECTED: 'Import a GGUF model first.',

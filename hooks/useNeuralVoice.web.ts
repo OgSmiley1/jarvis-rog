@@ -7,5 +7,6 @@ export function useNeuralVoice(_options: UseNeuralVoiceOptions): NeuralVoiceCont
     enqueue: () => undefined,
     speakAll: () => undefined,
     stop: () => undefined,
+    levelNow: () => null,
   };
 }

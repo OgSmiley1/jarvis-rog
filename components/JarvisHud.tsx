@@ -41,6 +41,7 @@ import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '
 import { StageTimer, formatLatencyReport, recordTurn, type Scenario } from '@/lib/telemetry/stageTimer';
 import { VoiceSessionController } from '@/lib/voice/voiceSession';
 import { useConnectivity } from '@/hooks/useConnectivity';
+import { SUCCESS_MS, WARNING_MS, activityAfter, activityDuring, type CoreActivity } from '@/lib/core/CorePresets';
 import type { QrMatrix } from '@/lib/tools/localExtras';
 import type { QuranPassage } from '@/lib/tools/freeApis';
 
@@ -97,6 +98,16 @@ export default function JarvisHud() {
   const [response, setResponse] = useState('');
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
+  // What the Core shows on top of its state: a tool or online lookup running, then success or warning.
+  const [coreActivity, setCoreActivity] = useState<CoreActivity>('none');
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flashActivity = (look: CoreActivity) => {
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity(look);
+    if (look === 'none') return;
+    activityTimerRef.current = setTimeout(() => setCoreActivity('none'), look === 'warning' ? WARNING_MS : SUCCESS_MS);
+  };
+  useEffect(() => () => clearTimeout(activityTimerRef.current), []);
   const [watching, setWatching] = useState(false);
   // The orb page, or the live camera page with JARVIS in the corner.
   const [page, setPage] = useState<HudPage>('orb');
@@ -294,6 +305,7 @@ export default function JarvisHud() {
       setPlaying(false);
       setToolRunning(false);
       setWatching(false);
+      flashActivity('warning');
       setResponse(jarvis.settings.language === 'ar' ? 'انتهت مهلة الطلب. حاول مرة أخرى.' : 'That request timed out. Please try again.');
     };
     turn.signal.addEventListener('abort', onTurnAbort, { once: true });
@@ -322,6 +334,8 @@ export default function JarvisHud() {
     busyRef.current = true;
     setBusy(true);
     setToolRunning(deterministic);
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity(activityDuring(route?.call.tool, jarvis.modelState.status !== 'ready' && jarvis.cloudReady && !jarvis.settings.localOnly));
     setExtras({});
     // The camera is only ever open inside this turn, and the HUD says so for all of it.
     setWatching(looking);
@@ -428,6 +442,7 @@ export default function JarvisHud() {
         if (Date.now() - fetchedAt > 5_000) timer.scenario = 'live-data-cached';
       }
       setExtras(extra);
+      flashActivity(activityAfter({ ok: true, viaTool: result.source === 'tool', stale: extra.stale }));
       // A QR code is an answer to look at: show it.
       if (extra.qr) setSheet('menu');
       setResponse(result.text);
@@ -473,6 +488,7 @@ export default function JarvisHud() {
     } catch (error) {
       if (!session.isCurrent(turn.turnId)) return;
       const message = humanizeError(errorMessage(error));
+      flashActivity(activityAfter({ ok: false, viaTool: deterministic }));
       recordLive('error', message, { raw: errorMessage(error), ms: Date.now() - askedAt });
       setResponse(message);
       if (jarvis.settings.handsFreeEnabled) {
@@ -498,6 +514,8 @@ export default function JarvisHud() {
         busyRef.current = false;
         setBusy(false);
         setToolRunning(false);
+        // A running look never outlives its turn; success and warning time out by themselves.
+        setCoreActivity((look) => (look === 'tool' || look === 'online' ? 'none' : look));
       }
       if (looking) {
         setWatching(false);
@@ -518,6 +536,8 @@ export default function JarvisHud() {
     session.cancel('user');
     busyRef.current = false;
     setInterruptedTick((n) => n + 1);
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity('none');
     speakingRef.current = false;
     setSpeaking(false);
     setPlaying(false);
@@ -857,6 +877,8 @@ export default function JarvisHud() {
             burst={burst}
             interrupted={interruptedTick}
             offline={connectivity !== 'online'}
+            activity={coreActivity}
+            speechLevel={neural.levelNow}
             showLabel={jarvis.settings.coreLabels}
             speaking={playing}
             transcribing={voice.state === 'TRANSCRIBING'}

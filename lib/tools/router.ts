@@ -1,4 +1,5 @@
 import { toolRegistry } from './registry';
+import { profileFor } from './toolProfiles';
 import type { JarvisToolCall, ToolResult, ToolRunContext } from './types';
 
 export interface ExecuteToolOptions {
@@ -42,7 +43,13 @@ export async function executeTool(
     };
     assertActive();
     if (turn?.reserveTool && !turn.reserveTool()) throw new Error('TOOL_BUDGET_EXCEEDED');
-    const data = await definition.execute(parsed.data, turn);
+    // Each tool's own limit (toolProfiles.ts), inside the turn's deadline: a
+    // stuck intent or provider is reported, never left hanging the turn.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('TOOL_TIMEOUT')), profileFor(call.tool).timeoutMs);
+    });
+    const data = await Promise.race([definition.execute(parsed.data, turn), limit]).finally(() => clearTimeout(timer));
     assertActive();
     return { callId: call.id, tool: call.tool, ok: true, startedAt, finishedAt: Date.now(), data };
   } catch (error) {

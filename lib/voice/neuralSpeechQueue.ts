@@ -30,6 +30,30 @@ export interface ScheduledClip {
   stop(): void;
 }
 
+/** Kokoro's output rate. */
+export const NEURAL_SAMPLE_RATE = 24_000;
+/** One loudness value per 20 ms of audio. */
+export const ENVELOPE_FRAME_S = 0.02;
+
+/**
+ * The loudness of a clip, 0..1, one value per 20 ms: RMS per frame, scaled so
+ * normal speech sits around 0.5–0.9 and silence near 0. Measured from the very
+ * samples that are played, so the Core moves with the voice it is hearing.
+ */
+export function speechEnvelope(samples: Float32Array, sampleRate = NEURAL_SAMPLE_RATE): Float32Array {
+  const frame = Math.max(1, Math.round(sampleRate * ENVELOPE_FRAME_S));
+  const out = new Float32Array(Math.ceil(samples.length / frame));
+  for (let f = 0; f < out.length; f += 1) {
+    let sum = 0;
+    const start = f * frame;
+    const end = Math.min(samples.length, start + frame);
+    for (let i = start; i < end; i += 1) sum += samples[i]! * samples[i]!;
+    const rms = Math.sqrt(sum / Math.max(1, end - start));
+    out[f] = Math.min(1, rms * 4);
+  }
+  return out;
+}
+
 export interface NeuralPlayer {
   /** The audio clock, in seconds. */
   now(): number;
@@ -56,6 +80,8 @@ export interface NeuralSpeechQueueOptions {
 export class NeuralSpeechQueue {
   private readonly pending: string[] = [];
   private readonly clips = new Set<ScheduledClip>();
+  /** Loudness of every scheduled clip, by its start on the audio clock. */
+  private readonly envelopes = new Map<ScheduledClip, { at: number; env: Float32Array }>();
   private nextStart = 0;
   private synthesising = false;
   private synthesisEpoch: number | null = null;
@@ -87,12 +113,29 @@ export class NeuralSpeechQueue {
       }
     }
     this.clips.clear();
+    this.envelopes.clear();
     this.nextStart = 0;
     this.update();
   }
 
   get isSpeaking(): boolean {
     return this.speaking;
+  }
+
+  /**
+   * The measured loudness of the neural voice right now (0..1), or null when
+   * nothing neural is playing — the phone's own voice reports no audio, and
+   * the Core then falls back to its labelled synthetic rhythm.
+   */
+  levelNow(): number | null {
+    if (this.envelopes.size === 0) return null;
+    const t = this.options.player.now();
+    for (const { at, env } of this.envelopes.values()) {
+      const index = Math.floor((t - at) / ENVELOPE_FRAME_S);
+      if (index >= 0 && index < env.length) return env[index]!;
+    }
+    // Between scheduled clips (the lead before the first one): quiet, not unknown.
+    return 0;
   }
 
   private async pump(): Promise<void> {
@@ -141,10 +184,12 @@ export class NeuralSpeechQueue {
     const clip = player.schedule(samples, at);
     this.nextStart = at + clip.duration;
     this.clips.add(clip);
+    this.envelopes.set(clip, { at, env: speechEnvelope(samples) });
     this.update();
 
     clip.onEnded(() => {
       this.clips.delete(clip);
+      this.envelopes.delete(clip);
       this.update();
       void this.pump();
     });

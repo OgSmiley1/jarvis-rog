@@ -38,6 +38,8 @@ export interface NeuralVoiceController {
   speakAll: (text: string) => void;
   /** Barge-in: stop everything now. */
   stop: () => void;
+  /** Measured loudness of what is playing now (0..1), or null when no neural audio is playing. */
+  levelNow: () => number | null;
 }
 
 export function useNeuralVoice({ enabled, language, onSpeakingChange, onPlaybackChange }: UseNeuralVoiceOptions): NeuralVoiceController {
@@ -170,5 +172,7 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange, onPlayback
     [],
   );
 
-  return { isReady, enqueue, speakAll, stop };
+  const levelNow = useCallback(() => queueRef.current?.levelNow() ?? null, []);
+
+  return { isReady, enqueue, speakAll, stop, levelNow };
 }

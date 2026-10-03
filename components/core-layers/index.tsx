@@ -102,8 +102,10 @@ export function RadialSpokes({ c, size, core, clock }: LayerProps) {
     const params = core.params.value;
     const t = clock.value / 1000;
     const n = Math.floor(360 * params.spokeDensity);
-    // Gated by real playback: the rhythm runs only while speech is actually playing.
-    const mod = core.speaking.value ? speechActivity(t) : 0;
+    // Gated by real playback. The neural voice reports its measured loudness;
+    // the phone's own voice reports none, and then the labelled rhythm stands in.
+    const level = core.speechLevel.value;
+    const mod = core.speaking.value ? (level >= 0 ? level : speechActivity(t)) : 0;
     for (let i = 0; i < n; i += 1) {
       const a = angles[i]!;
       const wobble = 1 + 0.22 * mod * Math.sin(a * 3 + t * 7);

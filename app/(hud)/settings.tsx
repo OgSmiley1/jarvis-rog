@@ -21,6 +21,8 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { findInstalledModel } from '@/lib/inference/brainStore';
+import { brainFacts, describeBrainFacts } from '@/lib/inference/brainPresence';
+import { Paths } from 'expo-file-system';
 import { runSelfTest, type SelfTestResult } from '@/lib/telemetry/selfTest';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
@@ -39,6 +41,7 @@ export default function SettingsScreen() {
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [selfTest, setSelfTest] = useState<SelfTestResult[]>([]);
   const connectivity = useConnectivity();
+  const [brainLine, setBrainLine] = useState('');
 
   const section = Array.isArray(params.section) ? params.section[0] : params.section;
   const arabic = jarvis.settings.language === 'ar';
@@ -68,6 +71,23 @@ export default function SettingsScreen() {
   useEffect(() => {
     void refreshDiagnostics();
   }, []);
+
+  // Size, RAM need, free space and readiness, re-read when the brain's state changes.
+  useEffect(() => {
+    let sizeBytes = jarvis.settings.modelSize ?? null;
+    let freeBytes: number | null = null;
+    try {
+      sizeBytes ??= findInstalledModel({ path: jarvis.settings.modelPath, name: jarvis.settings.modelName })?.size ?? null;
+    } catch {
+      // No storage access yet: size stays unknown.
+    }
+    try {
+      freeBytes = Paths.availableDiskSpace;
+    } catch {
+      // Not available on this platform: shown as unknown.
+    }
+    setBrainLine(describeBrainFacts(brainFacts({ sizeBytes, freeBytes, ramBytes: Device.totalMemory, status: jarvis.modelState.status }), arabic));
+  }, [jarvis.modelState.status, jarvis.settings.modelSize, jarvis.settings.modelPath, jarvis.settings.modelName, arabic]);
 
   useEffect(() => {
     setOwnerProfileDraft(jarvis.settings.ownerProfile);
@@ -173,6 +193,7 @@ export default function SettingsScreen() {
               ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
               : arabic ? 'العقل غير محمّل' : 'Brain not loaded'}
         </AppText>
+        {brainLine ? <AppText muted>{brainLine}</AppText> : null}
         <AppText muted>
           {jarvis.permanentStorage
             ? arabic

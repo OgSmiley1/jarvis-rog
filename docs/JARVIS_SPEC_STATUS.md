@@ -22,19 +22,19 @@ Expo SDK 54 / RN 0.81 app, package `com.app.localjarviscoach`, one screen (no ta
 | A | Animated Core, deterministic states, 350 ms eased transitions | Built · phone NOT RUN | `CorePresets.ts` (7 states: idle, listening, transcribing, thinking, speaking, interrupted, error), `useCoreController.ts` |
 | A | Core survives subsystem failure | Built | `CoreErrorBoundary.tsx` + plain-View fallback Core (`fallbackCore.ts`) |
 | A | Reduced motion / battery saver / thermal | Built · phone NOT RUN | `StaticCore`, thermal caps in `adjustParams` |
-| A | Separate visuals for "executing action", "online lookup", "success", "warning" | **Gap** | Tool runs show as *thinking*; offline is a red dim on any state. Adding states means new presets and a design pass. |
+| A | Separate visuals for "executing action", "online lookup", "success", "warning" | Built · phone NOT RUN | `applyActivity` bends the state's preset: **tool** = tight fast sweep, dense spokes, readout EXECUTING · **online** = six wide rings, teal leads, ONLINE LINK · **success** = one bright breath, 0.9 s, COMPLETE · **warning** = dim and slow, 1.6 s, CAUTION (distinct from error). Same 350 ms ease. Set by the HUD from the routed tool and the turn's outcome |
 | B | Reuse an installed brain; never re-download | Built | `brainStore.findInstalledModel`; `scripts/rog-setup.sh` keeps a 4B or 8B already present |
 | B | One-time 4B download if absent | Built | setup script (2.5 GB, size-checked) + in-app fallback |
 | B | Load brain with no Settings step | Built · phone NOT RUN | loads as soon as file access is granted (`shouldLoadAfterAccess`) |
 | B | Cancellation, streaming, short spoken replies | Built · phone NOT RUN | turn AbortSignal; sentence streaming; 128-token fast cap |
-| B | Show model size / RAM / free storage | Partly | name, status and size are shown; free storage and RAM are shown only in Diagnostics (RAM) |
+| B | Show model size / RAM / free storage | Built | Settings → Your JARVIS: size, estimated RAM need (weights + ~0.7 GB, labelled "~"), phone RAM, free storage, offline-ready (`brainFacts`) |
 | C | Tap-to-talk, wake word (beta), barge-in, no overlapping TTS | Built · phone NOT RUN | `VoiceSessionController`, TTS FIFO queue |
-| C | Speaking animation from real playback | Built | gated by real TTS playback; the rhythm is synthetic, **not** an audio envelope (stated honestly) |
+| C | Speaking animation from real playback | Built · phone NOT RUN | neural voice (Kokoro, English): spokes follow the **measured** RMS loudness of the very samples played, 20 ms frames, read against the audio clock. Phone's own voice (Arabic) exposes no audio: the labelled synthetic rhythm, gated by real playback |
 | C | English + Arabic, mixed prompts | Built | router + duration parser handle both |
 | D | Typed tool registry with schema + handler | Built | zod schemas; the self-test checks every tool |
 | D | Phone, calendar, timers, alarms, apps, settings, weather, prayer, Quran, news, QR, jokes, quotes, calc | Built · phone NOT RUN | `lib/tools/*` |
 | D | Honest results ("opened dialer", never "call completed") | Built | calls open the dialer; the owner taps Call |
-| D | Per-tool permission/timeout fields in the registry itself | **Gap** | permissions are checked inside each tool and in Phone access; timeouts come from the turn deadline, not a per-tool field |
+| D | Per-tool permissions, network use, timeout, outcome | Built | `lib/tools/toolProfiles.ts` for all 42 tools; the router enforces each time limit (TOOL_TIMEOUT); a test fails if a tool has no profile; outcome "opens-screen" for dialer/SMS/calendar |
 | 3 | Structured follow-ups ("and tomorrow?", "what about Dubai?") | Built — **improved today** | `nextLiveContext` keeps tool + city + day; a city follow-up now keeps "tomorrow"; any other topic clears the context; 2-minute expiry |
 | 4 | Online is optional; budgets; nothing paid | Built | strict zero-cost mode, Puter hard stop, Gemini behind its own switch |
 | 4 | **Strict-local switch: nothing leaves the phone** | Built — **new today** | Settings → *Local only (no internet)*: refuses every provider in the policy **and** in the cloud brain plan; status line says "local only" |
@@ -43,19 +43,19 @@ Expo SDK 54 / RN 0.81 app, package `com.app.localjarviscoach`, one screen (no ta
 | 7 | Modular architecture | Built | `lib/core`, `lib/inference`, `lib/voice`, `lib/tools`, `lib/memory`, `lib/online`, `lib/net` |
 | 8 | Startup: Core first, then brain, no setup screens | Built · phone NOT RUN | |
 | 9 | Permissions asked when relevant, degrade on denial | Built · phone NOT RUN | Phone access card; tools return readable errors |
-| 10 | Failure boundaries | Built | Core boundary, http result types, tool errors humanised |
+| 10 | Failure boundaries | Built | Core boundary, http result types, per-tool timeout, readable errors ("No brain is loaded yet — phone tools, timers and live info still work.") |
 | 11 | Latency measurement | Built | `stageTimer` (median / p95 / n), `scripts/measure-voice-latency.mjs`. **No phone numbers yet.** |
 | 15 | Diagnostics page + **one-tap self-test** | Built — **new today** | Settings → Advanced → Diagnostics: app version, Android version, ABI, RAM, and *Run self-test* (Core, tools, routing, follow-ups, internet policy, reasoning hidden, brain, network) |
 
 ## 3. Tests and builds (exact)
 
-- `pnpm check` (tsc): pass. `pnpm lint`: pass. `pnpm test`: **618 passed, 66 files**. `pnpm smoke`: pass.
+- `pnpm check` (tsc): pass. `pnpm lint`: pass. `pnpm test`: **628 passed, 66 files**. `pnpm smoke`: pass.
 - `expo export --platform android`: Hermes bundle produced (7.1 MB export).
 - EAS build `5ee1f804` on b69fa61: **BUILD SUCCESSFUL in 11m 44s**, 0 Kotlin errors.
   - Compiled: Skia (`shopify_react-native-skia`, CMake), Reanimated + worklets, llama.rn (CMake), expo-jarvis-phone.
   - APK: `https://expo.dev/artifacts/eas/2jnrduqaZOC6770QlZRt5lmivig42HenXS2QF_UPdeU.apk`, version 0.4.1 (2026093001).
   - The setup script installs this APK.
-- Today's changes (Local only, self-test, follow-up context) are in the next build.
+- Today's changes (Local only, self-test, follow-up context, Core activity looks, tool profiles, brain facts, measured speech loudness) go into the next EAS build; the setup script is pointed at it once it is verified.
 
 ## 4. Device tests performed
 
@@ -75,8 +75,8 @@ The self-test is the first thing to run on the phone.
 
 ## 5. Known limits
 
-- **Voice:** half-duplex.
-- **Speaking animation:** the speaking rhythm is not tied to the audio envelope.
-- **Core states:** no distinct "executing", "online lookup" or "success" Core states yet.
+- **Voice:** half-duplex while JARVIS speaks. You interrupt by tapping the Core, not by talking over it; voice barge-in needs echo cancellation that is not built.
+- **Arabic speech animation:** Arabic replies use the phone's own voice, which exposes no audio, so the Core shows the labelled rhythm instead of real loudness.
 - **APK contents:** checksum and size are not verifiable from the build machine (the artifact host is blocked by its proxy). The setup script checks the install on the phone.
 - **Signing:** ChatGPT's test-signed 0.4.1 APK uses a different key. The setup script uninstalls it first. The brain, voices and memory backup in `Download/JARVIS` are kept.
+- **No phone measurements yet:** latency, FPS and RAM use come from the stage timer and self-test once the owner runs them.

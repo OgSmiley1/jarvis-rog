@@ -4,6 +4,7 @@ import { checkProvider } from '@/lib/net/providerPolicy';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { followUpCommand, nextLiveContext } from '@/lib/tools/liveRoutes';
 import { listToolNames, toolCallGrammar, toolRegistry } from '@/lib/tools/registry';
+import { TOOL_PROFILES } from '@/lib/tools/toolProfiles';
 import { createThinkFilter } from '@/lib/voice/stripThinking';
 
 /**
@@ -63,9 +64,11 @@ export function runSelfTest(device: DeviceProbe): SelfTestResult[] {
         expect(tool.description.trim().length > 0, `${tool.name} has no description`);
         expect(typeof tool.schema.safeParse === 'function', `${tool.name} has no schema`);
         expect(typeof tool.execute === 'function', `${tool.name} has no handler`);
+        expect(TOOL_PROFILES[tool.name], `${tool.name} has no permission/timeout profile`);
       }
       expect(toolCallGrammar().length > 0, 'tool grammar is empty');
-      return `${names.length} registered, each with a schema and handler`;
+      const online = names.filter((n) => TOOL_PROFILES[n]?.network).length;
+      return `${names.length} registered (${online} online), each with a schema, handler, permissions and time limit`;
     }),
 
     check('Routing', () => {

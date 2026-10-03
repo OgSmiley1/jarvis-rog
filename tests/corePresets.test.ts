@@ -105,3 +105,36 @@ describe('warp particles', () => {
     expect(readoutFor('thinking').length).toBeLessThan(60);
   });
 });
+
+import { activityAfter, activityDuring, applyActivity, CORE_PRESETS as PRESETS, readoutFor as readout } from '@/lib/core/CorePresets';
+
+describe('activity looks (spec §A)', () => {
+  it('a live tool or the cloud reads as online; a phone tool as executing', () => {
+    expect(activityDuring('live.weather')).toBe('online');
+    expect(activityDuring('local.timer')).toBe('tool');
+    expect(activityDuring(undefined, true)).toBe('online');
+    expect(activityDuring(undefined, false)).toBe('none');
+  });
+
+  it('each look is visibly different from plain thinking and from error', () => {
+    const base = PRESETS.thinking;
+    const tool = applyActivity(base, 'tool');
+    const online = applyActivity(base, 'online');
+    const warning = applyActivity(base, 'warning');
+    expect(online.tealOpacity).toBeGreaterThan(base.tealOpacity);
+    expect(online.rings).toBeGreaterThan(base.rings);
+    expect(tool.sweepSpeed).toBeGreaterThan(base.sweepSpeed);
+    expect(applyActivity(base, 'success').hubGlow).toBe(1);
+    expect(warning.redIntensity).toBeLessThan(base.redIntensity);
+    expect(warning).not.toEqual(PRESETS.error);
+    expect(applyActivity(base, 'none')).toBe(base);
+    expect(readout('thinking', 'online')).toContain('ONLINE');
+  });
+
+  it('after a turn: success for a tool, warning for failure or stale data, nothing for a brain answer', () => {
+    expect(activityAfter({ ok: true, viaTool: true })).toBe('success');
+    expect(activityAfter({ ok: true, viaTool: true, stale: true })).toBe('warning');
+    expect(activityAfter({ ok: false, viaTool: false })).toBe('warning');
+    expect(activityAfter({ ok: true, viaTool: false })).toBe('none');
+  });
+});

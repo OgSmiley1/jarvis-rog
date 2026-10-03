@@ -68,3 +68,19 @@ describe('brain beside the app', () => {
     expect(readFileSync('scripts/rog-setup.sh', 'utf8')).toMatch(/BRAIN_NAME="Qwen3-4B-Q4_K_M\.gguf"/);
   });
 });
+
+import { brainFacts, describeBrainFacts } from '@/lib/inference/brainPresence';
+
+describe('brain facts for the owner', () => {
+  it('shows size, RAM need, free space and offline readiness', () => {
+    const f = brainFacts({ sizeBytes: 2.5 * 1024 ** 3, freeBytes: 100 * 1024 ** 3, ramBytes: 16 * 1024 ** 3, status: 'ready' });
+    expect(f).toMatchObject({ sizeGb: 2.5, ramNeedGb: 3.2, freeGb: 100, ramGb: 16, fitsRam: true, offlineReady: true });
+    expect(describeBrainFacts(f, false)).toBe('2.5 GB · needs ~3.2 GB RAM · phone has 16 · 100 GB free · offline ready');
+  });
+
+  it('says unknown rather than guessing', () => {
+    const f = brainFacts({ status: 'unloaded' });
+    expect(f).toMatchObject({ sizeGb: null, fitsRam: null, offlineReady: false });
+    expect(describeBrainFacts(f, false)).toBe('not ready yet');
+  });
+});

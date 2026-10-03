@@ -142,3 +142,46 @@ export function describeDownload(status: NativeDownloadStatus): DownloadView {
 export function shouldLoadAfterAccess(modelStatus: string, brainFound: boolean): boolean {
   return brainFound && modelStatus !== 'ready' && modelStatus !== 'loading';
 }
+
+/**
+ * The brain in plain numbers for the owner's card (spec §B5): its size, the
+ * memory it needs, the phone's free space and RAM, and whether JARVIS is
+ * ready with no internet. RAM need is an estimate — the weights plus about
+ * 0.7 GB for a 4k context and the runtime — and is labelled as one.
+ */
+export interface BrainFacts {
+  sizeGb: number | null;
+  ramNeedGb: number | null;
+  freeGb: number | null;
+  ramGb: number | null;
+  /** The phone has the RAM for it (null when either number is unknown). */
+  fitsRam: boolean | null;
+  offlineReady: boolean;
+}
+
+const GB = 1024 ** 3;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export function brainFacts(input: { sizeBytes?: number | null; freeBytes?: number | null; ramBytes?: number | null; status: string }): BrainFacts {
+  const sizeGb = input.sizeBytes ? round1(input.sizeBytes / GB) : null;
+  const ramNeedGb = input.sizeBytes ? round1(input.sizeBytes / GB + 0.7) : null;
+  const ramGb = input.ramBytes ? round1(input.ramBytes / GB) : null;
+  return {
+    sizeGb,
+    ramNeedGb,
+    freeGb: input.freeBytes != null && input.freeBytes >= 0 ? round1(input.freeBytes / GB) : null,
+    ramGb,
+    fitsRam: ramNeedGb !== null && ramGb !== null ? ramGb >= ramNeedGb : null,
+    offlineReady: input.status === 'ready',
+  };
+}
+
+export function describeBrainFacts(f: BrainFacts, arabic: boolean): string {
+  const parts: string[] = [];
+  if (f.sizeGb !== null) parts.push(arabic ? `الحجم ${f.sizeGb} جيجابايت` : `${f.sizeGb} GB`);
+  if (f.ramNeedGb !== null) parts.push(arabic ? `يحتاج نحو ${f.ramNeedGb} جيجابايت ذاكرة` : `needs ~${f.ramNeedGb} GB RAM`);
+  if (f.ramGb !== null) parts.push(arabic ? `في الهاتف ${f.ramGb}` : `phone has ${f.ramGb}`);
+  if (f.freeGb !== null) parts.push(arabic ? `المساحة الحرة ${f.freeGb} جيجابايت` : `${f.freeGb} GB free`);
+  parts.push(f.offlineReady ? (arabic ? 'جاهز دون إنترنت' : 'offline ready') : arabic ? 'غير جاهز بعد' : 'not ready yet');
+  return parts.join(' · ');
+}

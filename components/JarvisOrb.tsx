@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, AppState, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, RadialGradient, useClock, vec } from '@shopify/react-native-skia';
 import type { HudState } from '@/lib/hud/hudState';
-import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, interactionFor, readoutFor } from '@/lib/core/CorePresets';
+import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, interactionFor, readoutFor, type CoreActivity } from '@/lib/core/CorePresets';
 import { useCoreController } from '@/lib/core/useCoreController';
 import { CoreErrorBoundary } from './CoreErrorBoundary';
 import { CORE_RED, CORE_TEAL, DottedRings, Hub, RadialSpokes, Readouts, Sweep, TealArcs, WarpParticles, staticRingRadii } from './core-layers';
@@ -45,6 +45,8 @@ export function JarvisOrb({
   speaking = false,
   transcribing = false,
   throttled = false,
+  activity = 'none',
+  speechLevel,
 }: {
   state: OrbState;
   /** Measured microphone level, 0..1 (swells the hub while listening). */
@@ -70,6 +72,10 @@ export function JarvisOrb({
   transcribing?: boolean;
   /** Device thermally throttled: fewer rings and spokes, slow sweep. */
   throttled?: boolean;
+  /** Running a tool, an online lookup, a finished action or a recoverable problem. */
+  activity?: CoreActivity;
+  /** Measured loudness of the voice now playing (neural voice); null when unmeasurable. */
+  speechLevel?: () => number | null;
 }) {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [lowPower, setLowPower] = useState(false);
@@ -105,7 +111,7 @@ export function JarvisOrb({
   const c = size / 2;
 
   const canvas = still ? (
-    <StaticCore size={size} interaction={interaction} offline={offline} throttled={throttled} />
+    <StaticCore size={size} interaction={interaction} offline={offline} throttled={throttled} activity={activity} />
   ) : (
     <LiveCore
       size={size}
@@ -114,6 +120,8 @@ export function JarvisOrb({
       speaking={speaking}
       offline={offline}
       throttled={throttled}
+      activity={activity}
+      speechLevel={speechLevel}
       burst={burst}
       interrupted={interrupted}
       level={level}
@@ -174,6 +182,8 @@ function LiveCore({
   speaking,
   offline,
   throttled,
+  activity,
+  speechLevel,
   burst,
   interrupted,
   level,
@@ -184,15 +194,17 @@ function LiveCore({
   speaking: boolean;
   offline: boolean;
   throttled: boolean;
+  activity: CoreActivity;
+  speechLevel?: () => number | null;
   burst: number;
   interrupted: number;
   level: number;
 }) {
   const clock = useClock();
-  const core = useCoreController({ state: interaction, speaking, offline, throttled, burst, interrupted, clock });
+  const core = useCoreController({ state: interaction, speaking, offline, throttled, activity, speechLevel, burst, interrupted, clock });
   const c = size / 2;
   const layer = { c, size, core, clock };
-  const readout = compact ? '' : readoutFor(interaction);
+  const readout = compact ? '' : readoutFor(interaction, activity);
   // Microphone energy: a gentle teal swell at the hub while listening — measured, never invented.
   const hubBoost = interaction === 'listening' || interaction === 'transcribing' ? Math.min(1, level) * 0.35 : 0;
 
@@ -217,8 +229,8 @@ function LiveCore({
 }
 
 /** One still frame: hub, the state's rings and the teal arcs. No clock, no per-frame work. */
-function StaticCore({ size, interaction, offline, throttled }: { size: number; interaction: Interaction; offline: boolean; throttled: boolean }) {
-  const params = useMemo(() => adjustParams(CORE_PRESETS[interaction], offline, throttled), [interaction, offline, throttled]);
+function StaticCore({ size, interaction, offline, throttled, activity }: { size: number; interaction: Interaction; offline: boolean; throttled: boolean; activity: CoreActivity }) {
+  const params = useMemo(() => adjustParams(CORE_PRESETS[interaction], offline, throttled, activity), [interaction, offline, throttled, activity]);
   const c = size / 2;
   const scale = size / REFERENCE_SIZE;
   const radii = staticRingRadii(size, params);
