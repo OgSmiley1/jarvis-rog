@@ -1,3 +1,4 @@
+import { toolMetadata, type ToolMetadata } from './metadata';
 import { androidTools } from './androidTools';
 import { buildToolCallGrammar } from './grammar';
 import { phoneTools } from './phoneTools';
@@ -9,7 +10,7 @@ import { localTools } from './localTools';
 import type { ToolDefinition } from './types';
 
 const definitions = [...androidTools, ...phoneTools, ...visionTools, ...utilityTools, ...liveTools, ...localTools, ...termuxTools];
-export const toolRegistry = new Map<string, ToolDefinition>(definitions.map((tool) => [tool.name, tool]));
+export const toolRegistry = new Map<string, ToolDefinition & ToolMetadata>(definitions.map((tool) => [tool.name, { ...tool, ...toolMetadata(tool) }]));
 
 export function listToolSchemas() {
   return definitions.map((tool) => ({
@@ -17,6 +18,7 @@ export function listToolSchemas() {
     description: tool.description,
     target: tool.target,
     confirmation: tool.confirmation,
+    ...toolMetadata(tool),
   }));
 }
 

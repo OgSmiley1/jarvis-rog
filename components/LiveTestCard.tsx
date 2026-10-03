@@ -1,5 +1,6 @@
+import { openOnlineUrl } from '@/lib/net/openOnlineUrl';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Alert, Linking, Platform, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Constants from 'expo-constants';
 import { AppText, Button, Card, Row } from '@/components/Ui';
 import { colors } from '@/components/theme';
@@ -133,7 +134,7 @@ export function LiveTestCard() {
       ) : null}
       <AppText>Status: {stateLine}</AppText>
       {status.dropped ? <AppText muted>{status.dropped} lines dropped while offline.</AppText> : null}
-      {status.url ? <Button title="Open channel" onPress={() => void Linking.openURL(status.url!)} /> : null}
+      {status.url ? <Button title="Open channel" onPress={() => void openOnlineUrl(status.url!)} /> : null}
 
       <TextInput
         value={repoDraft}
@@ -173,7 +174,7 @@ export function LiveTestCard() {
             onPress={() => void clearLiveToken().then(() => setHasToken(false))}
           />
         ) : null}
-        <Button title="Make a token" onPress={() => void Linking.openURL(TOKEN_HELP_URL)} />
+        <Button title="Make a token" onPress={() => void openOnlineUrl(TOKEN_HELP_URL)} />
       </Row>
       <AppText muted>
         Token: Repository access → only the channel repository; Permissions → Issues: Read and write (add Pull requests:

@@ -1,10 +1,11 @@
+import { useSyncExternalStore } from 'react';
+import { isLocalOnly, subscribeNetworkPolicy } from '@/lib/net/localOnly';
 import { useEffect, useMemo, useState } from 'react';
 import { Paths } from 'expo-file-system';
 import {
   adoptModelFile,
   downloadWithSystem,
   findModelFile,
-  hasPermanentStorage,
   hasSystemDownloader,
   type ModelFile,
 } from '@/lib/inference/brainStore';
@@ -33,7 +34,8 @@ export interface LocalVoiceModel<T> {
  * download is used as before.
  */
 export function useLocalVoiceModel<T>(remote: T, enabled = true): LocalVoiceModel<T> {
-  const managed = hasSystemDownloader() && hasPermanentStorage();
+  const managed = hasSystemDownloader();
+  const localOnly = useSyncExternalStore(subscribeNetworkPolicy, isLocalOnly, isLocalOnly);
   const urls = useMemo(() => collectUrls(remote), [remote]);
   const [local, setLocal] = useState<T | null>(null);
   const [progress, setProgress] = useState(0);
@@ -68,8 +70,8 @@ export function useLocalVoiceModel<T>(remote: T, enabled = true): LocalVoiceMode
     return () => {
       cancelled = true;
     };
-  }, [managed, enabled, remote, urls]);
+  }, [managed, enabled, remote, urls, localOnly]);
 
-  if (!managed) return { config: remote, ready: true, progress: 1 };
+  if (!managed) return { config: remote, ready: !localOnly, progress: 1 };
   return { config: local ?? remote, ready: local !== null, progress };
 }

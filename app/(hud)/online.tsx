@@ -1,5 +1,6 @@
+import { openOnlineUrl } from '@/lib/net/openOnlineUrl';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Linking } from 'react-native';
+import { Alert } from 'react-native';
 import { AppText, Button, Card, Field, Row, Screen, Title } from '@/components/Ui';
 import { PuterGateway, type PuterGatewayHandle } from '@/components/PuterGateway';
 import { useJarvis } from '@/context/JarvisContext';
@@ -271,7 +272,7 @@ export default function OnlineScreen() {
         {FREE_AI_PORTALS.map((portal) => (
           <Card key={portal.id} title={portal.name}>
             <AppText muted>{portal.description}</AppText>
-            <Button title={`Open ${portal.name}`} onPress={() => void Linking.openURL(portal.url)} />
+            <Button title={`Open ${portal.name}`} onPress={() => void openOnlineUrl(portal.url)} />
           </Card>
         ))}
       </Card>

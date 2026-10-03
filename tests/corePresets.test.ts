@@ -22,7 +22,7 @@ describe('Core presets (guide §2)', () => {
     expect(CORE_PRESETS.thinking.sweepSpeed).toBe(1.2);
     expect(CORE_PRESETS.speaking.spokeDensity).toBe(0.75);
     expect(CORE_PRESETS.listening.tealOpacity).toBe(1);
-    expect(Object.keys(CORE_PRESETS)).toHaveLength(7);
+    expect(Object.keys(CORE_PRESETS)).toHaveLength(15);
   });
 
   it('maps every HUD state to an interaction state', () => {

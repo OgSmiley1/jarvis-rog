@@ -1,5 +1,6 @@
+import { openOnlineUrl } from '@/lib/net/openOnlineUrl';
 import { useState } from 'react';
-import { Alert, Linking, Switch, TextInput, View, StyleSheet } from 'react-native';
+import { Alert, Switch, TextInput, View, StyleSheet } from 'react-native';
 import { AppText, Button, Card, Row } from '@/components/Ui';
 import { colors } from '@/components/theme';
 import { useJarvis } from '@/context/JarvisContext';
@@ -129,7 +130,7 @@ export function CloudBrainCard() {
             <Row>
               <Button title="Save key" disabled={!drafts[provider.id]?.trim()} onPress={() => void save(provider.id)} />
               {hasKey ? <Button title="Remove" danger onPress={() => void jarvis.removeCloudKey(provider.id)} /> : null}
-              <Button title="Get free key" onPress={() => void Linking.openURL(provider.keyUrl)} />
+              <Button title="Get free key" onPress={() => void openOnlineUrl(provider.keyUrl)} />
             </Row>
             <TextInput
               value={modelDrafts[provider.id] ?? ''}

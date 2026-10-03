@@ -1,3 +1,7 @@
+# Current execution checkpoint — 0.5.0
+
+See docs/PRODUCTION_STATUS.md for current evidence. Source implements hard Local Only, structured follow-ups, diagnostics/self-test, preserved 4B/8B models, serial model lifecycle and verified-release installer. 599 tests, typecheck, lint and Expo dependency checks pass. Final native build/runtime verification in progress; no physical-device completion claim.
+
 # JARVIS ROG — LIVE BUILD STATE
 
 > **DEVICE CRASH ROOT CAUSE + FIX — 2026-09-22**

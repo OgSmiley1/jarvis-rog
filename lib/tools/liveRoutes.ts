@@ -25,14 +25,11 @@ const hasArabic = (text: string) => /[؀-ۿ]/.test(text);
 const TIME_WORDS_EN = /\b(?:right\s+now|now|today|tonight|tomorrow|this\s+(?:morning|afternoon|evening))\b/g;
 
 /** "in Abu Dhabi", "for London" → the place, with time and unit words removed. */
-function placeAfter(text: string, ar: boolean): string | undefined {
-  if (ar) {
-    const m = /(?:^|\s)(?:في|ب)\s*([^؟?.،,]+?)\s*(?:اليوم|الحين|الآن|بكرة|بكره|غدًا|غدا|باكر)?\s*[؟?.]*$/u.exec(text);
-    const city = m?.[1]?.trim();
-    return city && city.length > 1 ? city : undefined;
-  }
-  const cleaned = text.replace(/\bin\s+(?:celsius|fahrenheit)\b/g, '').replace(TIME_WORDS_EN, '').replace(/\s+/g, ' ').trim();
-  const m = /\b(?:in|for|at)\s+([a-z][a-z .'-]{1,40}?)\s*$/.exec(cleaned);
+function placeAfter(text: string, _ar: boolean): string | undefined {
+  const cleaned = text.toLowerCase().replace(/\b(?:in\s+)?(?:celsius|fahrenheit)\b/g, '')
+    .replace(TIME_WORDS_EN, '').replace(/اليوم|الحين|الآن|بكرة|بكره|غدًا|غدا|باكر/gu, '')
+    .replace(/[؟?.،,]+$/gu, '').replace(/\s+/g, ' ').trim();
+  const m = /(?:^|\s)(?:in|for|at|في|ب)\s+([\p{L}\p{M} .'-]{2,60})$/u.exec(cleaned);
   const city = m?.[1]?.trim();
   if (!city || /^(?:the\s+)?(?:morning|evening|afternoon|week|weekend)$/.test(city)) return undefined;
   return city;

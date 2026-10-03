@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const script = readFileSync(resolve(process.cwd(), 'scripts/install-fixed-on-phone.sh'), 'utf8');
+const script = readFileSync(resolve(process.cwd(), 'scripts/build-eas-on-phone.sh'), 'utf8');
 
 describe('phone-only build and install contract', () => {
   it('starts an EAS build rather than only downloading one', () => {

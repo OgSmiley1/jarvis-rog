@@ -1,5 +1,6 @@
 package expo.modules.jarvisbrain
 
+import android.app.ActivityManager
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
@@ -33,6 +34,12 @@ class ExpoJarvisBrainModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ExpoJarvisBrain")
 
+    Function("memoryInfo") {
+      val context = context() ?: return@Function null
+      val info = ActivityManager.MemoryInfo()
+      (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+      mapOf("availableBytes" to info.availMem.toDouble(), "totalBytes" to info.totalMem.toDouble(), "lowMemory" to info.lowMemory)
+    }
     Function("modelDirectory") {
       val context = context() ?: return@Function null
       modelDir(context).absolutePath
@@ -127,6 +134,24 @@ class ExpoJarvisBrainModule : Module() {
     // Each file has its own download slot, keyed by its name, so the brain,
     // the eyes and the voice files download side by side and each resumes
     // independently.
+    Function("setLocalOnly") { enabled: Boolean ->
+      val context = context() ?: throw IllegalStateException("NO_CONTEXT")
+      val preferences = prefs(context)
+      // Persist before cancelling: no new system transfer can race this toggle.
+      preferences.edit().putBoolean("localOnly", enabled).commit()
+      if (enabled) {
+        for ((downloadKey, value) in preferences.all) {
+          if (downloadKey.startsWith(KEY_ID) && value is Long && value >= 0) {
+            val state = query(manager(context), value)["state"]
+            if (state == "pending" || state == "running" || state == "paused") {
+              manager(context).remove(value)
+              preferences.edit().remove(downloadKey).apply()
+            }
+          }
+        }
+      }
+    }
+
     Function("activeDownload") { fileName: String ->
       val context = context() ?: return@Function null
       val id = prefs(context).getLong(key(fileName), -1L)
@@ -139,6 +164,7 @@ class ExpoJarvisBrainModule : Module() {
     Function("startDownload") { url: String, fileName: String, title: String, wifiOnly: Boolean? ->
       val context = context() ?: throw IllegalStateException("NO_CONTEXT")
       val manager = manager(context)
+      if (prefs(context).getBoolean("localOnly", false)) throw IllegalStateException("LOCAL_ONLY_BLOCKED")
       val existing = prefs(context).getLong(key(fileName), -1L)
       if (existing >= 0) {
         val state = query(manager, existing)["state"]

@@ -15,6 +15,7 @@ const DB_NAME = 'jarvis.db';
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export const DEFAULT_SETTINGS: JarvisSettings = {
+  localOnly: false,
   language: 'en',
   defaultMode: 'fast',
   approvedMemoryEnabled: true,

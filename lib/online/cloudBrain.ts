@@ -1,3 +1,4 @@
+import { assertNetworkAllowed } from '@/lib/net/localOnly';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { INTELLIGENCE_MODES } from '@/lib/inference/intelligenceModes';
 import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/inference/types';
@@ -199,6 +200,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   const startedAt = now();
 
   const assertActive = () => {
+    assertNetworkAllowed();
     if (input.signal?.aborted) throw Object.assign(new Error('TURN_CANCELLED'), { name: 'AbortError' });
     if (input.deadlineAt !== undefined && now() >= input.deadlineAt) throw new Error('TURN_DEADLINE');
   };

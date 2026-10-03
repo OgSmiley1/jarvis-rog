@@ -36,11 +36,27 @@ export function getModelRuntimeState(): ModelRuntimeState {
   return { ...state };
 }
 
+let lifecycle: Promise<unknown> = Promise.resolve();
+let pendingLoad: { path: string; promise: Promise<ModelRuntimeState> } | null = null;
+export function loadLocalModel(path: string, name: string, options: LoadModelOptions = {}): Promise<ModelRuntimeState> {
+  if (pendingLoad?.path === path) return pendingLoad.promise;
+  const promise = lifecycle.catch(() => undefined).then(() => loadModelExclusive(path, name, options));
+  lifecycle = promise;
+  pendingLoad = { path, promise };
+  void promise.finally(() => { if (pendingLoad?.promise === promise) pendingLoad = null; }).catch(() => undefined);
+  return promise;
+}
+export function unloadLocalModel(): Promise<void> {
+  const promise = lifecycle.catch(() => undefined).then(unloadModelExclusive);
+  lifecycle = promise;
+  return promise;
+}
+
 export async function validateGguf(path: string): Promise<unknown> {
   return loadLlamaModelInfo(path);
 }
 
-export async function loadLocalModel(
+async function loadModelExclusive(
   modelPath: string,
   modelName: string,
   options: LoadModelOptions = {},
@@ -48,6 +64,7 @@ export async function loadLocalModel(
   state = { status: 'loading', modelPath, modelName };
   try {
     if (context) {
+      await context.stopCompletion();
       await context.release();
       context = null;
     }
@@ -104,8 +121,8 @@ export async function loadLocalModel(
   }
 }
 
-export async function unloadLocalModel(): Promise<void> {
-  if (context) await context.release();
+async function unloadModelExclusive(): Promise<void> {
+  if (context) { await context.stopCompletion(); await context.release(); }
   context = null;
   activePlan = null;
   state = { status: 'unloaded' };

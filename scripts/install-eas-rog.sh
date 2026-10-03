@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# An explicit commit requests the historical EAS recovery path; the default
+# always installs the verified final release.
+if [ "$#" -eq 0 ]; then
+  exec python3 "$(dirname "$0")/install-release.py"
+fi
 
 COMMIT="${1:-$(git rev-parse HEAD)}"
 PKG="com.app.localjarviscoach"

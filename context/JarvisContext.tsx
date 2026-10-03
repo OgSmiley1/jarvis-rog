@@ -1,3 +1,6 @@
+import { setLocalOnly, isLocalOnly } from '@/lib/net/localOnly';
+import { setNativeLocalOnly } from '@/lib/inference/brainStore';
+import { ToolConversation } from '@/lib/tools/toolConversation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { CompletionMessage, IntelligenceMode, ModelRuntimeState, RuntimeMetrics } from '@/lib/inference/types';
 import type { JarvisProject, JarvisSettings, MemoryRecord, ProjectStep } from '@/lib/storage/types';
@@ -21,7 +24,6 @@ import { readDevicePowerState, type PowerStateReading } from '@/lib/device/power
 import type { RuntimePlan } from '@/lib/inference/thermalPlan';
 import { createId } from '@/lib/utils/ids';
 type RuntimeModule = typeof import('@/lib/inference/standaloneModel');
-import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { executeToolWithAudit } from '@/lib/tools/execution';
 import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
@@ -63,6 +65,7 @@ import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } fro
 export type AnswerSource = 'local' | 'tool' | `cloud:${CloudProviderId}`;
 
 export interface AskOptions {
+  onPhase?: (state: 'local_inference' | 'tool_execution' | 'online_lookup') => void;
   spoken?: boolean;
   /** The voice turn's cancellation and deadline; tools stop when it is cancelled. */
   turn?: ToolRunContext;
@@ -177,6 +180,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   const [permanentStorage, setPermanentStorage] = useState(() => hasPermanentStorage());
   const cloudAbort = useRef<AbortController | null>(null);
   useEffect(() => () => cloudAbort.current?.abort(), []);
+  const toolConversation = useRef(new ToolConversation());
   const brainJob = useRef<Promise<ImportedModel> | null>(null);
   const brainBootTried = useRef(false);
   // Set once the backup in Download/JARVIS has been read (and restored onto a
@@ -209,12 +213,16 @@ export function JarvisProvider({ children }: PropsWithChildren) {
         listMemories(),
         listProjects(),
       ]);
+      setNativeLocalOnly(storedSettings.localOnly === true);
+      setLocalOnly(storedSettings.localOnly === true);
       setSettings(storedSettings);
       setMemories(storedMemories);
       setProjects(storedProjects);
       setCloudProviders(await cloudProvidersWithKeys().catch(() => []));
       setInitError(undefined);
     } catch (error) {
+      setLocalOnly(true);
+      setSettings((current) => ({ ...current, localOnly: true }));
       setInitError(error instanceof Error ? error.message : String(error));
       throw error;
     } finally {
@@ -244,10 +252,10 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     // the owner happens to open Settings — otherwise the first thing JARVIS
     // says after a cold start uses whatever the platform picks by default.
     setVoicePreference({
-      allowNetwork: settings.ttsAllowNetworkVoice,
+      allowNetwork: !settings.localOnly && settings.ttsAllowNetworkVoice,
       preferredIdentifier: settings.ttsVoiceId,
     });
-  }, [settings.ttsAllowNetworkVoice, settings.ttsVoiceId]);
+  }, [settings.localOnly, settings.ttsAllowNetworkVoice, settings.ttsVoiceId]);
 
   useEffect(() => {
     // Bring the floating orb back after a restart if the owner left it on.
@@ -259,6 +267,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const updateSettings = useCallback(async (patch: Partial<JarvisSettings>) => {
     const next = { ...settings, ...patch };
+    setNativeLocalOnly(next.localOnly === true);
+    setLocalOnly(next.localOnly === true);
     setSettings(next);
     await saveSettings(next);
   }, [settings]);
@@ -374,7 +384,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   // Ready means a provider that will actually be tried: a Gemini-only key does
   // nothing until the owner allows providers that train on prompts.
   const cloudReady =
-    settings.cloudFallbackEnabled &&
+    !settings.localOnly && settings.cloudFallbackEnabled &&
     cloudProviders.some((id) => Boolean(settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts);
 
   useEffect(() => {
@@ -479,7 +489,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
 
   const activeProject = projects.find((project) => project.status === 'active');
 
-  const ask = useCallback(async (
+  const askInner = useCallback(async (
     text: string,
     mode: IntelligenceMode,
     onToken?: (token: string) => void,
@@ -488,8 +498,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   ): Promise<AskResult> => {
     if (!text.trim()) throw new Error('EMPTY_MESSAGE');
 
-    const deterministic = routeDeterministicTool(text);
+    const deterministic = toolConversation.current.resolve(text, conversation.length > 0);
     if (deterministic) {
+      options.onPhase?.(deterministic.call.tool.startsWith('live.') ? 'online_lookup' : 'tool_execution');
       const startedAt = performance.now();
       const toolResult = await executeToolWithAudit(deterministic.call, { turn: options.turn });
       const metrics: RuntimeMetrics = { totalMs: performance.now() - startedAt };
@@ -504,6 +515,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     }
 
     if (looksLikeToolRequest(text) && modelState.status === 'ready') {
+      options.onPhase?.('local_inference');
       const runtime = await getRuntime();
       const allowedTools = [...listToolNames(), NO_TOOL];
       const planner = await runtime.runCompletion({
@@ -517,6 +529,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       try {
         const planned = parseToolCall(planner.text, allowedTools);
         if (planned.tool !== NO_TOOL) {
+          options.onPhase?.(planned.tool.startsWith('live.') ? 'online_lookup' : 'tool_execution');
           const toolResult = await executeToolWithAudit({
             id: createId('tool'),
             tool: planned.tool,
@@ -575,11 +588,12 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     // fails (429, quota, offline, bad key), so the assistant never goes quiet.
     const localReady = modelState.status === 'ready';
     const plan = cloudPlan({
-      cloudEnabled: settings.cloudFallbackEnabled,
+      cloudEnabled: !isLocalOnly() && settings.cloudFallbackEnabled,
       localReady,
       cloudFirst: Boolean(settings.cloudFirst),
     });
     if (plan !== 'local') {
+      options.onPhase?.('online_lookup');
       const abort = new AbortController();
       cloudAbort.current?.abort();
       cloudAbort.current = abort;
@@ -634,6 +648,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     if (options.turn?.signal?.aborted) throw new Error('TURN_CANCELLED');
     if (options.turn?.deadlineAt !== undefined && Date.now() >= options.turn.deadlineAt) throw new Error('TURN_DEADLINE');
     const runtime = await getRuntime();
+    options.onPhase?.('local_inference');
     const result = await runtime.runCompletion({ messages, mode, onToken, signal: options.turn?.signal, deadlineAt: options.turn?.deadlineAt, maxTokens: options.spoken && mode === 'fast' ? 128 : undefined });
     setLastMetrics(result.metrics);
     return { ...result, source: 'local' as AnswerSource };
@@ -650,7 +665,35 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     settings.ownerProfile,
   ]);
 
+  const activeAsk = useRef<AbortController | null>(null);
+  useEffect(() => () => activeAsk.current?.abort(), []);
+  const ask = useCallback(async (text: string, mode: IntelligenceMode, onToken?: (token: string) => void, conversation: CompletionMessage[] = [], options: AskOptions = {}): Promise<AskResult> => {
+    activeAsk.current?.abort();
+    const abort = new AbortController();
+    activeAsk.current = abort;
+    const parent = options.turn?.signal;
+    const cancel = () => abort.abort();
+    parent?.addEventListener('abort', cancel, { once: true });
+    if (parent?.aborted) abort.abort();
+    const deadlineAt = options.turn?.deadlineAt ?? Date.now() + (options.spoken ? 30_000 : 90_000);
+    let rejectStopped: (error: Error) => void = () => undefined;
+    const stopped = new Promise<never>((_, reject) => { rejectStopped = reject; });
+    const onAbort = () => rejectStopped(new Error(Date.now() >= deadlineAt ? 'TURN_DEADLINE' : 'TURN_CANCELLED'));
+    abort.signal.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(cancel, Math.max(0, deadlineAt - Date.now()));
+    try {
+      if (abort.signal.aborted) throw new Error('TURN_CANCELLED');
+      return await Promise.race([askInner(text, mode, (token) => { if (!abort.signal.aborted) onToken?.(token); }, conversation, { ...options, onPhase: (phase) => { if (!abort.signal.aborted) options.onPhase?.(phase); }, turn: { ...options.turn, signal: abort.signal, deadlineAt } }), stopped]);
+    } finally {
+      clearTimeout(timer);
+      parent?.removeEventListener('abort', cancel);
+      abort.signal.removeEventListener('abort', onAbort);
+      if (activeAsk.current === abort) activeAsk.current = null;
+    }
+  }, [askInner]);
+
   const stopGeneration = useCallback(async () => {
+    activeAsk.current?.abort();
     cloudAbort.current?.abort();
     const runtime = await getRuntime();
     await runtime.stopGeneration();

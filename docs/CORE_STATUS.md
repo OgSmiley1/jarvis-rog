@@ -1,3 +1,7 @@
+# Historical Core checkpoints
+
+Current release authority: [PRODUCTION_STATUS.md](PRODUCTION_STATUS.md). Old EAS URLs below are historical only.
+
 # Core + Free APIs — status
 
 > Follow-up source fixes: cloud cancellation/deadlines, reasoning-only and nested

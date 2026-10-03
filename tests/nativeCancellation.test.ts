@@ -24,3 +24,22 @@ it('rejects expired turns before native execution and respects a spoken token ca
   await runCompletion({ messages: [], mode: 'fast', maxTokens: 128 });
   expect(native.completion.mock.calls[0]![0].n_predict).toBe(128);
 });
+
+it('deduplicates simultaneous initialization of the same model', async () => {
+  const { initLlama } = await import('llama.rn');
+  vi.mocked(initLlama).mockClear();
+  const first = loadLocalModel('/same.gguf', 'same');
+  const second = loadLocalModel('/same.gguf', 'same');
+  expect(first).toBe(second);
+  await Promise.all([first, second]);
+  expect(initLlama).toHaveBeenCalledOnce();
+});
+
+it('keeps the model selection visible after native loading fails and permits retry', async () => {
+  const { initLlama } = await import('llama.rn');
+  const { getModelRuntimeState } = await import('../lib/inference/standaloneModel.native');
+  vi.mocked(initLlama).mockRejectedValueOnce(new Error('not enough memory'));
+  await expect(loadLocalModel('/retained.gguf', 'retained')).rejects.toThrow('not enough memory');
+  expect(getModelRuntimeState()).toMatchObject({ status: 'error', modelPath: '/retained.gguf' });
+  expect(await loadLocalModel('/retained.gguf', 'retained')).toMatchObject({ status: 'ready', modelPath: '/retained.gguf' });
+});

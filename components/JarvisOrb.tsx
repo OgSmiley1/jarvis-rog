@@ -1,3 +1,4 @@
+import { runtimeObservations } from '@/lib/diagnostics/runtime';
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, AppState, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, RadialGradient, useClock, vec } from '@shopify/react-native-skia';
@@ -30,6 +31,7 @@ export type OrbState = HudState;
  */
 export function JarvisOrb({
   state,
+  activity,
   level = 0,
   onPress,
   onLongPress,
@@ -46,6 +48,7 @@ export function JarvisOrb({
   throttled = false,
 }: {
   state: OrbState;
+  activity?: Interaction;
   /** Measured microphone level, 0..1 (swells the hub while listening). */
   level?: number;
   onPress?: () => void;
@@ -70,6 +73,7 @@ export function JarvisOrb({
   /** Device thermally throttled: fewer rings and spokes, slow sweep. */
   throttled?: boolean;
 }) {
+  useEffect(() => { runtimeObservations.rendererMounted = true; return () => { runtimeObservations.rendererMounted = false; }; }, []);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [lowPower, setLowPower] = useState(false);
   const [hidden, setHidden] = useState(AppState.currentState !== 'active');
@@ -99,7 +103,7 @@ export function JarvisOrb({
     };
   }, []);
 
-  const interaction = interactionFor(state, transcribing);
+  const interaction = speaking ? 'speaking' : transcribing ? 'transcribing' : activity ?? interactionFor(state, transcribing);
   const still = reducedMotion || lowPower || hidden;
   const c = size / 2;
 
@@ -162,7 +166,7 @@ export function JarvisOrb({
   );
 }
 
-type Interaction = ReturnType<typeof interactionFor>;
+type Interaction = import('@/lib/core/CorePresets').CoreState;
 
 function LiveCore({
   size,

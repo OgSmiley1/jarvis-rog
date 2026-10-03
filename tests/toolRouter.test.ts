@@ -9,6 +9,7 @@ it('rejects unknown tools', async () => {
 
 
 import { z } from 'zod';
+import { toolMetadata } from '@/lib/tools/metadata';
 import { toolRegistry } from '@/lib/tools/registry';
 import { VoiceSessionController } from '@/lib/voice/voiceSession';
 
@@ -16,7 +17,8 @@ const call = { id: 'bounded', tool: 'test.bounded', arguments: {} };
 afterEach(() => toolRegistry.delete(call.tool));
 
 function fixture(execute = vi.fn(async () => ({ done: true }))) {
-  toolRegistry.set(call.tool, { name: call.tool, target: 'ANDROID', confirmation: 'none', description: 'Test', schema: z.object({}), execute });
+  const definition = { name: call.tool, target: 'ANDROID', confirmation: 'none', description: 'Test', schema: z.object({}), execute } as const;
+  toolRegistry.set(call.tool, { ...definition, ...toolMetadata(definition) });
   return execute;
 }
 

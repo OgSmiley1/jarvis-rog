@@ -13,6 +13,8 @@
  * service is up — only what it costs and what it is allowed to do.
  */
 
+import { isLocalOnly } from './localOnly';
+
 export type RouteClass = 'local' | 'verified-free-with-limits' | 'user-pays' | 'paid' | 'unknown';
 
 export interface ProviderEntry {
@@ -126,6 +128,7 @@ export const PROVIDERS: Record<string, ProviderEntry> = {
 };
 
 export interface PolicySettings {
+  localOnly?: boolean;
   /** Strict zero-cost mode. Default on. */
   strict: boolean;
   /** Owner consented to Puter's user-pays model. */
@@ -149,6 +152,7 @@ const MONTH_MS = 31 * 24 * 60 * 60 * 1000;
  */
 export function checkProvider(id: string, settings: PolicySettings, now = Date.now()): PolicyDecision {
   const provider = PROVIDERS[id];
+  if ((settings.localOnly || isLocalOnly()) && provider?.class !== 'local') return { allowed: false, reason: 'LOCAL_ONLY_BLOCKED' };
   if (!provider || provider.class === 'unknown') return { allowed: false, reason: `unknown provider "${id}" — refused` };
   if (provider.class === 'paid') return { allowed: false, reason: `${provider.name} is paid — refused` };
   if (provider.class === 'user-pays') {

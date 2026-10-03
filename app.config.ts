@@ -5,14 +5,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'JARVIS ROG',
   slug: 'smiley',
   owner: 'smiley007s-team',
-  version: '0.4.1',
+  version: '0.5.0',
   orientation: 'portrait',
   scheme: 'jarvisrog',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
-    versionCode: 2026093001,
+    versionCode: 2026100301,
     permissions: [
       'INTERNET',
       'RECORD_AUDIO',
@@ -105,6 +105,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   ],
   extra: {
+    buildCommit: process.env.JARVIS_BUILD_COMMIT ?? 'development',
     ...(config.extra ?? {}),
     eas: {
       projectId: 'eda56376-aa74-45d7-b652-68d661a9da9e',

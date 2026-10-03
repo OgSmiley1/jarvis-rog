@@ -3,6 +3,9 @@ import { Alert, PanResponder, Platform, Pressable, Share, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
+import { runtimeObservations } from '@/lib/diagnostics/runtime';
+import type { CoreState } from '@/lib/core/CorePresets';
+import { CoreBoundary } from '@/components/CoreBoundary';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { DashboardClock } from '@/components/DashboardClock';
 import { FirstRunCard, HistoryList, QrView, Sheet, type HistoryItem } from '@/components/CoreSheets';
@@ -104,6 +107,12 @@ export default function JarvisHud() {
   const [playing, setPlaying] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainBusy, setBrainBusy] = useState(false);
+  const [activity, setActivity] = useState<CoreState>();
+  useEffect(() => {
+    if (!activity || !['success', 'error', 'interrupted'].includes(activity)) return;
+    const timer = setTimeout(() => setActivity(undefined), 1200);
+    return () => clearTimeout(timer);
+  }, [activity]);
   // Which brain produced the last answer — shown so the owner always knows
   // whether a reply stayed on the phone.
   const [answerSource, setAnswerSource] = useState<AnswerSource>();
@@ -398,7 +407,7 @@ export default function JarvisHud() {
         // be heard: short spoken sentences, no markdown for the synthesiser to
         // stumble over. A neural voice reading a bulleted essay still sounds
         // like a machine.
-        { spoken: voiceOut, turn: { signal: turn.signal, deadlineAt: turn.deadlineAt, reserveTool: () => session.reserveTool(turn.turnId), reserveRead: () => session.reserveRead(turn.turnId) } },
+        { spoken: voiceOut, onPhase: (phase) => { if (session.isCurrent(turn.turnId)) setActivity(phase); }, turn: { signal: turn.signal, deadlineAt: turn.deadlineAt, reserveTool: () => session.reserveTool(turn.turnId), reserveRead: () => session.reserveRead(turn.turnId) } },
       );
       // A late answer from a cancelled or superseded turn is discarded, never spoken.
       if (!session.isCurrent(turn.turnId)) {
@@ -407,6 +416,7 @@ export default function JarvisHud() {
       }
       if (route) timer.mark('toolEnd');
       else timer.mark('modelEnd');
+      setActivity('success');
       const extra = extrasFrom(result.toolData);
       if (extra.stale) timer.scenario = 'live-data-cached';
       else if (route?.call.tool.startsWith('live.') && extra.source && result.toolData && (result.toolData as { fetchedAt?: number }).fetchedAt !== undefined) {
@@ -460,6 +470,7 @@ export default function JarvisHud() {
       if (!session.isCurrent(turn.turnId)) return;
       const message = humanizeError(errorMessage(error));
       recordLive('error', message, { raw: errorMessage(error), ms: Date.now() - askedAt });
+      setActivity('error');
       setResponse(message);
       if (jarvis.settings.handsFreeEnabled) {
         speakJarvis(message);
@@ -483,6 +494,7 @@ export default function JarvisHud() {
         busyRef.current = false;
         setBusy(false);
         setToolRunning(false);
+        setActivity((current) => current === 'success' || current === 'error' ? current : undefined);
       }
       if (looking) {
         setWatching(false);
@@ -751,6 +763,9 @@ export default function JarvisHud() {
   }
 
   const arabic = jarvis.settings.language === 'ar';
+  useEffect(() => {
+    Object.assign(runtimeObservations, { coreState: activity ?? hud.state, sttReady: voice.isReady, sttState: voice.state, speechPlaying: playing });
+  }, [activity, hud.state, voice.isReady, voice.state, playing]);
   const downloading = jarvis.brainDownload !== null;
   const downloadPercent =
     jarvis.brainDownload?.progress == null ? null : Math.round(jarvis.brainDownload.progress * 100);
@@ -826,28 +841,39 @@ export default function JarvisHud() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      {jarvis.initError ? <Pressable onPress={() => void jarvis.refresh().catch(() => undefined)} style={{ padding: 16 }}><Text style={styles.detail}>Local storage unavailable. Device tools remain usable. Tap to retry.</Text></Pressable> : null}
       {/* The main layer: the Core and nothing else. */}
       {page === 'camera' ? (
         <CameraPage state={hud.state} level={voice.level} onOrbPress={toggleVoice} arabic={arabic} />
       ) : (
         <View style={styles.stage}>
+          <CoreBoundary onPress={toggleVoice}>
           <JarvisOrb
+            activity={activity ?? (jarvis.brainDownload ? 'model_downloading' : jarvis.modelState.status === 'loading' ? 'model_loading' : hud.state === 'READY' && jarvis.settings.localOnly ? 'local_only' : undefined)}
             state={hud.state}
             level={voice.level}
             onPress={toggleVoice}
             onLongPress={() => setSheet('menu')}
             onHistory={() => setSheet('history')}
-            label={hud.headline}
+            label={activity?.replace(/_/g, ' ').toUpperCase() ?? (jarvis.settings.localOnly ? `${hud.headline} · LOCAL ONLY` : hud.headline)}
             size={coreSize}
             burst={burst}
             interrupted={interruptedTick}
             offline={connectivity !== 'online'}
-            showLabel={jarvis.settings.coreLabels}
+            showLabel
             speaking={playing}
             transcribing={voice.state === 'TRANSCRIBING'}
             throttled={(jarvis.powerReading?.state.thermalStatus ?? 0) >= 2}
           />
-          {jarvis.settings.coreLabels ? (
+          </CoreBoundary>
+          {response ? <Pressable accessibilityRole="button" accessibilityLabel="Read full response" onPress={() => setSheet('menu')} style={{ paddingHorizontal: 24, maxWidth: 520 }}>
+            <Text style={styles.responseText} numberOfLines={4}>{response}</Text>
+          </Pressable> : null}
+          <Row>
+            <Button title={busy || playing || micOn ? (arabic ? 'إيقاف' : 'Stop') : (arabic ? 'تحدث' : 'Talk')} onPress={toggleVoice} />
+            <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
+          </Row>
+          {false ? (
             <Row>
               <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
               <Button title={arabic ? 'السجل' : 'History'} onPress={() => setSheet('history')} />

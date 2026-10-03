@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Easing, useDerivedValue, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
-import type { InteractionState } from '@/lib/voice/voiceSession';
+import type { CoreState as InteractionState } from './CorePresets';
 import { CORE_PRESETS, INTERRUPT_MS, TRANSITION_MS, adjustParams, lerpParams, type CoreParams } from './CorePresets';
 
 /**

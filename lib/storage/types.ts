@@ -4,6 +4,8 @@ export type MemoryType = 'preference' | 'fact' | 'project' | 'lesson' | 'mistake
 export type MemorySource = 'manual' | 'coach' | 'understand' | 'project' | 'imported';
 
 export interface JarvisSettings {
+  /** Hard block on remote providers, downloads and network voices. */
+  localOnly?: boolean;
   language: 'en' | 'ar';
   defaultMode: IntelligenceMode;
   approvedMemoryEnabled: boolean;

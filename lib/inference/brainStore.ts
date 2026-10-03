@@ -1,3 +1,4 @@
+import { assertNetworkAllowed } from '@/lib/net/localOnly';
 import { requireOptionalNativeModule } from 'expo';
 import { File, Paths } from 'expo-file-system';
 import {
@@ -12,6 +13,8 @@ import {
 import { PREVIOUS_MODEL, RECOMMENDED_MODEL } from '@/lib/inference/modelImport';
 
 interface ExpoJarvisBrainNativeModule {
+  setLocalOnly?(enabled: boolean): void;
+  memoryInfo?(): { availableBytes: number; totalBytes: number; lowMemory: boolean };
   modelDirectory(): string | null;
   permanentDirectory?(): string;
   legacyDirectory?(): string | null;
@@ -34,6 +37,10 @@ interface ExpoJarvisBrainNativeModule {
 // back to the in-app download.
 const native = requireOptionalNativeModule<ExpoJarvisBrainNativeModule>('ExpoJarvisBrain');
 
+export function readMemoryInfo() { return native?.memoryInfo?.() ?? null; }
+
+export function setNativeLocalOnly(enabled: boolean): void { native?.setLocalOnly?.(enabled); }
+
 export function hasSystemDownloader(): boolean {
   return native !== null;
 }
@@ -48,7 +55,7 @@ function sizeOf(path: string): number {
   }
 }
 
-/** Best first: the 8B, then the 4B earlier builds downloaded. */
+/** Default 4B and compatible legacy 8B. Configured models take priority. */
 export const KNOWN_BRAINS: KnownBrain[] = [
   { name: RECOMMENDED_MODEL.name, minBytes: RECOMMENDED_MODEL.minBytes },
   { name: PREVIOUS_MODEL.name, minBytes: PREVIOUS_MODEL.minBytes },
@@ -107,7 +114,7 @@ export interface ModelFile {
 export const BRAIN_FILE: ModelFile = {
   url: RECOMMENDED_MODEL.url,
   name: RECOMMENDED_MODEL.name,
-  title: 'JARVIS brain (Qwen3 8B)',
+  title: 'JARVIS brain (Qwen3 4B)',
   minBytes: RECOMMENDED_MODEL.minBytes,
 };
 
@@ -139,6 +146,7 @@ export async function downloadWithSystem(
   file: ModelFile = BRAIN_FILE,
   options: { wifiOnly?: boolean } = {},
 ): Promise<InstalledModel> {
+  assertNetworkAllowed();
   if (!native) throw new Error('SYSTEM_DOWNLOADER_UNAVAILABLE');
   let id = native.activeDownload(file.name);
   if (id != null) {
@@ -150,6 +158,7 @@ export async function downloadWithSystem(
   }
   id ??= native.startDownload(file.url, file.name, file.title, options.wifiOnly === true);
   for (;;) {
+    assertNetworkAllowed();
     const view = describeDownload(native.downloadStatus(id));
     onView(view);
     if (view.done) {

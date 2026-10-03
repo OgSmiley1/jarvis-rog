@@ -31,14 +31,7 @@ export interface KnownBrain {
   minBytes: number;
 }
 
-/**
- * Every place a brain may be, best first. A model the owner imported by hand
- * (a name JARVIS does not know) comes first: it was chosen on purpose. Then
- * each known brain, the best first (the 8B before the 4B), in each folder,
- * the permanent one first; so a configured 4B gives way to an 8B that has
- * since arrived. The configured file, when it is a known brain somewhere
- * else, comes last. Paths are de-duplicated.
- */
+/** Configured compatible model first; otherwise known files across persistent and legacy folders. */
 export function brainCandidates(
   folders: Array<string | null | undefined>,
   brains: KnownBrain[],
@@ -55,7 +48,7 @@ export function brainCandidates(
   };
   const configuredName = configured?.path ? configured.name ?? modelFileName(configured.path) : undefined;
   const known = brains.find((brain) => brain.name === configuredName);
-  if (configured?.path && configuredName && !known) add(configured.path, configuredName, MIN_IMPORTED_MODEL_BYTES);
+  if (configured?.path && configuredName) add(configured.path, configuredName, known?.minBytes ?? MIN_IMPORTED_MODEL_BYTES);
   for (const brain of brains) {
     for (const folder of folders) {
       if (!folder) continue;

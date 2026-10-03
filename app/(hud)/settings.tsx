@@ -1,3 +1,4 @@
+import { DiagnosticsCard } from '@/components/DiagnosticsCard';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Switch, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -44,7 +45,7 @@ export default function SettingsScreen() {
   }
 
   useEffect(() => {
-    void refreshDiagnostics();
+    void refreshDiagnostics().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -68,11 +69,11 @@ export default function SettingsScreen() {
     // re-read the device so this card shows what will actually be spoken with,
     // not what was chosen under the previous preference.
     setVoicePreference({
-      allowNetwork: jarvis.settings.ttsAllowNetworkVoice,
+      allowNetwork: !jarvis.settings.localOnly && jarvis.settings.ttsAllowNetworkVoice,
       preferredIdentifier: jarvis.settings.ttsVoiceId,
     });
     describeVoices(jarvis.settings.language).then(setVoiceReport).catch(() => undefined);
-  }, [jarvis.settings.ttsAllowNetworkVoice, jarvis.settings.ttsVoiceId, jarvis.settings.language]);
+  }, [jarvis.settings.localOnly, jarvis.settings.ttsAllowNetworkVoice, jarvis.settings.ttsVoiceId, jarvis.settings.language]);
 
   async function validateAndSelectModel(
     imported: { path: string; name: string; size: number },
@@ -143,6 +144,10 @@ export default function SettingsScreen() {
       <Title>{arabic ? 'الإعدادات' : 'Settings'}</Title>
       {section === 'diagnostics' ? <AppText muted>Opened from /status · diagnostics are below.</AppText> : null}
 
+      <Card title={arabic ? 'محلي فقط' : 'Local Only'}>
+        <Switch accessibilityLabel="Local Only" value={jarvis.settings.localOnly === true} onValueChange={(localOnly) => void jarvis.updateSettings({ localOnly }).catch((error) => Alert.alert('Settings', humanizeError(errorMessage(error))))} />
+        <AppText muted>{arabic ? 'يمنع الإنترنت والسحابة والتنزيلات. النماذج المثبتة وأدوات الهاتف تبقى متاحة.' : 'Blocks live providers, cloud AI, network voices and downloads. Installed models and local phone tools remain available. Active partial downloads stop; completed models are preserved.'}</AppText>
+      </Card>
       <Card title={arabic ? 'جارفيس' : 'Your JARVIS'}>
         <AppText>
           {jarvis.modelState.status === 'ready'
@@ -458,7 +463,8 @@ export default function SettingsScreen() {
             <AppText muted>{termuxStatus}</AppText>
           </Card>
 
-          <Card title="Diagnostics">
+          <DiagnosticsCard />
+          <Card title="Recent tool runs">
             <AppText>Database: {jarvis.initError ? `ERROR · ${jarvis.initError}` : 'READY'}</AppText>
             <AppText>Model: {jarvis.modelState.status}</AppText>
             <AppText>Active project: {jarvis.activeProject?.name ?? 'None'}</AppText>

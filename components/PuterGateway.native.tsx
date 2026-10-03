@@ -1,4 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { isLocalOnly, subscribeNetworkPolicy } from '@/lib/net/localOnly';
+import { forwardRef, useImperativeHandle, useRef, useState, useSyncExternalStore } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
@@ -50,6 +51,7 @@ function safeScript(command: unknown): string {
  * `puter.setAuthToken()`.
  */
 export const PuterGateway = forwardRef<PuterGatewayHandle, Props>(function PuterGateway({ onEvent }, ref) {
+  const localOnly = useSyncExternalStore(subscribeNetworkPolicy, isLocalOnly, isLocalOnly);
   const webRef = useRef<WebView>(null);
   const [bridgeKey, setBridgeKey] = useState(0);
   const [popupUrl, setPopupUrl] = useState<string | null>(null);
@@ -97,6 +99,7 @@ export const PuterGateway = forwardRef<PuterGatewayHandle, Props>(function Puter
     }
   };
 
+  if (localOnly) return null;
   return (
     <View style={styles.shell}>
       <WebView

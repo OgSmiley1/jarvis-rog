@@ -12,6 +12,11 @@ export function humanizeError(code: string): string {
   }
 
   const known: Record<string, string> = {
+    LOCAL_ONLY_BLOCKED: 'Local Only is on. Internet features and downloads are blocked. Local tools and installed models remain available.',
+    TOOL_TIMEOUT: 'That action took too long. JARVIS is ready for another request.',
+    TURN_CANCELLED: 'Stopped.',
+    TURN_DEADLINE: 'That request took too long. Please try a shorter request.',
+    TTS_LOCAL_VOICE_UNAVAILABLE: 'No verified offline voice is installed for this language. Text responses remain available.',
     MODEL_NOT_LOADED: 'No brain is loaded yet. Tap "Download JARVIS brain" on the main screen, or add a free cloud key in Settings.',
     CLOUD_NO_KEYS: 'The cloud brain is on, but no provider key is saved. Add a free Groq, Cerebras or Gemini key in Settings.',
     CLOUD_KEY_EMPTY: 'Paste the key before saving it.',

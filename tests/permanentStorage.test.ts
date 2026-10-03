@@ -21,10 +21,10 @@ describe('the brain is found wherever it was saved', () => {
     expect(pickInstalledModel(brainCandidates([PERMANENT, APP], BRAINS, sizes))?.name).toBe('Qwen3-4B-Q4_K_M.gguf');
   });
 
-  it('switches to the 8B once it is on the phone, even while the 4B is the configured one', () => {
+  it('preserves the configured 4B even when an 8B is present', () => {
     const sizes = disk({ [`${PERMANENT}/Qwen3-8B-Q4_K_M.gguf`]: 5_027_783_488, [`${APP}/Qwen3-4B-Q4_K_M.gguf`]: 2_497_280_256 });
     const configured = { path: `file://${APP}/Qwen3-4B-Q4_K_M.gguf`, name: 'Qwen3-4B-Q4_K_M.gguf' };
-    expect(pickInstalledModel(brainCandidates([PERMANENT, APP], BRAINS, sizes, configured))?.name).toBe('Qwen3-8B-Q4_K_M.gguf');
+    expect(pickInstalledModel(brainCandidates([PERMANENT, APP], BRAINS, sizes, configured))?.name).toBe('Qwen3-4B-Q4_K_M.gguf');
   });
 
   it('keeps a model the owner imported by hand', () => {

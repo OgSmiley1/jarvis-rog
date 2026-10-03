@@ -1,3 +1,4 @@
+import { assertNetworkAllowed } from '@/lib/net/localOnly';
 import { formatEvent, type LiveEvent } from '@/lib/telemetry/liveLog';
 
 /**
@@ -102,6 +103,7 @@ export type ChannelVisibility = 'private' | 'public' | 'unknown';
  */
 export async function readChannelVisibility(target: ChannelTarget, token: string, fetchImpl: ChannelFetch): Promise<ChannelVisibility> {
   try {
+    assertNetworkAllowed();
     const response = await fetchImpl(`${API}/repos/${target.owner}/${target.repo}`, {
       method: 'GET',
       headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' },
@@ -203,12 +205,14 @@ export class GithubLiveChannel {
     try {
       let response: ChannelResponse;
       if (target.number) {
+        assertNetworkAllowed();
         response = await this.options.fetchImpl(`${API}/repos/${target.owner}/${target.repo}/issues/${target.number}`, {
           method: 'GET',
           headers: this.headers(),
         });
       } else {
         const started = new Date(this.now()).toISOString().replace('T', ' ').slice(0, 16);
+        assertNetworkAllowed();
         response = await this.options.fetchImpl(`${API}/repos/${target.owner}/${target.repo}/issues`, {
           method: 'POST',
           headers: this.headers(),
@@ -266,6 +270,7 @@ export class GithubLiveChannel {
     const { target } = this.options;
     const nextBatch = this.batchNumber + 1;
     try {
+      assertNetworkAllowed();
       const response = await this.options.fetchImpl(
         `${API}/repos/${target.owner}/${target.repo}/issues/${this.current.number}/comments`,
         { method: 'POST', headers: this.headers(), body: JSON.stringify({ body: renderComment(this.options.header, this.sessionId, nextBatch, batch) }) },

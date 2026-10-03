@@ -29,7 +29,16 @@ export interface CoreParams {
   redIntensity: number;
 }
 
-export const CORE_PRESETS: Record<InteractionState, CoreParams> = {
+export type CoreState = InteractionState | 'local_inference' | 'tool_execution' | 'online_lookup' | 'success' | 'warning' | 'local_only' | 'model_loading' | 'model_downloading';
+export const CORE_PRESETS: Record<CoreState, CoreParams> = {
+  local_inference: { rings: 5, ringGap: 26, spokeDensity: 0.55, sweepSpeed: 0.8, tealOpacity: 0.8, hubGlow: 0.8, breathAmp: 3, breathPeriod: 1.1, redIntensity: 0.9 },
+  tool_execution: { rings: 3, ringGap: 32, spokeDensity: 0.8, sweepSpeed: 0.9, tealOpacity: 1, hubGlow: 0.75, breathAmp: 2, breathPeriod: 0.8, redIntensity: 0.85 },
+  online_lookup: { rings: 4, ringGap: 36, spokeDensity: 0.3, sweepSpeed: 1.5, tealOpacity: 1, hubGlow: 0.6, breathAmp: 4, breathPeriod: 1.2, redIntensity: 0.7 },
+  success: { rings: 4, ringGap: 32, spokeDensity: 0.4, sweepSpeed: 0.1, tealOpacity: 1, hubGlow: 1, breathAmp: 6, breathPeriod: 1, redIntensity: 0.8 },
+  warning: { rings: 2, ringGap: 38, spokeDensity: 0.2, sweepSpeed: 0.1, tealOpacity: 0.3, hubGlow: 0.5, breathAmp: 4, breathPeriod: 2, redIntensity: 0.65 },
+  local_only: { rings: 3, ringGap: 34, spokeDensity: 0.2, sweepSpeed: 0.04, tealOpacity: 0.6, hubGlow: 0.4, breathAmp: 5, breathPeriod: 4, redIntensity: 0.55 },
+  model_loading: { rings: 4, ringGap: 28, spokeDensity: 0.5, sweepSpeed: 0.5, tealOpacity: 0.5, hubGlow: 0.7, breathAmp: 3, breathPeriod: 1.5, redIntensity: 0.7 },
+  model_downloading: { rings: 3, ringGap: 40, spokeDensity: 0.3, sweepSpeed: 0.7, tealOpacity: 0.8, hubGlow: 0.5, breathAmp: 8, breathPeriod: 2, redIntensity: 0.6 },
   idle:         { rings: 3, ringGap: 34, spokeDensity: 0.18, sweepSpeed: 0.05, tealOpacity: 0.25, hubGlow: 0.35, breathAmp: 6,  breathPeriod: 4.0, redIntensity: 0.55 },
   listening:    { rings: 4, ringGap: 30, spokeDensity: 0.35, sweepSpeed: 0.15, tealOpacity: 1.0,  hubGlow: 0.6,  breathAmp: 10, breathPeriod: 1.6, redIntensity: 0.7 },
   transcribing: { rings: 4, ringGap: 30, spokeDensity: 0.45, sweepSpeed: 0.6,  tealOpacity: 0.6,  hubGlow: 0.7,  breathAmp: 4,  breathPeriod: 1.2, redIntensity: 0.8 },
@@ -247,7 +256,7 @@ export function particleBudget(burstAlive: boolean, warpAlive: boolean): { burst
 }
 
 /** Phase 2 readouts: short status glyphs on a ring — never sentences. */
-export function readoutFor(state: InteractionState): string {
+export function readoutFor(state: CoreState): string {
   switch (state) {
     case 'thinking':
       return '··· PROCESSING ··· 0x2A ··· CORE 5 ··· ';

@@ -88,6 +88,8 @@ function looksOffline(error: unknown): boolean {
 }
 
 async function attempt<T>(url: string, options: RequestOptions, timeoutMs: number): Promise<HttpResult<T>> {
+  const currentPolicy = checkProvider(options.provider, options.policy);
+  if (!currentPolicy.allowed) return { ok: false, code: 'blocked', detail: currentPolicy.reason };
   const fetchImpl = options.fetchImpl ?? (globalThis.fetch as FetchLike);
   const controller = new AbortController();
   let rejectStopped: (error: Error) => void = () => undefined;

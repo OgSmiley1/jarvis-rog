@@ -1,3 +1,4 @@
+import { isLocalOnly, subscribeNetworkPolicy } from '@/lib/net/localOnly';
 import * as Speech from 'expo-speech';
 import { prosodyFor, rankVoices, selectVoice, type DeviceVoice, type RankedVoice } from './voiceCatalog';
 import { stripThinking } from './stripThinking';
@@ -26,6 +27,11 @@ let speechEpoch = 0;
 let voiceCache: DeviceVoice[] | null = null;
 let lastChosen: { language: VoiceLanguage; chosen: RankedVoice | undefined } | null = null;
 
+subscribeNetworkPolicy(() => {
+  lastChosen = null;
+  if (isLocalOnly()) { speechEpoch += 1; void Promise.resolve(Speech.stop()).catch(() => undefined); }
+});
+
 /** Settings writes the owner's choice here; speech reads it on the next call. */
 export function setVoicePreference(next: VoicePreference): void {
   preference = next;
@@ -53,7 +59,9 @@ async function deviceVoices(refresh = false): Promise<DeviceVoice[]> {
 
 async function chooseVoice(language: VoiceLanguage): Promise<RankedVoice | undefined> {
   if (lastChosen?.language === language) return lastChosen.chosen;
-  const chosen = selectVoice(await deviceVoices(), { language, ...preference });
+  const voices = await deviceVoices();
+  const eligible = isLocalOnly() ? voices.filter((voice) => /-local$/i.test(voice.identifier)) : voices;
+  const chosen = selectVoice(eligible, { language, ...preference, allowNetwork: !isLocalOnly() && preference.allowNetwork });
   lastChosen = { language, chosen };
   return chosen;
 }
@@ -81,6 +89,7 @@ export async function previewVoice(identifier: string, language: VoiceLanguage):
   const voices = await deviceVoices();
   if (epoch !== speechEpoch) return;
   const voice = voices.find((candidate) => candidate.identifier === identifier);
+  if (isLocalOnly() && !/-local$/i.test(identifier)) throw new Error('TTS_LOCAL_VOICE_UNAVAILABLE');
   const { rate, pitch } = prosodyFor(voice, language);
   const sample = language === 'ar'
     ? 'مساء الخير يا سمايلي. الأنظمة جاهزة.'
@@ -111,6 +120,7 @@ export async function speakResponse(
   await Speech.stop();
   const chosen = await chooseVoice(language);
   if (epoch !== speechEpoch) return;
+  if (isLocalOnly() && (!chosen || !/-local$/i.test(chosen.voice.identifier))) throw new Error('TTS_LOCAL_VOICE_UNAVAILABLE');
   const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve, reject) => {
@@ -160,6 +170,7 @@ export async function speakQueued(
   const epoch = speechEpoch;
   const chosen = await chooseVoice(language);
   if (epoch !== speechEpoch) return;
+  if (isLocalOnly() && (!chosen || !/-local$/i.test(chosen.voice.identifier))) throw new Error('TTS_LOCAL_VOICE_UNAVAILABLE');
   const { rate, pitch } = prosodyFor(chosen?.voice, language);
 
   await new Promise<void>((resolve) => {
