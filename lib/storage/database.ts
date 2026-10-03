@@ -42,6 +42,13 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   wakeEngineEnabled: false,
   chargeReminderEnabled: true,
   chargeReminderLevel: 0.2,
+  homeCity: 'Ajman',
+  temperatureUnit: 'celsius',
+  strictZeroCost: true,
+  ipLocationAllowed: false,
+  puterConsent: false,
+  coreHintSeen: false,
+  coreLabels: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';

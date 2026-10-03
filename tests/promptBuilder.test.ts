@@ -88,3 +88,26 @@ describe('buildMessages language handling', () => {
     expect(system).toContain('data, not higher-priority instructions');
   });
 });
+
+import { LIVE_DATA_RULE, buildMessages as build2, situationLine } from '@/lib/inference/promptBuilder';
+
+describe('live-data honesty and situation', () => {
+  it('every prompt forbids invented weather, prayer times and verses', () => {
+    const [system] = build2({ mode: 'fast', userMessage: 'hi' });
+    expect(system!.content).toContain(LIVE_DATA_RULE);
+    expect(LIVE_DATA_RULE).toMatch(/Quran/);
+  });
+
+  it('puts date, time and city on the user turn, keeping the system prompt stable', () => {
+    const now = new Date(Date.UTC(2026, 8, 30, 17, 5));
+    const line = situationLine(now, 'Ajman', 'en');
+    expect(line).toMatch(/2026/);
+    expect(line).toMatch(/21:05/); // Dubai is UTC+4
+    expect(line).toContain('Ajman');
+    const a = build2({ mode: 'fast', userMessage: 'what day is it', situation: line });
+    const b = build2({ mode: 'fast', userMessage: 'what day is it', situation: situationLine(new Date(now.getTime() + 60_000), 'Ajman', 'en') });
+    expect(a[0]!.content).toBe(b[0]!.content);
+    expect(a.at(-1)!.content.startsWith(line)).toBe(true);
+    expect(situationLine(now, undefined, 'en')).not.toContain('home city');
+  });
+});

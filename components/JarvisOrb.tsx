@@ -1,275 +1,263 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Stop } from 'react-native-svg';
-import { colors } from './theme';
+import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, AppState, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
+import { Canvas, Circle, DashPathEffect, Group, RadialGradient, useClock, vec } from '@shopify/react-native-skia';
 import type { HudState } from '@/lib/hud/hudState';
-import { arcPath, particles, slashMarks, ticks } from '@/lib/hud/orbGeometry';
+import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, interactionFor, readoutFor, type CoreActivity } from '@/lib/core/CorePresets';
+import { useCoreController } from '@/lib/core/useCoreController';
+import { CoreErrorBoundary } from './CoreErrorBoundary';
+import { CORE_RED, CORE_TEAL, DottedRings, Hub, RadialSpokes, Readouts, Sweep, TealArcs, WarpParticles, staticRingRadii } from './core-layers';
 
 /** Kept as an alias so existing imports of `OrbState` continue to resolve. */
 export type OrbState = HudState;
 
-/** The reference video's electric blue. */
-const BLUE = '#3AA2FF';
-const WATCHING_TINT = '#B388FF';
-
 /**
- * The reactor from the owner's reference video: a black core with a thin
- * white ring and JARVIS set wide inside it; a thick electric-blue ring with a
- * soft glow; broken arcs orbiting at two radii; a ring of fine ticks with
- * "//" marks on the diagonals; and a scatter of particles.
+ * The Core — JARVIS's face. The same JarvisOrb as before, now drawn with
+ * react-native-skia to the Core visual implementation guide: dotted red LED
+ * rings, 360 seeded radial spokes, a radar sweep, counter-rotating teal
+ * arcs, warp particles on wake and interrupt, a dark hub with a red bloom,
+ * and circular readouts while thinking.
  *
- * Each layer is its own SVG inside an Animated.View, so every motion is a
- * native-driver transform or opacity: nothing competes with the local brain
- * for the JS thread. The glow follows the measured microphone level, so when
- * it swells it is because the room got louder. Reduce-motion freezes it.
+ * React renders this only when the voice *state* (or a prop) changes. Every
+ * frame in between is computed on the UI thread from Skia's clock and
+ * Reanimated shared values; nothing calls setState per frame.
  *
- * Motion per state: idle breathes; listening swells with your voice; thinking
- * spins the arcs hard; speaking pulses; watching turns violet.
+ * Honest about its inputs: the spokes' "waveform" runs only while speech is
+ * actually playing (`speaking`, from the TTS engine's own start/done
+ * callbacks) and is a speech-activity rhythm, not an audio envelope — the
+ * system voice exposes none.
+ *
+ * Reduced motion, battery saver, or the app in the background → a static
+ * frame (hub + rings + arcs), no clock running.
  */
 export function JarvisOrb({
   state,
   level = 0,
   onPress,
+  onLongPress,
+  onHistory,
   label,
-  size = 272,
+  size = 300,
   compact = false,
+  burst = 0,
+  interrupted = 0,
+  offline = false,
+  showLabel = false,
+  speaking = false,
+  transcribing = false,
+  throttled = false,
+  activity = 'none',
+  speechLevel,
 }: {
   state: OrbState;
-  /** Measured microphone level, 0..1. See lib/voice/audioLevel.ts. */
+  /** Measured microphone level, 0..1 (swells the hub while listening). */
   level?: number;
   onPress?: () => void;
+  onLongPress?: () => void;
+  /** Accessibility action "history" — the edge gesture's equivalent. */
+  onHistory?: () => void;
   label?: string;
   size?: number;
-  /** The small corner orb on the camera page: rings only, no ticks or caption. */
+  /** The small corner Core on the camera page: no particles or readouts. */
   compact?: boolean;
+  /** Increment to fire one wake burst (red bloom + 160 warp particles). */
+  burst?: number;
+  /** Increment on an accepted interruption (warp burst + contraction). */
+  interrupted?: number;
+  /** Connectivity marker: one 4 px dot, and red dimmed to 70 %. */
+  offline?: boolean;
+  /** Accessibility mode: a visible state label under the Core. */
+  showLabel?: boolean;
+  /** Speech is actually playing now (TTS onStart → onDone). Gates the waveform. */
+  speaking?: boolean;
+  transcribing?: boolean;
+  /** Device thermally throttled: fewer rings and spokes, slow sweep. */
+  throttled?: boolean;
+  /** Running a tool, an online lookup, a finished action or a recoverable problem. */
+  activity?: CoreActivity;
+  /** Measured loudness of the voice now playing (neural voice); null when unmeasurable. */
+  speechLevel?: () => number | null;
 }) {
-  const spinA = useRef(new Animated.Value(0)).current;
-  const spinB = useRef(new Animated.Value(0)).current;
-  const spinTicks = useRef(new Animated.Value(0)).current;
-  const breathe = useRef(new Animated.Value(0)).current;
-  const amplitude = useRef(new Animated.Value(0)).current;
-  const twinkle = useRef(new Animated.Value(0)).current;
-
-  const tint = tintFor(state);
-  const busy = state === 'THINKING' || state === 'TOOL_RUNNING';
-  const arcPeriod = busy ? 1600 : state === 'LISTENING' || state === 'SPEAKING' ? 7000 : 14000;
-  const pulsePeriod = state === 'SPEAKING' ? 450 : state === 'WATCHING' ? 700 : 1800;
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [lowPower, setLowPower] = useState(false);
+  const [hidden, setHidden] = useState(AppState.currentState !== 'active');
 
   useEffect(() => {
-    let cancelled = false;
-    const loops: Animated.CompositeAnimation[] = [];
-    const loop = (animation: Animated.CompositeAnimation) => {
-      const looped = Animated.loop(animation);
-      loops.push(looped);
-      looped.start();
-    };
-    const begin = (reduce: boolean) => {
-      if (cancelled || reduce) return;
-      spinA.setValue(0);
-      spinB.setValue(0);
-      loop(Animated.timing(spinA, { toValue: 1, duration: arcPeriod, easing: Easing.linear, useNativeDriver: true }));
-      loop(Animated.timing(spinB, { toValue: 1, duration: arcPeriod * 1.6, easing: Easing.linear, useNativeDriver: true }));
-      loop(Animated.timing(spinTicks, { toValue: 1, duration: 60000, easing: Easing.linear, useNativeDriver: true }));
-      loop(
-        Animated.sequence([
-          Animated.timing(breathe, { toValue: 1, duration: pulsePeriod, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(breathe, { toValue: 0, duration: pulsePeriod, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-      );
-      loop(
-        Animated.sequence([
-          Animated.timing(twinkle, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          Animated.timing(twinkle, { toValue: 0, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        ]),
-      );
-    };
+    let alive = true;
     AccessibilityInfo.isReduceMotionEnabled()
-      .then(begin)
-      .catch(() => begin(false));
+      .then((value) => alive && setReducedMotion(value))
+      .catch(() => undefined);
+    const motionSub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
+    const appSub = AppState.addEventListener('change', (next) => setHidden(next !== 'active'));
+    let batterySub: { remove: () => void } | undefined;
+    void import('expo-battery')
+      .then(async (Battery) => {
+        if (!alive) return;
+        const lowPowerMode = await Battery.isLowPowerModeEnabledAsync();
+        if (!alive) return;
+        setLowPower(lowPowerMode);
+        batterySub = Battery.addLowPowerModeListener(({ lowPowerMode }) => setLowPower(lowPowerMode));
+      })
+      .catch(() => undefined);
     return () => {
-      cancelled = true;
-      for (const running of loops) running.stop();
+      alive = false;
+      motionSub.remove();
+      appSub.remove();
+      batterySub?.remove();
     };
-  }, [arcPeriod, pulsePeriod, spinA, spinB, spinTicks, breathe, twinkle]);
+  }, []);
 
-  useEffect(() => {
-    Animated.timing(amplitude, {
-      toValue: Math.max(0, Math.min(1, level)),
-      duration: 90,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [amplitude, level]);
-
+  const interaction = interactionFor(state, transcribing);
+  const still = reducedMotion || lowPower || hidden;
   const c = size / 2;
-  const R = {
-    core: size * 0.215,
-    whiteRing: size * 0.222,
-    blueRing: size * 0.262,
-    arcA: size * 0.305,
-    arcB: size * 0.335,
-    tick: size * 0.395,
-    slash: size * 0.45,
-  };
 
-  const shapes = useMemo(
-    () => ({
-      ticks: ticks(c, c, R.tick, size * 0.012, 60, 5),
-      slashes: slashMarks(c, c, R.slash, size * 0.035),
-      dots: particles(c, c, size * 0.3, size * 0.49, 26),
-    }),
-    // Geometry depends only on the size.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [size],
-  );
-
-  const rotateA = spinA.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const rotateB = spinB.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
-  const rotateTicks = spinTicks.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const glowOpacity = Animated.add(
-    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.85] }),
-    amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-  );
-  const glowScale = Animated.add(
-    breathe.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1.03] }),
-    amplitude.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
-  );
-  const dotsOpacity = twinkle.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
-  const dim = state === 'OFFLINE' ? 0.45 : 1;
-
-  const layer = (children: React.ReactNode) => (
-    <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-      {children}
-    </Svg>
+  const canvas = still ? (
+    <StaticCore size={size} interaction={interaction} offline={offline} throttled={throttled} activity={activity} />
+  ) : (
+    <LiveCore
+      size={size}
+      compact={compact}
+      interaction={interaction}
+      speaking={speaking}
+      offline={offline}
+      throttled={throttled}
+      activity={activity}
+      speechLevel={speechLevel}
+      burst={burst}
+      interrupted={interrupted}
+      level={level}
+    />
   );
 
   const body = (
-    <View style={{ width: size, height: size, opacity: dim }} pointerEvents="none">
-      {/* Glow halo and the thick blue ring: breathe, and swell with the voice. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]}>
-        {layer(
-          <>
-            <Defs>
-              <RadialGradient id="halo" cx="50%" cy="50%" r="50%">
-                <Stop offset="0.42" stopColor={tint} stopOpacity={0} />
-                <Stop offset="0.52" stopColor={tint} stopOpacity={0.55} />
-                <Stop offset="0.6" stopColor={tint} stopOpacity={0.22} />
-                <Stop offset="0.8" stopColor={tint} stopOpacity={0} />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={c} cy={c} r={size / 2} fill="url(#halo)" />
-            <Circle cx={c} cy={c} r={R.blueRing} fill="none" stroke={tint} strokeWidth={size * 0.028} />
-            <Circle cx={c} cy={c} r={R.blueRing} fill="none" stroke="#DDF1FF" strokeOpacity={0.55} strokeWidth={1.2} />
-          </>,
-        )}
-      </Animated.View>
-
-      {/* Outer broken arcs, clockwise. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateA }] }]}>
-        {layer(
-          <G fill="none" strokeLinecap="round">
-            <Path d={arcPath(c, c, R.arcA, 200, 262)} stroke="#FFFFFF" strokeOpacity={0.9} strokeWidth={2.6} />
-            <Path d={arcPath(c, c, R.arcA, 20, 58)} stroke={tint} strokeOpacity={0.9} strokeWidth={2} />
-            {!compact ? <Path d={arcPath(c, c, R.arcA, 300, 312)} stroke="#FFFFFF" strokeOpacity={0.7} strokeWidth={2} /> : null}
-          </G>,
-        )}
-      </Animated.View>
-
-      {/* Inner broken arcs, counter-clockwise. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateB }] }]}>
-        {layer(
-          <G fill="none" strokeLinecap="round">
-            <Path d={arcPath(c, c, R.arcB, 110, 168)} stroke="#FFFFFF" strokeOpacity={0.75} strokeWidth={1.6} />
-            <Path d={arcPath(c, c, R.arcB, 250, 275)} stroke={tint} strokeOpacity={0.8} strokeWidth={1.6} />
-          </G>,
-        )}
-      </Animated.View>
-
-      {/* Tick ring, "//" marks and particles: slow drift. */}
-      {!compact ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateTicks }] }]}>
-          {layer(
-            <G>
-              {shapes.ticks.map((tick, index) => (
-                <Line
-                  key={`t${index}`}
-                  x1={tick.x1}
-                  y1={tick.y1}
-                  x2={tick.x2}
-                  y2={tick.y2}
-                  stroke="#FFFFFF"
-                  strokeOpacity={tick.major ? 0.75 : 0.28}
-                  strokeWidth={tick.major ? 1.4 : 1}
-                />
-              ))}
-              {shapes.slashes.map((mark, index) => (
-                <Line key={`s${index}`} x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} stroke="#FFFFFF" strokeOpacity={0.8} strokeWidth={1.6} />
-              ))}
-            </G>,
-          )}
-        </Animated.View>
-      ) : null}
-      {!compact ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: dotsOpacity }]}>
-          {layer(
-            <G>
-              {shapes.dots.map((dot, index) => (
-                <Circle key={index} cx={dot.x} cy={dot.y} r={dot.r} fill="#FFFFFF" fillOpacity={dot.opacity} />
-              ))}
-            </G>,
-          )}
-        </Animated.View>
-      ) : null}
-
-      {/* The core: black, a thin white ring, JARVIS set wide. */}
-      {layer(
-        <>
-          <Circle cx={c} cy={c} r={R.core} fill="#06080D" />
-          <Circle cx={c} cy={c} r={R.whiteRing} fill="none" stroke="#FFFFFF" strokeOpacity={0.92} strokeWidth={1.4} />
-        </>,
-      )}
-      <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Text style={[styles.word, { fontSize: Math.max(8, size * 0.052), letterSpacing: size * 0.02 }]}>JARVIS</Text>
-      </View>
+    <View style={{ width: size, height: size }} pointerEvents="none">
+      <CoreErrorBoundary size={size} state={state}>
+        {canvas}
+      </CoreErrorBoundary>
+      {offline && !compact ? <View style={[styles.offlineDot, { top: c + size * 0.07, left: c - 2 }]} /> : null}
     </View>
   );
 
+  const accessibilityActions = [
+    { name: 'activate', label: 'Talk or stop' },
+    ...(onLongPress ? [{ name: 'longpress', label: 'Open menu' }] : []),
+    ...(onHistory ? [{ name: 'history', label: 'Open history' }] : []),
+  ];
+  const onAccessibilityAction = (event: AccessibilityActionEvent) => {
+    if (event.nativeEvent.actionName === 'activate') onPress?.();
+    if (event.nativeEvent.actionName === 'longpress') onLongPress?.();
+    if (event.nativeEvent.actionName === 'history') onHistory?.();
+  };
+
   return (
     <View style={styles.wrap}>
-      {onPress ? (
+      {onPress || onLongPress ? (
         <Pressable
           onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={450}
           accessibilityRole="button"
-          accessibilityLabel={label ?? `JARVIS ${state}`}
-          style={({ pressed }) => [{ borderRadius: size / 2 }, pressed && styles.pressed]}
+          accessibilityLabel={label ?? `JARVIS, ${interaction}`}
+          accessibilityHint="Tap to talk or stop. Long-press for the menu."
+          accessibilityActions={accessibilityActions}
+          onAccessibilityAction={onAccessibilityAction}
+          hitSlop={12}
+          style={{ borderRadius: size / 2 }}
         >
           {body}
         </Pressable>
       ) : (
         body
       )}
-      {!compact ? <Text style={[styles.label, { color: tint }]}>{label ?? state}</Text> : null}
+      {showLabel && !compact ? <Text style={styles.label}>{label ?? interaction}</Text> : null}
     </View>
   );
 }
 
-function tintFor(state: OrbState): string {
-  switch (state) {
-    case 'ERROR':
-      return colors.bad;
-    case 'WATCHING':
-      return WATCHING_TINT;
-    case 'OFFLINE':
-      return '#5D7288';
-    default:
-      return BLUE;
-  }
+type Interaction = ReturnType<typeof interactionFor>;
+
+function LiveCore({
+  size,
+  compact,
+  interaction,
+  speaking,
+  offline,
+  throttled,
+  activity,
+  speechLevel,
+  burst,
+  interrupted,
+  level,
+}: {
+  size: number;
+  compact: boolean;
+  interaction: Interaction;
+  speaking: boolean;
+  offline: boolean;
+  throttled: boolean;
+  activity: CoreActivity;
+  speechLevel?: () => number | null;
+  burst: number;
+  interrupted: number;
+  level: number;
+}) {
+  const clock = useClock();
+  const core = useCoreController({ state: interaction, speaking, offline, throttled, activity, speechLevel, burst, interrupted, clock });
+  const c = size / 2;
+  const layer = { c, size, core, clock };
+  const readout = compact ? '' : readoutFor(interaction, activity);
+  // Microphone energy: a gentle teal swell at the hub while listening — measured, never invented.
+  const hubBoost = interaction === 'listening' || interaction === 'transcribing' ? Math.min(1, level) * 0.35 : 0;
+
+  return (
+    <Canvas style={{ width: size, height: size }}>
+      <Group>
+        <Hub {...layer} />
+        {hubBoost > 0 ? (
+          <Circle cx={c} cy={c} r={size * 0.2} opacity={hubBoost}>
+            <RadialGradient c={vec(c, c)} r={size * 0.2} colors={['rgba(46,230,214,0.45)', 'rgba(46,230,214,0)']} />
+          </Circle>
+        ) : null}
+        <DottedRings {...layer} />
+        <RadialSpokes {...layer} />
+        <TealArcs {...layer} />
+        <Sweep {...layer} />
+        {!compact ? <WarpParticles {...layer} /> : null}
+        {readout ? <Readouts {...layer} text={readout} /> : null}
+      </Group>
+    </Canvas>
+  );
+}
+
+/** One still frame: hub, the state's rings and the teal arcs. No clock, no per-frame work. */
+function StaticCore({ size, interaction, offline, throttled, activity }: { size: number; interaction: Interaction; offline: boolean; throttled: boolean; activity: CoreActivity }) {
+  const params = useMemo(() => adjustParams(CORE_PRESETS[interaction], offline, throttled, activity), [interaction, offline, throttled, activity]);
+  const c = size / 2;
+  const scale = size / REFERENCE_SIZE;
+  const radii = staticRingRadii(size, params);
+  return (
+    <Canvas style={{ width: size, height: size }}>
+      <Circle cx={c} cy={c} r={size * 0.24} opacity={params.hubGlow}>
+        <RadialGradient c={vec(c, c)} r={size * 0.24} colors={['rgba(255,42,26,0.55)', 'rgba(255,42,26,0.12)', 'rgba(0,0,0,0)']} />
+      </Circle>
+      <Circle cx={c} cy={c} r={size * 0.055} color="#030303" />
+      {radii.map((r) => (
+        <Circle key={r} cx={c} cy={c} r={r} style="stroke" strokeWidth={3 * scale} strokeCap="round" color={CORE_RED} opacity={0.35 * params.redIntensity + 0.25}>
+          <DashPathEffect intervals={[3 * scale, 9 * scale]} />
+        </Circle>
+      ))}
+      <Group opacity={params.tealOpacity}>
+        {[0.3, 0.36].map((f, i) => (
+          <Circle key={f} cx={c} cy={c} r={size * f} style="stroke" strokeWidth={(i === 0 ? 5 : 3) * scale} color={CORE_TEAL}>
+            <DashPathEffect intervals={i === 0 ? [26 * scale, 14 * scale] : [10 * scale, 22 * scale]} />
+          </Circle>
+        ))}
+      </Group>
+    </Canvas>
+  );
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', justifyContent: 'center', gap: 6 },
-  pressed: { opacity: 0.8 },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  word: { color: '#FFFFFF', fontWeight: '300' },
-  label: { fontWeight: '700', letterSpacing: 4, fontSize: 11, opacity: 0.85 },
+  wrap: { alignItems: 'center', justifyContent: 'center', gap: 10 },
+  label: { color: '#E6EDF3', fontWeight: '600', letterSpacing: 1, fontSize: 14, textAlign: 'center', maxWidth: 320 },
+  offlineDot: { position: 'absolute', width: 4, height: 4, borderRadius: 2, backgroundColor: '#8A96A3' },
 });

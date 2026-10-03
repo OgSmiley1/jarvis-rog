@@ -1,6 +1,7 @@
 import type { JarvisToolCall } from './types';
 import { createId } from '@/lib/utils/ids';
 import { extractExpression } from '@/lib/utils/voiceMath';
+import { routeLive } from './liveRoutes';
 
 export interface DeterministicToolRoute {
   call: JarvisToolCall;
@@ -272,6 +273,11 @@ export function routeDeterministicTool(text: string): DeterministicToolRoute | n
       successMessage: `Opened ${urlMatch[1]}`,
     };
   }
+
+  // Live data and local utilities come before the calculator and the generic
+  // "open <app>" route: "open bluetooth settings" is a panel, not an app.
+  const live = routeLive(trimmed, normalized);
+  if (live) return live;
 
   const utility = routeUtility(trimmed, normalized);
   if (utility) return utility;

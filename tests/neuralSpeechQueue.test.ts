@@ -79,7 +79,7 @@ function controlledSynth() {
 describe('neural speech queue', () => {
   it('never runs two syntheses at once, because Kokoro refuses that', async () => {
     const synth = controlledSynth();
-    const { player } = fakePlayer();
+    const { player, scheduled } = fakePlayer();
     const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player, fallback: async () => undefined });
 
     queue.enqueue('One.');
@@ -90,6 +90,9 @@ describe('neural speech queue', () => {
 
     await synth.release();
     await synth.release();
+    expect(synth.calls).toEqual(['One.', 'Two.']);
+    expect(scheduled).toHaveLength(2);
+    scheduled[0]!.end();
     await synth.release();
     expect(synth.calls).toEqual(['One.', 'Two.', 'Three.']);
     expect(synth.maxConcurrent()).toBe(1);
@@ -228,5 +231,61 @@ describe('neural speech queue', () => {
     await flush();
     expect(synth.calls).toEqual([]);
     expect(queue.isSpeaking).toBe(false);
+  });
+});
+
+
+it('waits for an abandoned synthesis before starting the next turn', async () => {
+  const synth = controlledSynth();
+  const audio = fakePlayer();
+  const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player: audio.player, fallback: async () => undefined });
+  queue.enqueue('Old.');
+  queue.stop();
+  queue.enqueue('New.');
+  expect(synth.calls).toEqual(['Old.']);
+  await synth.release();
+  expect(synth.calls).toEqual(['Old.', 'New.']);
+  await synth.release();
+  expect(synth.maxConcurrent()).toBe(1);
+  expect(audio.scheduled).toHaveLength(1);
+});
+
+it('playback activity excludes synthesis-only time', async () => {
+  const synth = controlledSynth();
+  const audio = fakePlayer();
+  const playing: boolean[] = [];
+  const queue = new NeuralSpeechQueue({ synthesize: synth.synthesize, player: audio.player, fallback: async () => undefined, onPlaybackChange: (value) => playing.push(value) });
+  queue.enqueue('Hi.');
+  expect(playing).toEqual([]);
+  await synth.release();
+  expect(playing).toEqual([true]);
+  audio.scheduled[0]!.end();
+  expect(playing).toEqual([true, false]);
+});
+
+import { speechEnvelope } from '@/lib/voice/neuralSpeechQueue';
+
+describe('measured speech loudness', () => {
+  it('silence is 0, a loud tone is high, one value per 20 ms', () => {
+    const silent = speechEnvelope(new Float32Array(SAMPLE_RATE / 10));
+    expect(silent.length).toBe(5);
+    expect(Math.max(...silent)).toBe(0);
+    const tone = new Float32Array(SAMPLE_RATE / 10).map((_, i) => 0.3 * Math.sin(i / 5));
+    expect(Math.min(...speechEnvelope(tone))).toBeGreaterThan(0.5);
+  });
+
+  it('levelNow follows the clip playing on the audio clock, and is null when nothing neural plays', async () => {
+    const audio = fakePlayer();
+    // 0.1 s silent then 0.1 s loud.
+    const samples = new Float32Array(SAMPLE_RATE / 5).map((_, i) => (i < SAMPLE_RATE / 10 ? 0 : 0.3 * Math.sin(i / 5)));
+    const queue = new NeuralSpeechQueue({ synthesize: async () => samples, player: audio.player, fallback: async () => undefined, leadSeconds: 0 });
+    expect(queue.levelNow()).toBeNull();
+    queue.enqueue('Hello.');
+    await flush();
+    expect(queue.levelNow()).toBe(0);
+    audio.advance(0.15);
+    expect(queue.levelNow()!).toBeGreaterThan(0.5);
+    queue.stop();
+    expect(queue.levelNow()).toBeNull();
   });
 });

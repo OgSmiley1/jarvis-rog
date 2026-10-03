@@ -104,11 +104,16 @@ export interface ModelFile {
   minBytes: number;
 }
 
+/**
+ * What JARVIS downloads when the phone has no brain at all: the 4B (2.5 GB).
+ * Any brain already on the phone is used as it is — an installed 8B included —
+ * and the 8B is only ever downloaded when the owner asks for it.
+ */
 export const BRAIN_FILE: ModelFile = {
-  url: RECOMMENDED_MODEL.url,
-  name: RECOMMENDED_MODEL.name,
-  title: 'JARVIS brain (Qwen3 8B)',
-  minBytes: RECOMMENDED_MODEL.minBytes,
+  url: PREVIOUS_MODEL.url,
+  name: PREVIOUS_MODEL.name,
+  title: 'JARVIS brain (Qwen3 4B)',
+  minBytes: PREVIOUS_MODEL.minBytes,
 };
 
 /** True when Android is still holding a download for this file, running or finished. */

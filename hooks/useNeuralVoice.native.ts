@@ -26,6 +26,7 @@ export interface UseNeuralVoiceOptions {
   enabled: boolean;
   language: 'en' | 'ar';
   onSpeakingChange?: (speaking: boolean) => void;
+  onPlaybackChange?: (playing: boolean) => void;
 }
 
 export interface NeuralVoiceController {
@@ -37,9 +38,11 @@ export interface NeuralVoiceController {
   speakAll: (text: string) => void;
   /** Barge-in: stop everything now. */
   stop: () => void;
+  /** Measured loudness of what is playing now (0..1), or null when no neural audio is playing. */
+  levelNow: () => number | null;
 }
 
-export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeuralVoiceOptions): NeuralVoiceController {
+export function useNeuralVoice({ enabled, language, onSpeakingChange, onPlaybackChange }: UseNeuralVoiceOptions): NeuralVoiceController {
   ensureExecutorch();
 
   const usable = enabled && language === 'en';
@@ -55,6 +58,8 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
   ttsRef.current = tts;
   const speakingCallbackRef = useRef(onSpeakingChange);
   speakingCallbackRef.current = onSpeakingChange;
+  const playbackCallbackRef = useRef(onPlaybackChange);
+  playbackCallbackRef.current = onPlaybackChange;
 
   const contextRef = useRef<AudioContext | null>(null);
   const queueRef = useRef<NeuralSpeechQueue | null>(null);
@@ -106,6 +111,7 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
       // A sentence Kokoro cannot synthesise is still spoken, by the phone's voice.
       fallback: (text) => speakQueued(text, 'en'),
       onSpeakingChange: (speaking) => speakingCallbackRef.current?.(speaking),
+      onPlaybackChange: (playing) => playbackCallbackRef.current?.(playing),
     });
     return queueRef.current;
   }, []);
@@ -166,5 +172,7 @@ export function useNeuralVoice({ enabled, language, onSpeakingChange }: UseNeura
     [],
   );
 
-  return { isReady, enqueue, speakAll, stop };
+  const levelNow = useCallback(() => queueRef.current?.levelNow() ?? null, []);
+
+  return { isReady, enqueue, speakAll, stop, levelNow };
 }

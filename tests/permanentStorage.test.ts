@@ -47,3 +47,40 @@ describe('the brain is found wherever it was saved', () => {
     expect(pickInstalledModel(brainCandidates([PERMANENT, APP], BRAINS, () => -1))).toBeNull();
   });
 });
+
+import { shouldLoadAfterAccess } from '@/lib/inference/brainPresence';
+import { readFileSync } from 'node:fs';
+
+describe('brain beside the app', () => {
+  it('loads the brain found after access is granted, once, with no Settings step', () => {
+    expect(shouldLoadAfterAccess('unloaded', true)).toBe(true);
+    expect(shouldLoadAfterAccess('error', true)).toBe(true);
+    expect(shouldLoadAfterAccess('loading', true)).toBe(false);
+    expect(shouldLoadAfterAccess('ready', true)).toBe(false);
+    expect(shouldLoadAfterAccess('unloaded', false)).toBe(false);
+  });
+
+  it('a phone with no brain at all gets the 4B, never a surprise 5 GB 8B', () => {
+    // brainStore loads native modules, so its default is read from source.
+    const store = readFileSync('lib/inference/brainStore.ts', 'utf8');
+    expect(store).toMatch(/export const BRAIN_FILE: ModelFile = \{\s*url: PREVIOUS_MODEL\.url,\s*name: PREVIOUS_MODEL\.name/);
+    expect(readFileSync('lib/inference/modelImport.ts', 'utf8')).toMatch(/PREVIOUS_MODEL[\s\S]*Qwen3-4B-Q4_K_M\.gguf/);
+    expect(readFileSync('scripts/rog-setup.sh', 'utf8')).toMatch(/BRAIN_NAME="Qwen3-4B-Q4_K_M\.gguf"/);
+  });
+});
+
+import { brainFacts, describeBrainFacts } from '@/lib/inference/brainPresence';
+
+describe('brain facts for the owner', () => {
+  it('shows size, RAM need, free space and offline readiness', () => {
+    const f = brainFacts({ sizeBytes: 2.5 * 1024 ** 3, freeBytes: 100 * 1024 ** 3, ramBytes: 16 * 1024 ** 3, status: 'ready' });
+    expect(f).toMatchObject({ sizeGb: 2.5, ramNeedGb: 3.2, freeGb: 100, ramGb: 16, fitsRam: true, offlineReady: true });
+    expect(describeBrainFacts(f, false)).toBe('2.5 GB · needs ~3.2 GB RAM · phone has 16 · 100 GB free · offline ready');
+  });
+
+  it('says unknown rather than guessing', () => {
+    const f = brainFacts({ status: 'unloaded' });
+    expect(f).toMatchObject({ sizeGb: null, fitsRam: null, offlineReady: false });
+    expect(describeBrainFacts(f, false)).toBe('not ready yet');
+  });
+});

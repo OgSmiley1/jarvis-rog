@@ -10,6 +10,7 @@
 
 export type LiveEventKind =
   | 'app'
+  | 'latency'
   | 'state'
   | 'heard'
   | 'wake'

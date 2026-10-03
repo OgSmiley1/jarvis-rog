@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.CallLog
 import android.provider.ContactsContract
@@ -65,6 +66,53 @@ class ExpoJarvisPhoneModule : Module() {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
       "dialer"
+    }
+
+    // Timers and alarms go to the owner's Clock app through Android's public
+    // AlarmClock intents. The result says only that the Clock app accepted the
+    // request ("dispatched") or that no Clock app can take it — never that the
+    // timer is running, which JARVIS cannot see.
+    Function("setTimer") { seconds: Int, message: String ->
+      val context = context() ?: return@Function "unavailable"
+      if (seconds < 1 || seconds > 86_400) return@Function "invalid"
+      val intent = Intent(AlarmClock.ACTION_SET_TIMER)
+        .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+        .putExtra(AlarmClock.EXTRA_MESSAGE, message)
+        .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        context.startActivity(intent)
+        "dispatched"
+      } catch (_: Exception) {
+        "no-clock-app"
+      }
+    }
+
+    Function("setAlarm") { hour: Int, minute: Int, message: String ->
+      val context = context() ?: return@Function "unavailable"
+      if (hour !in 0..23 || minute !in 0..59) return@Function "invalid"
+      val intent = Intent(AlarmClock.ACTION_SET_ALARM)
+        .putExtra(AlarmClock.EXTRA_HOUR, hour)
+        .putExtra(AlarmClock.EXTRA_MINUTES, minute)
+        .putExtra(AlarmClock.EXTRA_MESSAGE, message)
+        .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        context.startActivity(intent)
+        "dispatched"
+      } catch (_: Exception) {
+        "no-clock-app"
+      }
+    }
+
+    Function("showTimers") {
+      val context = context() ?: return@Function false
+      try {
+        context.startActivity(Intent(AlarmClock.ACTION_SHOW_TIMERS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+      } catch (_: Exception) {
+        false
+      }
     }
 
     AsyncFunction("recentMessages") { limit: Int ->

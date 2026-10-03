@@ -11,8 +11,9 @@
  */
 export type CloudPlan = 'local' | 'cloud-only' | 'cloud-then-local';
 
-export function cloudPlan(input: { cloudEnabled: boolean; localReady: boolean; cloudFirst: boolean }): CloudPlan {
-  if (!input.cloudEnabled) return 'local';
+export function cloudPlan(input: { cloudEnabled: boolean; localReady: boolean; cloudFirst: boolean; localOnly?: boolean }): CloudPlan {
+  // Local only wins over every cloud switch: nothing leaves the phone.
+  if (!input.cloudEnabled || input.localOnly) return 'local';
   if (!input.localReady) return 'cloud-only';
   return input.cloudFirst ? 'cloud-then-local' : 'local';
 }
