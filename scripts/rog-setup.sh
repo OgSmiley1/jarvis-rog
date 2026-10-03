@@ -19,7 +19,7 @@ set -euo pipefail
 # you leave that screen.
 
 PKG="com.app.localjarviscoach"
-LATEST_APK="https://expo.dev/artifacts/eas/2jnrduqaZOC6770QlZRt5lmivig42HenXS2QF_UPdeU.apk"
+LATEST_APK="https://expo.dev/artifacts/eas/yZO9Pnnfsl7usDyytW2kFRAzQrDkf8uE3DIqkirfErM.apk"
 APK_URL="${1:-$LATEST_APK}"
 # The brain: whichever one is already on the phone is kept. With none, the
 # 4B (2.5 GB) is downloaded once. The 8B is only ever the owner's explicit choice.
