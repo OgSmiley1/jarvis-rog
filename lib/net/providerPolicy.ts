@@ -128,6 +128,8 @@ export const PROVIDERS: Record<string, ProviderEntry> = {
 export interface PolicySettings {
   /** Strict zero-cost mode. Default on. */
   strict: boolean;
+  /** Local only: every provider that is not on the phone is refused. */
+  localOnly?: boolean;
   /** Owner consented to Puter's user-pays model. */
   puterConsent?: boolean;
   /** Puter reported the allowance ran out at this time (epoch ms). */
@@ -151,6 +153,7 @@ export function checkProvider(id: string, settings: PolicySettings, now = Date.n
   const provider = PROVIDERS[id];
   if (!provider || provider.class === 'unknown') return { allowed: false, reason: `unknown provider "${id}" — refused` };
   if (provider.class === 'paid') return { allowed: false, reason: `${provider.name} is paid — refused` };
+  if (settings.localOnly && provider.class !== 'local') return { allowed: false, reason: `Local only is on — ${provider.name} not called` };
   if (provider.class === 'user-pays') {
     if (settings.strict) return { allowed: false, reason: `${provider.name} is user-pays — off in strict zero-cost mode` };
     if (!settings.puterConsent) return { allowed: false, reason: `${provider.name} needs your explicit opt-in` };

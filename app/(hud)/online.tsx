@@ -28,6 +28,7 @@ export default function OnlineScreen() {
   const jarvis = useJarvis();
   const puterPolicy = {
     strict: jarvis.settings.strictZeroCost ?? true,
+    localOnly: jarvis.settings.localOnly,
     puterConsent: jarvis.settings.puterConsent,
     puterExhaustedAt: jarvis.settings.puterExhaustedAt,
   };

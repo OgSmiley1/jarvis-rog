@@ -85,6 +85,11 @@ export interface JarvisSettings {
    * verified free-with-limits. Unknown providers are refused; Puter is off.
    */
   strictZeroCost?: boolean;
+  /**
+   * Local only: nothing leaves the phone. Every online service — live data and
+   * the cloud brain — is refused; the phone's brain and device tools still work.
+   */
+  localOnly?: boolean;
   /** Opt-in: approximate city from the internet connection (GeoJS). */
   ipLocationAllowed?: boolean;
   /** Opt-in consent to Puter's user-pays model (only outside strict mode). */

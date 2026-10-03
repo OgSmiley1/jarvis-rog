@@ -15,7 +15,7 @@ import { appendExchange } from '@/lib/hud/conversation';
 import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
-import { followUpCommand, type LiveContext } from '@/lib/tools/liveRoutes';
+import { followUpCommand, nextLiveContext, type LiveContext } from '@/lib/tools/liveRoutes';
 import { ECHO_SAFE, bargeInDecision, haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
 import { FILLER_AFTER_MS, thinkingFiller } from '@/lib/voice/thinkingFiller';
@@ -275,10 +275,8 @@ export default function JarvisHud() {
     const asked = followUpCommand(command, lastLive) ?? command;
     const route = routeDeterministicTool(asked);
     const deterministic = Boolean(route);
-    if (route && (route.call.tool === 'live.weather' || route.call.tool === 'live.prayer')) {
-      const city = typeof route.call.arguments.city === 'string' ? route.call.arguments.city : lastLive?.city;
-      lastLiveRef.current = { tool: route.call.tool, city, at: Date.now() };
-    }
+    const nextLive = nextLiveContext(lastLive, route?.call ?? null);
+    lastLiveRef.current = nextLive ? { ...nextLive, at: Date.now() } : null;
     // Tools share a short deadline (4 s requests, one retry); a spoken answer
     // from the phone's brain can legitimately take minutes, so it gets room.
     const turn = session.beginTurn(route ? 15_000 : 300_000);
@@ -910,7 +908,9 @@ export default function JarvisHud() {
         />
         <Text style={styles.detail}>
           {hud.detail}
-          {connectivity !== 'online' ? (arabic ? ' · بدون إنترنت' : ' · offline') : ''}
+          {jarvis.settings.localOnly
+            ? arabic ? ' · محلي فقط' : ' · local only'
+            : connectivity !== 'online' ? (arabic ? ' · بدون إنترنت' : ' · offline') : ''}
         </Text>
         {voice.transcript ? (
           <Text style={styles.transcript} numberOfLines={2}>

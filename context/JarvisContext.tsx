@@ -401,6 +401,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     setLiveSettingsReader(() => ({
       policy: {
         strict: settings.strictZeroCost ?? true,
+        localOnly: settings.localOnly,
         puterConsent: settings.puterConsent,
         puterExhaustedAt: settings.puterExhaustedAt,
         allowTraining: settings.cloudAllowTraining,
@@ -409,7 +410,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       homeCity: settings.homeCity ?? 'Ajman',
       unit: settings.temperatureUnit ?? 'celsius',
     }));
-  }, [settings.strictZeroCost, settings.puterConsent, settings.puterExhaustedAt, settings.cloudAllowTraining, settings.ipLocationAllowed, settings.homeCity, settings.temperatureUnit]);
+  }, [settings.strictZeroCost, settings.localOnly, settings.puterConsent, settings.puterExhaustedAt, settings.cloudAllowTraining, settings.ipLocationAllowed, settings.homeCity, settings.temperatureUnit]);
 
   const unloadModel = useCallback(async () => {
     const runtime = await getRuntime();
@@ -595,6 +596,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
       cloudEnabled: settings.cloudFallbackEnabled,
       localReady,
       cloudFirst: Boolean(settings.cloudFirst),
+      localOnly: settings.localOnly,
     });
     if (plan !== 'local') {
       const abort = new AbortController();
@@ -624,6 +626,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           keys: await readCloudKeys(),
           models: settings.cloudModels,
           allowTraining: settings.cloudAllowTraining,
+          localOnly: settings.localOnly,
           fetchImpl: fetch as unknown as FetchLike,
           signal: abort.signal,
           deadlineAt: options.turn?.deadlineAt,

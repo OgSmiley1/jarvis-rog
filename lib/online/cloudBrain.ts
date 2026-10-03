@@ -184,6 +184,8 @@ export interface AskCloudInput {
   fetchImpl: FetchLike;
   /** Per-provider budget. A voice assistant cannot wait long on one host. */
   timeoutMs?: number;
+  /** Local only: refuse every provider (defence in depth behind cloudPlan). */
+  localOnly?: boolean;
   /** Include providers whose free tier may train on prompts (Gemini). Default false. */
   allowTraining?: boolean;
   /** Cancellation and total deadline from the owning voice turn. */
@@ -207,7 +209,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   for (const provider of usableProviders(input.keys, input.allowTraining)) {
     assertActive();
     // The zero-cost policy has the last word on every provider, every call.
-    const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining });
+    const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining, localOnly: input.localOnly });
     recordPolicy(provider.id, decision.allowed);
     if (!decision.allowed) {
       attempts.push({ provider: provider.id, model: '', ok: false, error: decision.reason, ms: 0 });

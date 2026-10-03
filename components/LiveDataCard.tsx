@@ -73,6 +73,19 @@ export function LiveDataCard() {
       </Row>
 
       {toggle(
+        arabic ? 'محلي فقط (بدون إنترنت)' : 'Local only (no internet)',
+        Boolean(settings.localOnly),
+        (value) => void jarvis.updateSettings({ localOnly: value }),
+        settings.localOnly
+          ? arabic
+            ? 'مفعّل: لا يخرج شيء من الهاتف. العقل المحلي والوقت والمؤقتات والملاحظات وأدوات الهاتف تعمل؛ الطقس والأخبار والسحابة متوقفة.'
+            : 'On: nothing leaves the phone. The phone brain, time, timers, notes and phone tools work; weather, news and the cloud are off.'
+          : arabic
+            ? 'متصل: الطقس والصلاة والأخبار من خدمات مجانية عند الطلب. شغّله لقطع كل اتصال.'
+            : 'Online: weather, prayer and news come from free services when asked. Turn on to cut every connection.',
+      )}
+
+      {toggle(
         arabic ? 'وضع التكلفة صفر (صارم)' : 'Strict zero-cost mode',
         strict,
         (value) => void jarvis.updateSettings({ strictZeroCost: value }),

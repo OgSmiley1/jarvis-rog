@@ -17,6 +17,11 @@ import { LiveTestCard } from '@/components/LiveTestCard';
 import { PhoneAccessCard } from '@/components/PhoneAccessCard';
 import { EyesCard } from '@/components/EyesCard';
 import { LiveDataCard } from '@/components/LiveDataCard';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { findInstalledModel } from '@/lib/inference/brainStore';
+import { runSelfTest, type SelfTestResult } from '@/lib/telemetry/selfTest';
 
 type ToolRun = Awaited<ReturnType<typeof listRecentToolRuns>>[number];
 
@@ -32,12 +37,29 @@ export default function SettingsScreen() {
   const [wakeWordDraft, setWakeWordDraft] = useState('jarvis');
   const [voiceReport, setVoiceReport] = useState<Awaited<ReturnType<typeof describeVoices>>>();
   const [loadingVoices, setLoadingVoices] = useState(false);
+  const [selfTest, setSelfTest] = useState<SelfTestResult[]>([]);
+  const connectivity = useConnectivity();
 
   const section = Array.isArray(params.section) ? params.section[0] : params.section;
   const arabic = jarvis.settings.language === 'ar';
   // Keys, links, runtime numbers and diagnostics are for testing; the owner
   // sees JARVIS. They open when asked, or when /status sends the owner here.
   const [advanced, setAdvanced] = useState(section === 'diagnostics');
+
+  function runSelfTestNow() {
+    let brainFound = false;
+    try {
+      brainFound = Boolean(findInstalledModel({ path: jarvis.settings.modelPath, name: jarvis.settings.modelName }));
+    } catch {
+      // No storage access yet: reported as "no brain file" rather than thrown.
+    }
+    setSelfTest(runSelfTest({
+      modelStatus: jarvis.modelState.status,
+      brainFound,
+      connectivity,
+      localOnly: Boolean(jarvis.settings.localOnly),
+    }));
+  }
 
   async function refreshDiagnostics() {
     setToolRuns(await listRecentToolRuns(8));
@@ -464,6 +486,13 @@ export default function SettingsScreen() {
             <AppText>Active project: {jarvis.activeProject?.name ?? 'None'}</AppText>
             <AppText>Memories: {jarvis.memories.length}</AppText>
             <AppText>Projects: {jarvis.projects.length}</AppText>
+            <AppText muted>
+              JARVIS {Constants.expoConfig?.version ?? '?'} · Android {Device.osVersion ?? Platform.Version} · {Device.supportedCpuArchitectures?.join(', ') ?? '?'} · RAM {Device.totalMemory ? `${(Device.totalMemory / 1024 ** 3).toFixed(1)} GB` : '?'}
+            </AppText>
+            <Button title={arabic ? 'افحص كل شيء' : 'Run self-test'} onPress={runSelfTestNow} />
+            {selfTest.map((r) => (
+              <AppText key={r.name} muted={r.ok}>{r.ok ? 'PASS' : 'FAIL'} · {r.name} · {r.detail}</AppText>
+            ))}
             <Button title="Refresh diagnostics" onPress={() => void refreshDiagnostics()} />
             {toolRuns.length ? toolRuns.map((run) => (
               <AppText key={run.id} muted>{run.ok ? 'PASS' : 'FAIL'} · {run.tool} · {Math.max(0, run.finishedAt - run.startedAt)} ms{run.error ? ` · ${run.error}` : ''}</AppText>

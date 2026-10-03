@@ -183,6 +183,22 @@ export function routeLive(trimmed: string, normalized: string): LiveRoute | null
 export interface LiveContext {
   tool: 'live.weather' | 'live.prayer';
   city?: string;
+  /** The last answer was about tomorrow: a city follow-up keeps that day. */
+  tomorrow?: boolean;
+}
+
+/**
+ * The follow-up context after a turn: a weather or prayer call records its
+ * tool, city and day; anything else (another tool, or a question for the
+ * brain) is a change of topic and clears it, so "what about Dubai?" an hour of
+ * chat later is not read as weather.
+ */
+export function nextLiveContext(prev: LiveContext | null, call: JarvisToolCall | null): LiveContext | null {
+  if (!call || (call.tool !== 'live.weather' && call.tool !== 'live.prayer')) return null;
+  const args = call.arguments;
+  const city = typeof args.city === 'string' ? args.city : prev?.city;
+  const tomorrow = args.day === 'tomorrow' || args.tomorrow === true;
+  return { tool: call.tool, city, ...(tomorrow ? { tomorrow } : {}) };
 }
 
 /**
@@ -205,6 +221,8 @@ export function followUpCommand(text: string, last: LiveContext | null): string 
     return `${what}${inCity(last.city)}`;
   }
   const city = /^(?:and|what about|how about)\s+(?:in\s+)?([a-z][a-z .'-]{1,40})$/.exec(lower)?.[1] ?? /^(?:و\s*)?(?:في|ب)\s*([^\s].{0,40})$/u.exec(t)?.[1];
-  if (city && !/^(?:you|me|it|that|this|him|her|them)$/.test(city.trim())) return `${what}${inCity(city.trim())}`;
+  if (city && !/^(?:you|me|it|that|this|him|her|them)$/.test(city.trim())) {
+    return `${what}${inCity(city.trim())}${last.tomorrow ? (ar ? ' بكرة' : ' tomorrow') : ''}`;
+  }
   return null;
 }
