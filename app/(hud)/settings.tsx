@@ -235,6 +235,18 @@ export default function SettingsScreen() {
           Listens for the wake phrase on the phone without turning everything you say into text. Needs a one-time 3.6 MB
           download and hands-free on; if it cannot start, JARVIS keeps listening for “Jarvis” in speech.
         </AppText>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <AppText>{arabic ? 'قاطع جارفيس بصوتك (تجريبي)' : 'Talk over JARVIS (beta)'}</AppText>
+          <Switch
+            value={Boolean(jarvis.settings.talkOverEnabled)}
+            onValueChange={(value) => void jarvis.updateSettings({ talkOverEnabled: value })}
+          />
+        </View>
+        <AppText muted>
+          {arabic
+            ? 'يبقى المايك مفتوحًا وجارفيس يتكلم، فتقدر تقول «وقف» أو سؤالًا جديدًا. كلامه هو نفسه يُتجاهل. بدون إلغاء صدى مؤكَّد على هذا الهاتف، فالأفضل مع السماعة.'
+            : 'Keeps the mic open while JARVIS speaks, so you can say "stop" or ask something new. Its own words are ignored. Echo cancellation is not verified on this phone, so it works best with earphones.'}
+        </AppText>
         <Field value={wakeWordDraft} onChangeText={setWakeWordDraft} placeholder="Wake word, e.g. Jarvis" />
         <Button
           title="Save wake word"

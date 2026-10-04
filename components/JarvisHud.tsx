@@ -16,6 +16,7 @@ import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { followUpCommand, nextLiveContext, type LiveContext } from '@/lib/tools/liveRoutes';
+import { profileFor } from '@/lib/tools/toolProfiles';
 import { ECHO_SAFE, bargeInDecision, haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
 import { FILLER_AFTER_MS, thinkingFiller } from '@/lib/voice/thinkingFiller';
@@ -193,7 +194,15 @@ export default function JarvisHud() {
     return liveText(text, jarvis.settings.liveTranscriptsUntil, Date.now());
   }
 
+  // The last sentences JARVIS said: what its own voice sounds like to the
+  // microphone when "Talk over JARVIS" keeps it open (the echo guard).
+  const spokenRecentRef = useRef<string[]>([]);
+  const rememberSpoken = (...texts: string[]) => {
+    spokenRecentRef.current = [...spokenRecentRef.current, ...texts].slice(-8);
+  };
+
   function speakJarvis(text: string, secret = false, language = jarvis.settings.language) {
+    rememberSpoken(text);
     recordLive('speak', secret ? '[private phone data]' : said(text), { engine: neural.isReady ? 'neural' : 'system' });
     // Kokoro is English-only; anything else uses the phone's own voice for that language.
     if (neural.isReady && language === 'en') {
@@ -290,7 +299,9 @@ export default function JarvisHud() {
     lastLiveRef.current = nextLive ? { ...nextLive, at: Date.now() } : null;
     // Tools share a short deadline (4 s requests, one retry); a spoken answer
     // from the phone's brain can legitimately take minutes, so it gets room.
-    const turn = session.beginTurn(route ? 15_000 : 300_000);
+    // A tool's turn gets its own limit plus room to speak the result (the
+    // camera's look needs far longer than a timer); never under 15 s.
+    const turn = session.beginTurn(route ? Math.max(15_000, profileFor(route.call.tool).timeoutMs + 5_000) : 300_000);
     const onTurnAbort = () => {
       if (turn.signal.reason !== 'deadline' && Date.now() < turn.deadlineAt) return;
       speechEpochRef.current += 1;
@@ -366,6 +377,7 @@ export default function JarvisHud() {
       if (!session.isCurrent(turn.turnId) && !filler) return;
       if (!filler && !firstSpeechAt) firstSpeechAt = Date.now();
       if (!filler) timer.mark('ttsQueued');
+      rememberSpoken(...segments);
       if (neural.isReady) {
         // Speaking state is reported by the neural queue itself.
         for (const segment of segments) neural.enqueue(segment);
@@ -567,10 +579,24 @@ export default function JarvisHud() {
       awake: awakeUntilRef.current > Date.now(),
     });
 
-    // While JARVIS is speaking the recorder's frames are deliberately dropped
-    // so it cannot transcribe itself, so a spoken halt cannot be heard then —
-    // tapping the orb is the barge-in for that case. A halt spoken while it is
-    // *generating* does reach us, and stops the run before it is read out.
+    // "Talk over JARVIS" (beta): the mic stays open while it speaks. The echo
+    // guard drops what is mostly its own voice; anything else interrupts, and
+    // unless it was only "stop" it is then handled as the next request.
+    if (speakingRef.current && jarvis.settings.talkOverEnabled) {
+      const decision = bargeInDecision({ speaking: true, echoSafe: true, transcript: clean, spokenRecent: spokenRecentRef.current });
+      if (decision === 'ignore') {
+        recordLive('heard', 'ignored while speaking (echo guard)');
+        return;
+      }
+      haltEverything();
+      if (isHaltCommand(clean)) return;
+      // The owner is mid-conversation: no wake word needed for this one.
+      awakeUntilRef.current = Date.now() + 10_000;
+    }
+
+    // Otherwise, while JARVIS is speaking the recorder's frames are dropped so
+    // it cannot transcribe itself, and tapping the orb is the barge-in. A halt
+    // spoken while it is *generating* does reach us, and stops the run.
     if (isHaltCommand(clean)) {
       haltEverything();
       return;
@@ -623,7 +649,7 @@ export default function JarvisHud() {
     onSpeechEnd: (msAgo) => {
       lastSpeechEndRef.current = monotonic() - msAgo;
     },
-    shouldAcceptAudio: () => !speakingRef.current,
+    shouldAcceptAudio: () => !speakingRef.current || Boolean(jarvis.settings.talkOverEnabled),
     wakeGate: wakeEngine
       ? {
           engine: wakeEngine,

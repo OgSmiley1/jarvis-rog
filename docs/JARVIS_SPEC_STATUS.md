@@ -29,6 +29,7 @@ Expo SDK 54 / RN 0.81 app, package `com.app.localjarviscoach`, one screen (no ta
 | B | Cancellation, streaming, short spoken replies | Built · phone NOT RUN | turn AbortSignal; sentence streaming; 128-token fast cap |
 | B | Show model size / RAM / free storage | Built | Settings → Your JARVIS: size, estimated RAM need (weights + ~0.7 GB, labelled "~"), phone RAM, free storage, offline-ready (`brainFacts`) |
 | C | Tap-to-talk, wake word (beta), barge-in, no overlapping TTS | Built · phone NOT RUN | `VoiceSessionController`, TTS FIFO queue |
+| C | Voice barge-in (talk over JARVIS) | Built (beta, off by default) · phone NOT RUN | Settings → *Talk over JARVIS (beta)*: the mic stays open while it speaks; a software echo guard (`echoOverlap`) drops anything that is mostly JARVIS's own recent words; "stop" halts, anything else halts and is handled as the next request |
 | C | Speaking animation from real playback | Built · phone NOT RUN | neural voice (Kokoro, English): spokes follow the **measured** RMS loudness of the very samples played, 20 ms frames, read against the audio clock. Phone's own voice (Arabic) exposes no audio: the labelled synthetic rhythm, gated by real playback |
 | C | English + Arabic, mixed prompts | Built | router + duration parser handle both |
 | D | Typed tool registry with schema + handler | Built | zod schemas; the self-test checks every tool |
@@ -43,13 +44,13 @@ Expo SDK 54 / RN 0.81 app, package `com.app.localjarviscoach`, one screen (no ta
 | 7 | Modular architecture | Built | `lib/core`, `lib/inference`, `lib/voice`, `lib/tools`, `lib/memory`, `lib/online`, `lib/net` |
 | 8 | Startup: Core first, then brain, no setup screens | Built · phone NOT RUN | |
 | 9 | Permissions asked when relevant, degrade on denial | Built · phone NOT RUN | Phone access card; tools return readable errors |
-| 10 | Failure boundaries | Built | Core boundary, http result types, per-tool timeout, readable errors ("No brain is loaded yet — phone tools, timers and live info still work.") |
+| 10 | Failure boundaries | Built | Core boundary, http result types, per-tool timeout (and the turn deadline sized from it, so the camera's look is not cut at 15 s), readable errors ("No brain is loaded yet — phone tools, timers and live info still work.") |
 | 11 | Latency measurement | Built | `stageTimer` (median / p95 / n), `scripts/measure-voice-latency.mjs`. **No phone numbers yet.** |
 | 15 | Diagnostics page + **one-tap self-test** | Built — **new today** | Settings → Advanced → Diagnostics: app version, Android version, ABI, RAM, and *Run self-test* (Core, tools, routing, follow-ups, internet policy, reasoning hidden, brain, network) |
 
 ## 3. Tests and builds (exact)
 
-- `pnpm check` (tsc): pass. `pnpm lint`: pass. `pnpm test`: **628 passed, 66 files**. `pnpm smoke`: pass.
+- `pnpm check` (tsc): pass. `pnpm lint`: pass. `pnpm test`: **632 passed, 66 files**. `pnpm smoke`: pass.
 - `expo export --platform android`: Hermes bundle produced (7.1 MB export).
 - EAS build `5ee1f804` on b69fa61: **BUILD SUCCESSFUL in 11m 44s**, 0 Kotlin errors.
   - Compiled: Skia (`shopify_react-native-skia`, CMake), Reanimated + worklets, llama.rn (CMake), expo-jarvis-phone.
@@ -78,7 +79,7 @@ The self-test is the first thing to run on the phone.
 
 ## 5. Known limits
 
-- **Voice:** half-duplex while JARVIS speaks. You interrupt by tapping the Core, not by talking over it; voice barge-in needs echo cancellation that is not built.
+- **Voice barge-in is a beta:** no hardware echo cancellation is verified on the ROG. The software echo guard filters JARVIS's own words, but the speaker's sound can still blur what Whisper hears. Earphones work best. With the beta off, tapping the Core interrupts.
 - **Arabic speech animation:** Arabic replies use the phone's own voice, which exposes no audio, so the Core shows the labelled rhythm instead of real loudness.
 - **APK contents:** checksum and size are not verifiable from the build machine (the artifact host is blocked by its proxy). The setup script checks the install on the phone.
 - **Signing:** ChatGPT's test-signed 0.4.1 APK uses a different key. The setup script uninstalls it first. The brain, voices and memory backup in `Download/JARVIS` are kept.

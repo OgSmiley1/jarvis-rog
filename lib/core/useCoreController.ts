@@ -64,7 +64,13 @@ export function useCoreController(input: CoreControllerInput): CoreController {
 
   const params = useDerivedValue(() => lerpParams(from.value, to.value, progress.value));
 
+  // goTo also runs from a timer (after the interrupted warp), so it reads the
+  // live activity from a ref rather than the render it was created in.
+  const activityRef = useRef(activity);
+  activityRef.current = activity;
+
   function goTo(next: InteractionState) {
+    const activity = activityRef.current;
     shownRef.current = next;
     // Start from wherever the Core is right now, so a change mid-transition never jumps.
     from.value = lerpParams(from.value, to.value, progress.value);

@@ -77,6 +77,12 @@ export interface JarvisSettings {
    * "Jarvis" in speech, as before. Off by default until proven on the phone.
    */
   wakeEngineEnabled?: boolean;
+  /**
+   * Beta: keep the microphone open while JARVIS speaks so the owner can talk
+   * over it. Off by default — no hardware echo cancellation is verified, so a
+   * software guard drops anything that is mostly JARVIS's own words.
+   */
+  talkOverEnabled?: boolean;
   /** City for weather and prayer when none is named. Never changed by IP lookup. */
   homeCity?: string;
   temperatureUnit?: 'celsius' | 'fahrenheit';
