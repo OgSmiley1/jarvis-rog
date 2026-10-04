@@ -28,7 +28,7 @@ import type { CoreController } from '@/lib/core/useCoreController';
  * Skia transforms are radians, so the guide's degrees are converted.
  */
 
-export const CORE_RED = '#ff2a1a';
+export const CORE_RED = '#66e3ff'; // historical identifier; normal identity is cyan
 export const CORE_TEAL = '#2ee6d6';
 
 export interface LayerProps {
@@ -51,7 +51,7 @@ export function Hub({ c, size, core, clock }: LayerProps) {
   return (
     <Group>
       <Circle cx={c} cy={c} r={hubR * 2.4} opacity={glow}>
-        <RadialGradient c={vec(c, c)} r={hubR * 2.4} colors={['rgba(255,42,26,0.55)', 'rgba(255,42,26,0.12)', 'rgba(0,0,0,0)']} />
+        <RadialGradient c={vec(c, c)} r={hubR * 2.4} colors={core.glow} />
       </Circle>
       <Circle cx={c} cy={c} r={hubR * 0.55} color="#030303" />
     </Group>
@@ -73,7 +73,7 @@ function Ring({ i, c, size, core, clock }: LayerProps & { i: number }) {
     return vis * 0.35 * Math.min(1.6, redNow(core, clock)) + 0.25 * vis;
   });
   return (
-    <Circle cx={c} cy={c} r={r} opacity={opacity} style="stroke" strokeWidth={3 * scale} strokeCap="round" color={CORE_RED}>
+    <Circle cx={c} cy={c} r={r} opacity={opacity} style="stroke" strokeWidth={3 * scale} strokeCap="round" color={core.color}>
       <DashPathEffect intervals={[3 * scale, 9 * scale]} />
     </Circle>
   );
@@ -115,7 +115,7 @@ export function RadialSpokes({ c, size, core, clock }: LayerProps) {
     }
   });
   const opacity = useDerivedValue(() => 0.25 + 0.55 * Math.min(1, redNow(core, clock)));
-  return <Path path={path} opacity={opacity} color={CORE_RED} style="stroke" strokeWidth={1.5 * (size / REFERENCE_SIZE)} />;
+  return <Path path={path} opacity={opacity} color={core.color} style="stroke" strokeWidth={1.5 * (size / REFERENCE_SIZE)} />;
 }
 
 // ── 5c. Radar sweep ─────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ export function WarpParticles({ c, size, core, clock }: LayerProps) {
   });
   return (
     <Group>
-      <Path path={red} color={CORE_RED} style="stroke" strokeWidth={2 * scale} opacity={0.6} />
+      <Path path={red} color={core.color} style="stroke" strokeWidth={2 * scale} opacity={0.6} />
       <Path path={white} color="#ffffff" style="stroke" strokeWidth={2 * scale} opacity={0.85} />
     </Group>
   );
@@ -225,7 +225,7 @@ export function Readouts({ c, size, core, text }: LayerProps & { text: string })
   if (!font || !text) return null;
   return (
     <Group opacity={core.thinking}>
-      <TextPath path={circle} font={font} text={text.repeat(3)} color={CORE_RED} />
+      <TextPath path={circle} font={font} text={text.repeat(3)} color={core.color} />
     </Group>
   );
 }

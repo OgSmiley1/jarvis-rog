@@ -1,4 +1,4 @@
-# JARVIS 0.5.0 release evidence
+# JARVIS 0.5.1 release evidence
 
 This is the current status authority; older session notes describe historical builds.
 
@@ -13,12 +13,20 @@ This is the current status authority; older session notes describe historical bu
 - Diagnostics include observed device/voice/model information, measured turn latency, policy/tool counts and an executable self-test with honest PASS/FAIL/BLOCKED/SKIPPED/UNVERIFIED results.
 - Release installer consumes the exact artifact manifest, verifies download SHA-256 and size, installs with data-preserving `-r`, pulls the installed base APK back for hash comparison, checks version and requests launch. Signing mismatch stops installation; no uninstall or data wipe.
 
+## Confirmed runtime repairs
+
+- Microphone permission removal traced to expo-image-picker configuration in the actual 0.4.1 and initial 0.5.0 APKs. Native manifest repair now restores RECORD_AUDIO, deduplicates the audio service, and separates recording/playback foreground-service types. Artifact recording rejects an APK missing microphone declarations.
+- One authoritative display projection drives main Core, labels and floating Core state. Stale operation phases cannot override idle/cancelled turns. Tap-to-talk dispatches recognised text even with hands-free disabled.
+- Native overlay hides while the application is foregrounded; background overlay retains bounded dragging and saved position. Cyan is normal identity; amber/red indicate warning/error.
+- Microphone readiness requires actual audio frames. Capture/transcription observations are distinct diagnostics checks; audible quality and physical actions remain unverified. Advanced integrations and secrets are grouped/masked.
+- Full root-cause evidence and acceptance criteria: [runtime audit](JARVIS_RUNTIME_AUDIT.md).
+
 ## Verification checkpoint
 
-- COMPLETE: typecheck, existing and new automated tests (599 passed).
+- COMPLETE: typecheck, existing and new automated tests (612 passed).
 - PARTIAL: Android runtime verification in progress on a software Android 11 emulator with ARM64 translation. Physical ROG Phone unavailable.
 - UNVERIFIED: real microphone quality, audible TTS, Qwen3 4B performance/memory pressure on target phone, physical-device update survival.
-- UNVERIFIED: final 0.5.0 package until recorded in `artifacts/release-manifest.json` after the native build.
+- UNVERIFIED: final 0.5.1 package until recorded in `artifacts/release-manifest.json` after the native build.
 - BLOCKED: production signing key is unavailable here. APK uses the same generated Expo debug certificate as the prior local 0.4.1 preview. It cannot update an installation signed with a different EAS/store certificate without that original signing key.
 
 The APK contains the native application and bundled JS, not multi-gigabyte GGUF or speech weights. Those install once into persistent model folders. Routine in-place updates preserve app-private data too; uninstall can remove app-private data. Shared Download/JARVIS preservation requires Android storage permission.

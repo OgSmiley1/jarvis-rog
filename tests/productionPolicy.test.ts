@@ -81,3 +81,12 @@ it('reports failed local inference honestly', async () => {
   const results = await runSelfTest({ modelPresent: true, modelReady: true, infer: async () => { throw new Error('Native model error'); } });
   expect(results.find(r => r.name === 'Local inference')).toMatchObject({ status: 'FAIL', detail: 'Native model error' });
 });
+it('keeps capture/transcription unverified until actual frames/text are observed', async () => {
+  const missing = await runSelfTest({ modelPresent: false, modelReady: false, microphoneGranted: true });
+  expect(missing.find(r => r.name === 'Microphone permission')?.status).toBe('PASS');
+  expect(missing.find(r => r.name === 'Microphone capture')?.status).toBe('UNVERIFIED');
+  expect(missing.find(r => r.name === 'Speech transcription')?.status).toBe('UNVERIFIED');
+  const observed = await runSelfTest({ modelPresent: true, modelReady: true, microphoneCaptureAt: 1000, transcriptAt: 2000, infer: async () => ({ text: 'READY', firstTokenMs: 123, totalMs: 456 }) });
+  expect(observed.find(r => r.name === 'Local inference')).toMatchObject({ status: 'PASS', detail: expect.stringContaining('123 ms') });
+  expect(observed.find(r => r.name === 'Microphone capture')?.detail).toContain('quality is not assessed');
+});

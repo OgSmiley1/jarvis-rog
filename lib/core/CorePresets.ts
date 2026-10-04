@@ -30,6 +30,10 @@ export interface CoreParams {
 }
 
 export type CoreState = InteractionState | 'local_inference' | 'tool_execution' | 'online_lookup' | 'success' | 'warning' | 'local_only' | 'model_loading' | 'model_downloading';
+export function coreColorFor(state: CoreState): string {
+  'worklet';
+  return state === 'error' ? '#ff5b62' : state === 'warning' ? '#ffb454' : '#66e3ff';
+}
 export const CORE_PRESETS: Record<CoreState, CoreParams> = {
   local_inference: { rings: 5, ringGap: 26, spokeDensity: 0.55, sweepSpeed: 0.8, tealOpacity: 0.8, hubGlow: 0.8, breathAmp: 3, breathPeriod: 1.1, redIntensity: 0.9 },
   tool_execution: { rings: 3, ringGap: 32, spokeDensity: 0.8, sweepSpeed: 0.9, tealOpacity: 1, hubGlow: 0.75, breathAmp: 2, breathPeriod: 0.8, redIntensity: 0.85 },

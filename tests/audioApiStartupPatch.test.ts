@@ -9,7 +9,7 @@ describe('react-native-audio-api startup crash backport', () => {
     const pkg = JSON.parse(read('package.json')) as { scripts?: Record<string, string> };
     const patcher = read('scripts/patch-react-native-audio-api.mjs');
 
-    expect(pkg.scripts?.postinstall).toBe('node scripts/patch-react-native-audio-api.mjs');
+    expect(pkg.scripts?.postinstall).toContain('node scripts/patch-react-native-audio-api.mjs');
     expect(patcher).toContain('context.assertOnJSQueueThread()');
     expect(patcher).toContain('mHybridData = initHybrid(workletsModule, jsContext, jsCallInvokerHolder)');
     expect(patcher).toContain('Expected vulnerable AudioAPIModule init/install block was not found');

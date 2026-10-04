@@ -31,6 +31,7 @@ export const Linking = {
 export const PermissionsAndroid = {
   PERMISSIONS: { RECORD_AUDIO: 'android.permission.RECORD_AUDIO' },
   RESULTS: { GRANTED: 'granted', DENIED: 'denied', NEVER_ASK_AGAIN: 'never_ask_again' },
+  check: async (): Promise<boolean> => true,
   request: async (): Promise<string> => 'granted',
 };
 

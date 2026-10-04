@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ENDPOINTER, Endpointer } from '@/lib/voice/endpointer';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { runtimeObservations } from '@/lib/diagnostics/runtime';
+import { checkMicrophonePermission, requestMicrophonePermission } from '@/lib/voice/microphone';
+import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import { AudioRecorder } from 'react-native-audio-api';
 import { models, useSpeechToText } from 'react-native-executorch';
 import { ensureExecutorch } from '@/lib/voice/executorch';
@@ -61,10 +63,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
   // Measured microphone level for the HUD ring. Held in a ref and published on
   // an interval: audio frames arrive every 100 ms, and re-rendering the tree
   // that often would compete with token streaming for the JS thread.
+  const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstFrame = useRef(false);
   const levelRef = useRef(0);
   const [level, setLevel] = useState(0);
 
   const stop = useCallback(async () => {
+    if (captureTimer.current) clearTimeout(captureTimer.current);
     const recorder = recorderRef.current;
     const consumer = consumerRef.current;
     // Invalidate permission requests too: Stop must work before a recorder exists.
@@ -94,7 +99,9 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
 
     if (consumer) {
       try {
-        await consumer;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try { await Promise.race([consumer, new Promise<void>(resolve => { timer = setTimeout(resolve, 750); })]); }
+        finally { if (timer) clearTimeout(timer); }
       } catch {
         // The consumer reports its own failure state when it owns the active session.
       }
@@ -126,10 +133,11 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         return;
       }
 
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (AppState.currentState !== 'active') throw new Error('Open JARVIS before starting the microphone.');
+      const granted = await requestMicrophonePermission();
       if (sessionRef.current !== session) return;
-      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        setError('Microphone permission denied.');
+      if (granted !== 'granted') {
+        setError(granted === 'blocked' ? 'Microphone blocked. Open Android app permissions to allow Microphone.' : 'Microphone permission is required for voice input. Tap Talk to allow it.');
         setState('ERROR');
         return;
       }
@@ -151,7 +159,9 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
         return;
       }
 
+      if (AppState.currentState !== 'active') throw new Error('Open JARVIS before starting the microphone.');
       setState('INITIALIZING');
+      firstFrame.current = false;
       // react-native-audio-api takes the capture format in the constructor.
       // 16 kHz mono is what the local Whisper STT graph expects.
       const recorder = new AudioRecorder({ sampleRate: 16000, bufferLengthInSamples: 1600 });
@@ -160,6 +170,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       runningRef.current = true;
 
       recorder.onAudioReady((chunk) => {
+        if (!runningRef.current || sessionRef.current !== session) return;
+        if (!firstFrame.current) {
+          firstFrame.current = true;
+          if (captureTimer.current) clearTimeout(captureTimer.current);
+          runtimeObservations.microphoneCaptureAt = Date.now();
+          setState('LISTENING');
+        }
         if (
           runningRef.current &&
           sessionRef.current === session &&
@@ -180,7 +197,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
             }
           }
           if (decision.toSpeech) {
-            stt.streamInsert(frame);
+            try { stt.streamInsert(frame); }
+            catch { void stop(); setError('Speech recognition stopped. Please try again.'); setState('ERROR'); return; }
             for (const event of endpointer.push(frame)) {
               if (event.type === 'end') optionsRef.current.onSpeechEnd?.(DEFAULT_ENDPOINTER.endSilenceMs);
             }
@@ -210,6 +228,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
             setState('TRANSCRIBING');
             const heard = cleanTranscript(committed.text ?? '');
             if (heard) {
+              runtimeObservations.transcriptAt = Date.now();
               finalizedRef.current = `${finalizedRef.current} ${heard}`.trim();
               optionsRef.current.onFinal?.(heard);
             }
@@ -218,7 +237,12 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           }
         } catch (cause) {
           if (sessionRef.current !== session) return;
+          if (captureTimer.current) clearTimeout(captureTimer.current);
           runningRef.current = false;
+          try { recorder.stop(); } catch {}
+          try { stt.streamStop(); } catch {}
+          recorderRef.current = null;
+          levelRef.current = 0;
           setError(cause instanceof Error ? cause.message : String(cause));
           setState('ERROR');
         }
@@ -227,6 +251,10 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       consumerRef.current = consume();
 
       try {
+        captureTimer.current = setTimeout(() => {
+          if (sessionRef.current !== session || firstFrame.current) return;
+          void stop().finally(() => { setError('No microphone audio arrived. Check Android microphone access and try again.'); setState('ERROR'); });
+        }, 8000);
         recorder.start();
         if (sessionRef.current !== session) {
           try {
@@ -236,7 +264,6 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           }
           return;
         }
-        setState('LISTENING');
       } catch (cause) {
         runningRef.current = false;
         try {
@@ -256,7 +283,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     } finally {
       if (sessionRef.current === session) startingRef.current = false;
     }
-  }, []);
+  }, [stop]);
 
   useEffect(() => {
     // Publish the measured level while a session is live. Outside a session
@@ -272,6 +299,16 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
     }, 100);
     return () => clearInterval(timer);
   }, [state]);
+
+  useEffect(() => {
+    void checkMicrophonePermission();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void checkMicrophonePermission().then((permission) => {
+        if (permission !== 'granted' && runningRef.current) void stop();
+      });
+    });
+    return () => subscription.remove();
+  }, [stop]);
 
   const clearTranscript = useCallback(() => {
     finalizedRef.current = '';

@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   defaultMode: 'fast',
   approvedMemoryEnabled: true,
   autoSpeak: false,
-  handsFreeEnabled: true,
+  handsFreeEnabled: false,
   wakeWord: 'jarvis',
   ownerProfile: 'Keep explanations simple and direct. Prefer voice-first interaction, local-first operation, free tools where practical, and clear next actions. This assistant is optimized for the ASUS ROG Phone 8 Pro.',
   contextSize: 4096,

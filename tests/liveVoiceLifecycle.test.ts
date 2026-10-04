@@ -22,9 +22,12 @@ vi.mock('react', () => ({
 }));
 vi.mock('react-native', () => ({
   Platform: { OS: 'android', Version: 36 },
+  AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
+  Linking: { openSettings: vi.fn() },
   PermissionsAndroid: {
     PERMISSIONS: { RECORD_AUDIO: 'mic', POST_NOTIFICATIONS: 'notification' },
     RESULTS: { GRANTED: 'granted' },
+    check: async () => false,
     request: harness.permission,
   },
 }));
@@ -95,7 +98,7 @@ it('repeated Start while awaiting permission makes only one permission request',
   const voice = useLiveVoice({ language: 'en' });
   const starting = voice.start();
   await voice.start();
-  expect(harness.permission).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(harness.permission).toHaveBeenCalledTimes(1));
   grant('granted');
   await starting;
   expect(harness.recorderStart).toHaveBeenCalledTimes(1);

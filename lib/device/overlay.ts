@@ -9,6 +9,8 @@ import { requireOptionalNativeModule } from 'expo';
  * build never crashes on a control it cannot honour.
  */
 interface ExpoJarvisOverlayNativeModule {
+  setEnabled?(enabled: boolean): boolean;
+  setCoreState?(state: string): void;
   canDrawOverlays(): boolean;
   openOverlaySettings(): boolean;
   show(): boolean;
@@ -17,6 +19,9 @@ interface ExpoJarvisOverlayNativeModule {
 }
 
 const native = requireOptionalNativeModule<ExpoJarvisOverlayNativeModule>('ExpoJarvisOverlay');
+
+export function configureFloatingOverlay(enabled: boolean): boolean { return native?.setEnabled?.(enabled) ?? false; }
+export function publishCoreState(state: string): void { native?.setCoreState?.(state); }
 
 /** The native module is present in this build. */
 export function isOverlaySupported(): boolean {

@@ -22,7 +22,7 @@ import android.view.animation.LinearInterpolator
  */
 class JarvisOrbView(context: Context) : View(context) {
 
-  private val accent = Color.parseColor("#66E3FF")
+  private var accent = Color.parseColor("#66E3FF")
   private val deep = Color.parseColor("#03080B")
 
   private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -36,6 +36,27 @@ class JarvisOrbView(context: Context) : View(context) {
   }
 
   private var pulse = 0f
+  private var glowRadius = 1f
+  fun setCoreState(state: String) {
+    accent = Color.parseColor(if (state == "error") "#ff5b62" else if (state == "warning") "#ffb454" else "#66E3FF")
+    ringPaint.color = accent
+    animator.duration = when (state) {
+      "listening", "speaking" -> 650L
+      "thinking", "local_inference", "tool_execution", "online_lookup" -> 1000L
+      else -> 2600L
+    }
+    contentDescription = "JARVIS · " + state.replace('_', ' ')
+    rebuildGlow()
+    invalidate()
+  }
+  private fun rebuildGlow() {
+    corePaint.shader = RadialGradient(width / 2f, height / 2f, glowRadius, intArrayOf(Color.WHITE, accent, Color.TRANSPARENT), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+  }
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    glowRadius = maxOf(1f, minOf(w, h) * 0.2f)
+    rebuildGlow()
+  }
 
   private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
     duration = 2600
@@ -81,14 +102,6 @@ class JarvisOrbView(context: Context) : View(context) {
 
     // Breathing core.
     val coreRadius = radius * (0.34f + 0.06f * pulse)
-    corePaint.shader = RadialGradient(
-      cx,
-      cy,
-      coreRadius,
-      intArrayOf(Color.WHITE, accent, Color.argb(40, 102, 227, 255)),
-      floatArrayOf(0f, 0.55f, 1f),
-      Shader.TileMode.CLAMP,
-    )
     canvas.drawCircle(cx, cy, coreRadius, corePaint)
   }
 }

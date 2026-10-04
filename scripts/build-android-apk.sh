@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export JARVIS_BUILD_COMMIT="$(git rev-parse HEAD)"
 node scripts/restore-android-native-libs.mjs
+node scripts/patch-audio-foreground-service.mjs
 corepack pnpm exec expo prebuild --platform android --no-install
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
 if [[ -n "${GRADLE_BIN:-}" ]]; then

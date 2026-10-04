@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, AppState, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, RadialGradient, useClock, vec } from '@shopify/react-native-skia';
 import type { HudState } from '@/lib/hud/hudState';
-import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, interactionFor, readoutFor } from '@/lib/core/CorePresets';
+import { CORE_PRESETS, REFERENCE_SIZE, adjustParams, coreColorFor, interactionFor, readoutFor } from '@/lib/core/CorePresets';
 import { useCoreController } from '@/lib/core/useCoreController';
-import { CORE_RED, CORE_TEAL, DottedRings, Hub, RadialSpokes, Readouts, Sweep, TealArcs, WarpParticles, staticRingRadii } from './core-layers';
+import { CORE_TEAL, DottedRings, Hub, RadialSpokes, Readouts, Sweep, TealArcs, WarpParticles, staticRingRadii } from './core-layers';
 
 /** Kept as an alias so existing imports of `OrbState` continue to resolve. */
 export type OrbState = HudState;
@@ -103,7 +103,7 @@ export function JarvisOrb({
     };
   }, []);
 
-  const interaction = speaking ? 'speaking' : transcribing ? 'transcribing' : activity ?? interactionFor(state, transcribing);
+  const interaction = activity ?? (speaking ? 'speaking' : transcribing ? 'transcribing' : interactionFor(state, transcribing));
   const still = reducedMotion || lowPower || hidden;
   const c = size / 2;
 
@@ -226,11 +226,11 @@ function StaticCore({ size, interaction, offline, throttled }: { size: number; i
   return (
     <Canvas style={{ width: size, height: size }}>
       <Circle cx={c} cy={c} r={size * 0.24} opacity={params.hubGlow}>
-        <RadialGradient c={vec(c, c)} r={size * 0.24} colors={['rgba(255,42,26,0.55)', 'rgba(255,42,26,0.12)', 'rgba(0,0,0,0)']} />
+        <RadialGradient c={vec(c, c)} r={size * 0.24} colors={[coreColorFor(interaction) + '88', coreColorFor(interaction) + '22', '#00000000']} />
       </Circle>
       <Circle cx={c} cy={c} r={size * 0.055} color="#030303" />
       {radii.map((r) => (
-        <Circle key={r} cx={c} cy={c} r={r} style="stroke" strokeWidth={3 * scale} strokeCap="round" color={CORE_RED} opacity={0.35 * params.redIntensity + 0.25}>
+        <Circle key={r} cx={c} cy={c} r={r} style="stroke" strokeWidth={3 * scale} strokeCap="round" color={coreColorFor(interaction)} opacity={0.35 * params.redIntensity + 0.25}>
           <DashPathEffect intervals={[3 * scale, 9 * scale]} />
         </Circle>
       ))}

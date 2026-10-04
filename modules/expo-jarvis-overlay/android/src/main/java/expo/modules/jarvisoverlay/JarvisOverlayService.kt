@@ -34,6 +34,9 @@ import kotlin.math.roundToInt
 class JarvisOverlayService : Service() {
 
   companion object {
+    @Volatile var appForeground: Boolean = true
+    @Volatile var coreState: String = "idle"
+    var instance: JarvisOverlayService? = null
     const val ACTION_STOP = "expo.modules.jarvisoverlay.STOP"
     private const val CHANNEL_ID = "jarvis_orb"
     private const val NOTIFICATION_ID = 7417
@@ -52,6 +55,7 @@ class JarvisOverlayService : Service() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == ACTION_STOP) {
+      getSharedPreferences("jarvis.overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
       stopSelf()
       return START_NOT_STICKY
     }
@@ -63,13 +67,22 @@ class JarvisOverlayService : Service() {
       return START_NOT_STICKY
     }
 
-    startAsForeground()
-    if (orb == null) attachOrb()
+    instance = this
+    try {
+      startAsForeground()
+      if (appForeground) detachOrb() else if (orb == null) attachOrb()
+      updateState()
+    } catch (error: Exception) {
+      android.util.Log.w("JarvisOverlay", "Unable to display overlay", error)
+      stopSelf()
+      return START_NOT_STICKY
+    }
     return START_STICKY
   }
 
   override fun onDestroy() {
     detachOrb()
+    instance = null
     super.onDestroy()
   }
 
@@ -100,8 +113,8 @@ class JarvisOverlayService : Service() {
       Notification.Builder(this)
     }
     val notification = builder
-      .setContentTitle("JARVIS orb is on")
-      .setContentText("Tap the orb to open JARVIS.")
+      .setContentTitle("JARVIS floating access enabled")
+      .setContentText("Orb appears over other apps; hidden inside JARVIS.")
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setOngoing(true)
       .addAction(hide)
@@ -112,6 +125,25 @@ class JarvisOverlayService : Service() {
     } else {
       startForeground(NOTIFICATION_ID, notification)
     }
+  }
+
+  fun updateState() {
+    android.os.Handler(mainLooper).post { orb?.setCoreState(coreState) }
+  }
+
+  private fun clampLayout(layout: WindowManager.LayoutParams) {
+    val manager = getSystemService(WINDOW_SERVICE) as WindowManager
+    var width = resources.displayMetrics.widthPixels
+    var height = resources.displayMetrics.heightPixels
+    var left = dp(8); var top = dp(32); var right = dp(8); var bottom = dp(48)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      val metrics = manager.currentWindowMetrics
+      val insets = metrics.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+      width = metrics.bounds.width(); height = metrics.bounds.height()
+      left += insets.left; right += insets.right; top = maxOf(top, insets.top); bottom = maxOf(bottom, insets.bottom)
+    }
+    layout.x = layout.x.coerceIn(left, maxOf(left, width - layout.width - right))
+    layout.y = layout.y.coerceIn(top, maxOf(top, height - layout.height - bottom))
   }
 
   private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
@@ -132,14 +164,16 @@ class JarvisOverlayService : Service() {
       type,
       // Not focusable: the orb must never steal the keyboard or a game's input
       // from the app underneath. Touches outside the orb pass straight through.
-      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
       PixelFormat.TRANSLUCENT,
     ).apply {
       gravity = Gravity.TOP or Gravity.START
       x = resources.displayMetrics.widthPixels - size - dp(8)
-      y = resources.displayMetrics.heightPixels / 3
+      y = getSharedPreferences("jarvis.overlay", MODE_PRIVATE).getInt("y", resources.displayMetrics.heightPixels / 3)
+      if (getSharedPreferences("jarvis.overlay", MODE_PRIVATE).getBoolean("left", false)) x = dp(8)
     }
 
+    clampLayout(layout)
     val view = JarvisOrbView(this)
     view.contentDescription = "JARVIS"
     view.setOnTouchListener(DragOrTap(layout))
@@ -172,6 +206,7 @@ class JarvisOverlayService : Service() {
     // Starting an activity from the background is allowed here because the
     // app holds SYSTEM_ALERT_WINDOW, which Android lists as an exemption from
     // background-activity-start restrictions.
+    detachOrb()
     startActivity(launch)
   }
 
@@ -200,6 +235,7 @@ class JarvisOverlayService : Service() {
           if (dragging) {
             layout.x = startX + dx.roundToInt()
             layout.y = startY + dy.roundToInt()
+            clampLayout(layout)
             windowManager?.updateViewLayout(view, layout)
           }
           return true
@@ -226,7 +262,9 @@ class JarvisOverlayService : Service() {
       val screenHeight = resources.displayMetrics.heightPixels
       val middle = layout.x + layout.width / 2
       layout.x = if (middle < screenWidth / 2) dp(8) else screenWidth - layout.width - dp(8)
-      layout.y = layout.y.coerceIn(dp(24), screenHeight - layout.height - dp(24))
+      layout.y = layout.y.coerceIn(dp(24), maxOf(dp(24), screenHeight - layout.height - dp(24)))
+      clampLayout(layout)
+      getSharedPreferences("jarvis.overlay", MODE_PRIVATE).edit().putInt("y", layout.y).putBoolean("left", layout.x < screenWidth / 2).apply()
       windowManager?.updateViewLayout(view, layout)
     }
   }

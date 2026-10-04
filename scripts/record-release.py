@@ -10,6 +10,15 @@ if run('git', 'status', '--porcelain', '--untracked-files=no'): raise SystemExit
 badging = run(str(sdk/'aapt'), 'dump', 'badging', str(apk))
 signature = run(str(sdk/'apksigner'), 'verify', '--verbose', '--print-certs', str(apk))
 run(str(sdk/'zipalign'), '-c', '-P', '16', '4', str(apk))
+permissions = run(str(sdk/'aapt'), 'dump', 'permissions', str(apk))
+for permission in ['android.permission.RECORD_AUDIO', 'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MICROPHONE']:
+    if f"name='{permission}'" not in permissions: raise SystemExit('Missing required APK permission: ' + permission)
+xml = run(str(sdk/'aapt'), 'dump', 'xmltree', str(apk), 'AndroidManifest.xml')
+service = 'com.swmansion.audioapi.system.MediaNotificationManager$AudioForegroundService'
+if xml.count('Raw: "' + service + '"') != 1: raise SystemExit('Expected exactly one microphone foreground service')
+if not re.search(r'foregroundServiceType[^\n]*0x8[01]', xml): raise SystemExit('Microphone foreground service type missing')
+(root/'artifacts/apk-permissions.txt').write_text(permissions+'\n')
+(root/'artifacts/apk-manifest.txt').write_text(xml+'\n')
 package = re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging)
 if not package: raise SystemExit('Unable to read Android package')
 with zipfile.ZipFile(apk) as bundle:

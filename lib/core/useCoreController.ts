@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Easing, useDerivedValue, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import type { CoreState as InteractionState } from './CorePresets';
-import { CORE_PRESETS, INTERRUPT_MS, TRANSITION_MS, adjustParams, lerpParams, type CoreParams } from './CorePresets';
+import { CORE_PRESETS, INTERRUPT_MS, TRANSITION_MS, adjustParams, lerpParams, coreColorFor, type CoreParams } from './CorePresets';
 
 /**
  * Voice state → animated Core parameters (guide §3).
@@ -29,6 +29,8 @@ export interface CoreControllerInput {
 }
 
 export interface CoreController {
+  color: SharedValue<string>;
+  glow: SharedValue<string[]>;
   params: SharedValue<CoreParams>;
   speaking: SharedValue<boolean>;
   /** Clock time of the last wake burst / warp, or -1e9 if none yet. */
@@ -44,6 +46,8 @@ const NEVER = -1e9;
 
 export function useCoreController(input: CoreControllerInput): CoreController {
   const { state, speaking, offline, throttled, burst, interrupted, clock } = input;
+  const color = useSharedValue('#66e3ff');
+  const glow = useSharedValue(['#66e3ff88', '#66e3ff22', '#00000000']);
   const from = useSharedValue<CoreParams>(CORE_PRESETS.idle);
   const to = useSharedValue<CoreParams>(CORE_PRESETS.idle);
   const progress = useSharedValue(1);
@@ -59,6 +63,8 @@ export function useCoreController(input: CoreControllerInput): CoreController {
 
   function goTo(next: InteractionState) {
     shownRef.current = next;
+    color.value = coreColorFor(next);
+    glow.value = [color.value + '88', color.value + '22', '#00000000'];
     // Start from wherever the Core is right now, so a change mid-transition never jumps.
     from.value = lerpParams(from.value, to.value, progress.value);
     to.value = adjustParams(CORE_PRESETS[next], offline, throttled);
@@ -101,5 +107,5 @@ export function useCoreController(input: CoreControllerInput): CoreController {
     speakingSV.value = speaking;
   }, [speaking, speakingSV]);
 
-  return { params, speaking: speakingSV, burstAt, warpAt, burstSeed, warpSeed, thinking };
+  return { color, glow, params, speaking: speakingSV, burstAt, warpAt, burstSeed, warpSeed, thinking };
 }

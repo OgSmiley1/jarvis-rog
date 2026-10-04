@@ -8,7 +8,8 @@ export interface CheckResult { name: string; status: CheckStatus; detail: string
 export interface SelfTestInput {
   modelPresent: boolean; modelReady: boolean; rendererMounted?: boolean; rendererError?: boolean;
   microphoneGranted?: boolean; sttReady?: boolean; ttsVoices?: number;
-  infer?: (signal: AbortSignal) => Promise<string>;
+  microphoneCaptureAt?: number; transcriptAt?: number;
+  infer?: (signal: AbortSignal) => Promise<string | { text: string; firstTokenMs?: number; totalMs: number }>;
 }
 export async function runSelfTest(input: SelfTestInput): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
@@ -31,12 +32,16 @@ export async function runSelfTest(input: SelfTestInput): Promise<CheckResult[]> 
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { abort.abort(); reject(new Error('Inference exceeded 20 seconds')); }, 20_000); });
-      const text = await Promise.race([input.infer(abort.signal), timeout]);
-      check('Local inference', text.trim().length > 0, text.trim() ? 'Local inference returned text.' : 'Empty model reply.');
+      const response = await Promise.race([input.infer(abort.signal), timeout]);
+      const text = typeof response === 'string' ? response : response.text;
+      const timing = typeof response === 'string' ? '' : ` First token: ${response.firstTokenMs === undefined ? 'unmeasured' : Math.round(response.firstTokenMs) + ' ms'}; total ${Math.round(response.totalMs)} ms.`;
+      check('Local inference', text.trim().length > 0, text.trim() ? 'Local runtime returned text without a cloud provider.' + timing : 'Empty model reply.');
     } catch (error) { add('Local inference', 'FAIL', error instanceof Error ? error.message : 'Inference failed'); }
     finally { if (timer) clearTimeout(timer); }
   } else add('Local inference', 'BLOCKED', 'A loaded local model is required.');
   add('Microphone permission', input.microphoneGranted === undefined ? 'UNVERIFIED' : input.microphoneGranted ? 'PASS' : 'BLOCKED', 'Permission check only; no microphone recording performed.');
+  add('Microphone capture', input.microphoneCaptureAt ? 'PASS' : 'UNVERIFIED', input.microphoneCaptureAt ? `Audio frames observed this app session at ${new Date(input.microphoneCaptureAt).toISOString()}; quality is not assessed.` : 'No microphone frames observed this session.');
+  add('Speech transcription', input.transcriptAt ? 'PASS' : 'UNVERIFIED', input.transcriptAt ? `Local STT produced text this app session at ${new Date(input.transcriptAt).toISOString()}; accuracy requires listening.` : 'No actual transcription observed this session.');
   add('Speech model', input.sttReady === undefined ? 'UNVERIFIED' : input.sttReady ? 'PASS' : 'BLOCKED', 'Observed STT graph readiness; not a speech-quality test.');
   add('TTS voices', input.ttsVoices === undefined ? 'UNVERIFIED' : input.ttsVoices > 0 ? 'PASS' : 'BLOCKED', `${input.ttsVoices ?? 'Unknown'} voices enumerated; audible playback unverified.`);
   add('Phone actions / speech / restart', 'UNVERIFIED', 'Requires interactive Android checks; no call, alarm or message was triggered.');

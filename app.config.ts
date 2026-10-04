@@ -5,14 +5,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'JARVIS ROG',
   slug: 'smiley',
   owner: 'smiley007s-team',
-  version: '0.5.0',
+  version: '0.5.1',
   orientation: 'portrait',
   scheme: 'jarvisrog',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
-    versionCode: 2026100301,
+    versionCode: 2026100401,
     permissions: [
       'INTERNET',
       'RECORD_AUDIO',
@@ -35,6 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    './plugins/withJarvisVoiceManifest',
     'expo-router',
     'expo-system-ui',
     'expo-secure-store',
@@ -44,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         cameraPermission: 'JARVIS opens the camera only when you ask what it sees, for one photo described on this phone.',
         photosPermission: false,
-        microphonePermission: false,
+        microphonePermission: 'JARVIS uses the microphone for voice requests you start.',
       },
     ],
     [

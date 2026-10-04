@@ -10,7 +10,7 @@ import { PROVIDERS, policyAudit } from '@/lib/net/providerPolicy';
  * Live information and the zero-cost switch, in plain words. The provider
  * list is the manifest the policy enforces — the same data, not a copy.
  */
-export function LiveDataCard() {
+export function LiveDataCard({ advanced = false }: { advanced?: boolean }) {
   const jarvis = useJarvis();
   const { settings } = jarvis;
   const arabic = settings.language === 'ar';
@@ -72,6 +72,7 @@ export function LiveDataCard() {
         ))}
       </Row>
 
+      {advanced ? <>
       {toggle(
         arabic ? 'وضع التكلفة صفر (صارم)' : 'Strict zero-cost mode',
         strict,
@@ -120,7 +121,7 @@ export function LiveDataCard() {
         />
       ) : (
         <>
-          <Field value={guardianKey} onChangeText={setGuardianKey} placeholder="Guardian API key" />
+          <Field secureTextEntry value={guardianKey} onChangeText={setGuardianKey} placeholder="Guardian API key" />
           <Button
             title={arabic ? 'احفظ المفتاح' : 'Save key'}
             disabled={!guardianKey.trim()}
@@ -151,6 +152,7 @@ export function LiveDataCard() {
             </AppText>
           ))
         : null}
+      </> : null}
     </Card>
   );
 }

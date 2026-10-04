@@ -1,4 +1,5 @@
 import { routeDeterministicTool, type DeterministicToolRoute } from './deterministicRouter';
+import { findKnownCity } from './cities';
 import { createId } from '@/lib/utils/ids';
 
 /** Ephemeral, structured tool slots. Never written to personal memory. */
@@ -21,7 +22,7 @@ export class ToolConversation {
   resolve(text: string, continuesSession = true): DeterministicToolRoute | null {
     if (!continuesSession || (this.recent && this.now() - this.recent.at > 5 * 60_000)) this.clear();
     const clean = text.trim().replace(/[?!؟.]+$/u, '');
-    const follow = clean.match(FOLLOW_UP);
+    const follow = clean.match(FOLLOW_UP) ?? (this.recent && findKnownCity(clean) ? [clean, clean] : null);
     if (follow && this.recent) {
       const parameters = { ...this.recent.parameters };
       let slots = follow[1]!.trim();

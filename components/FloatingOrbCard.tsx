@@ -8,7 +8,7 @@ import {
   isFloatingOrbShowing,
   isOverlaySupported,
   openOverlaySettings,
-  showFloatingOrb,
+  configureFloatingOverlay,
 } from '@/lib/device/overlay';
 
 /**
@@ -39,8 +39,9 @@ export function FloatingOrbCard() {
   async function toggle(enabled: boolean) {
     await jarvis.updateSettings({ floatingOrbEnabled: enabled });
     if (enabled) {
-      if (!showFloatingOrb()) openOverlaySettings();
+      if (!configureFloatingOverlay(true)) openOverlaySettings();
     } else {
+      configureFloatingOverlay(false);
       hideFloatingOrb();
     }
     // The service attaches the orb asynchronously; read the result a moment later.
@@ -66,7 +67,7 @@ export function FloatingOrbCard() {
         snaps to the nearest edge. A notification shows while it is on, with a Hide button to remove it.
       </AppText>
       <AppText muted>
-        Permission: {permitted ? 'granted' : 'not granted yet'} · Orb: {showing ? 'on screen' : 'hidden'}
+        Permission: {permitted ? 'granted' : 'not granted yet'} · Orb: {showing ? 'on screen' : jarvis.settings.floatingOrbEnabled ? 'hidden while JARVIS is foregrounded' : 'off'}
       </AppText>
       {!permitted ? (
         <Button title="Allow “Display over other apps”" onPress={() => openOverlaySettings()} />

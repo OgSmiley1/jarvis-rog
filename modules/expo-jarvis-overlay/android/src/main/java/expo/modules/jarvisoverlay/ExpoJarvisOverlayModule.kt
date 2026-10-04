@@ -20,6 +20,25 @@ class ExpoJarvisOverlayModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ExpoJarvisOverlay")
 
+    OnActivityEntersForeground {
+      JarvisOverlayService.appForeground = true
+      refreshService()
+    }
+    OnActivityEntersBackground {
+      JarvisOverlayService.appForeground = false
+      refreshService()
+    }
+    Function("setEnabled") { enabled: Boolean ->
+      val context = context() ?: return@Function false
+      context.getSharedPreferences("jarvis.overlay", Context.MODE_PRIVATE).edit().putBoolean("enabled", enabled).apply()
+      if (enabled) refreshService() else context.stopService(Intent(context, JarvisOverlayService::class.java))
+      enabled && canDraw(context)
+    }
+    Function("setCoreState") { state: String ->
+      JarvisOverlayService.coreState = state
+      JarvisOverlayService.instance?.updateState()
+    }
+
     Function("canDrawOverlays") {
       val context = context() ?: return@Function false
       canDraw(context)
@@ -55,6 +74,17 @@ class ExpoJarvisOverlayModule : Module() {
 
     Function("isShowing") {
       JarvisOverlayService.running
+    }
+  }
+
+  private fun refreshService() {
+    val context = context() ?: return
+    if (!context.getSharedPreferences("jarvis.overlay", Context.MODE_PRIVATE).getBoolean("enabled", false) || !canDraw(context)) return
+    try {
+      val intent = Intent(context, JarvisOverlayService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+    } catch (error: Exception) {
+      android.util.Log.w("JarvisOverlay", "Overlay service unavailable", error)
     }
   }
 

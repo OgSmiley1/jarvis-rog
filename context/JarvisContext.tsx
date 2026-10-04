@@ -29,7 +29,7 @@ import { listToolNames } from '@/lib/tools/registry';
 import { buildToolCallGrammar, parseToolCall } from '@/lib/tools/grammar';
 import { buildToolPlanningMessages, looksLikeToolRequest, NO_TOOL } from '@/lib/tools/planner';
 import { setVoicePreference } from '@/lib/voice/voiceResponse';
-import { canDrawOverlays, showFloatingOrb } from '@/lib/device/overlay';
+import { configureFloatingOverlay } from '@/lib/device/overlay';
 import { downloadRecommendedModel, type ImportedModel } from '@/lib/inference/modelImport';
 import type { DownloadView } from '@/lib/inference/brainPresence';
 import {
@@ -261,8 +261,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     // Bring the floating orb back after a restart if the owner left it on.
     // canDrawOverlays() is re-checked because the permission can be revoked
     // in Android settings while JARVIS is not running.
-    if (!ready || !settings.floatingOrbEnabled) return;
-    if (canDrawOverlays()) showFloatingOrb();
+    if (!ready) return;
+    configureFloatingOverlay(settings.floatingOrbEnabled);
   }, [ready, settings.floatingOrbEnabled]);
 
   const updateSettings = useCallback(async (patch: Partial<JarvisSettings>) => {
@@ -283,8 +283,9 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     const modelName = selection?.name ?? settings.modelName;
     if (!modelPath || !modelName) throw new Error('NO_MODEL_SELECTED');
 
-    const runtime = await getRuntime();
+    setModelState({ status: 'loading', modelPath, modelName });
     try {
+      const runtime = await getRuntime();
       if (settings.adaptiveRuntime) {
         // Size the runtime from what the device actually reports. Signals that
         // cannot be read stay undefined, and planRuntime treats them as

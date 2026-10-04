@@ -43,3 +43,10 @@ it('routes mixed English/Arabic city names without losing location', () => {
   expect(c.resolve('weather in دبي tomorrow')?.call.arguments).toMatchObject({ city: 'دبي', day: 'tomorrow' });
   expect(c.resolve('الطقس في Dubai بكرة')?.call.arguments).toMatchObject({ city: 'dubai', day: 'tomorrow' });
 });
+it('retains prayer intent for a known city alone, but clears an unrelated question', () => {
+  const c = new ToolConversation();
+  c.resolve('prayer times in Ajman');
+  expect(c.resolve('Dubai?')?.call).toMatchObject({ tool: 'live.prayer', arguments: { city: 'Dubai', all: true } });
+  c.resolve('Why is the sky blue?');
+  expect(c.resolve('Dubai?')).toBeNull();
+});

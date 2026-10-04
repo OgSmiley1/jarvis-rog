@@ -15,7 +15,10 @@ import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
 import { providerById } from '@/lib/online/cloudBrain';
 import type { CompletionMessage, IntelligenceMode } from '@/lib/inference/types';
 import { appendExchange } from '@/lib/hud/conversation';
-import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
+import { describeRuntime } from '@/lib/runtime/presentation';
+import { getMicrophonePermission, subscribeMicrophone, openMicrophoneSettings } from '@/lib/voice/microphone';
+import { publishCoreState } from '@/lib/device/overlay';
+import { orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
 import { ECHO_SAFE, bargeInDecision, haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
@@ -89,6 +92,8 @@ const FOLLOW_UP_MS = 8_000;
  */
 export default function JarvisHud() {
   const jarvis = useJarvis();
+  const microphone = useSyncExternalStore(subscribeMicrophone, getMicrophonePermission, getMicrophonePermission);
+  const directVoice = useRef(false);
   // The HUD has no mode switcher of its own: it follows the owner's default
   // mode live, so changing it in Settings or Chat takes effect here at once.
   const mode: IntelligenceMode = jarvis.settings.defaultMode;
@@ -151,6 +156,11 @@ export default function JarvisHud() {
   useEffect(() => session.setConnectivity(connectivity), [connectivity, session]);
   useEffect(() => () => {
     session.cancel('user');
+    setBusy(false);
+    setToolRunning(false);
+    setWatching(false);
+    setActivity('interrupted');
+    followUpRef.current = false;
     speechEpochRef.current += 1;
     void stopSpeaking();
   }, [session]);
@@ -193,9 +203,12 @@ export default function JarvisHud() {
       neural.speakAll(text);
       return;
     }
+    const epoch = ++speechEpochRef.current;
+    pendingSystemSegmentsRef.current = 0;
     speakingRef.current = true;
     setSpeaking(true);
     const release = () => {
+      if (speechEpochRef.current !== epoch) return;
       speakingRef.current = false;
       setSpeaking(false);
       setPlaying(false);
@@ -205,13 +218,13 @@ export default function JarvisHud() {
       release();
     };
     void speakResponse(text, language, {
-      onStart: () => { setPlaying(true); markFirstAudio(); },
+      onStart: () => { if (speechEpochRef.current === epoch) { setPlaying(true); markFirstAudio(); } },
       onDone: release,
       onError: failed,
     }).catch(failed);
   }
 
-  async function runCommand(commandText: string) {
+  async function runCommand(commandText: string, spokenRequest = false) {
     const command = commandText.trim();
     if (!command) return;
 
@@ -232,7 +245,7 @@ export default function JarvisHud() {
       await jarvis.stopGeneration().catch(() => undefined);
     }
 
-    const voiceReply = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
+    const voiceReply = spokenRequest || jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
 
     // App-level commands: they change JARVIS itself, so they never reach a brain.
     const switchTo = detectLanguageSwitch(command);
@@ -274,7 +287,7 @@ export default function JarvisHud() {
     const deterministic = Boolean(route);
     // Tools share a short deadline (4 s requests, one retry); a spoken answer
     // from the phone's brain can legitimately take minutes, so it gets room.
-    const turn = session.beginTurn(route ? 15_000 : 300_000);
+    const turn = session.beginTurn(route ? 15_000 : 90_000);
     const onTurnAbort = () => {
       if (turn.signal.reason !== 'deadline' && Date.now() < turn.deadlineAt) return;
       speechEpochRef.current += 1;
@@ -305,7 +318,7 @@ export default function JarvisHud() {
     const askedAt = Date.now();
     let firstTokenAt = 0;
     let firstSpeechAt = 0;
-    const voiceOut = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
+    const voiceOut = spokenRequest || jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
     // A spoken question gets the fast profile: short, low-temperature, and the
     // quickest to its first word. Deeper modes stay for typed work.
     const turnMode: IntelligenceMode = voiceOut ? 'fast' : mode;
@@ -513,6 +526,11 @@ export default function JarvisHud() {
   function haltEverything() {
     recordLive('halt', 'stopped speech and generation');
     session.cancel('user');
+    setBusy(false);
+    setToolRunning(false);
+    setWatching(false);
+    setActivity('interrupted');
+    followUpRef.current = false;
     busyRef.current = false;
     setInterruptedTick((n) => n + 1);
     speakingRef.current = false;
@@ -558,8 +576,10 @@ export default function JarvisHud() {
     // The rule lives in bargeInDecision so it can only be widened honestly.
     if (bargeInDecision({ speaking: speakingRef.current, echoSafe: ECHO_SAFE, transcript: clean }) === 'ignore') return;
 
-    if (!jarvis.settings.handsFreeEnabled) {
-      setInput((current) => `${current} ${clean}`.trim());
+    if (directVoice.current || !jarvis.settings.handsFreeEnabled) {
+      directVoice.current = false;
+      void runCommand(clean, true);
+      if (!jarvis.settings.handsFreeEnabled) void voice.stop();
       return;
     }
 
@@ -570,7 +590,7 @@ export default function JarvisHud() {
       setBurst((n) => n + 1);
       if (wake.command) {
         awakeUntilRef.current = 0;
-        void runCommand(wake.command);
+        void runCommand(wake.command, true);
       } else {
         awakeUntilRef.current = Date.now() + 10_000;
         speakJarvis(
@@ -590,7 +610,7 @@ export default function JarvisHud() {
 
     if (awakeUntilRef.current > Date.now()) {
       awakeUntilRef.current = 0;
-      void runCommand(clean);
+      void runCommand(clean, true);
     }
   }
 
@@ -619,7 +639,7 @@ export default function JarvisHud() {
   // Start the wake-word engine when asked for; any failure leaves the
   // speech-based wake word in charge.
   useEffect(() => {
-    if (!jarvis.settings.wakeEngineEnabled || !jarvis.settings.handsFreeEnabled) {
+    if (microphone !== 'granted' || !jarvis.settings.wakeEngineEnabled || !jarvis.settings.handsFreeEnabled) {
       setWakeEngine(null);
       return;
     }
@@ -632,7 +652,7 @@ export default function JarvisHud() {
     return () => {
       cancelled = true;
     };
-  }, [jarvis.settings.wakeEngineEnabled, jarvis.settings.handsFreeEnabled]);
+  }, [microphone, jarvis.settings.wakeEngineEnabled, jarvis.settings.handsFreeEnabled]);
   const { isReady: voiceReady, state: voiceState, start: startVoice } = voice;
 
   useEffect(() => {
@@ -640,20 +660,21 @@ export default function JarvisHud() {
       autoStartAttemptedRef.current = false;
       return;
     }
-    if (!voiceReady || autoStartAttemptedRef.current) return;
+    if (microphone !== 'granted' || !voiceReady || autoStartAttemptedRef.current) return;
     if (voiceState !== 'IDLE' && voiceState !== 'ERROR') return;
 
     autoStartAttemptedRef.current = true;
     void startVoice();
-  }, [jarvis.settings.handsFreeEnabled, voiceReady, voiceState, startVoice]);
+  }, [microphone, jarvis.settings.handsFreeEnabled, voiceReady, voiceState, startVoice]);
 
   const hud = useMemo(
     () =>
-      describeHud({
+      describeRuntime({
+        busy, phase: activity, microphone, voiceError: voice.error, localOnly: jarvis.settings.localOnly === true, downloading: jarvis.brainDownload !== null,
         modelStatus: jarvis.modelState.status,
         voiceState: voice.state,
         generating: busy && !toolRunning,
-        speaking,
+        speaking: playing,
         toolRunning,
         handsFree: jarvis.settings.handsFreeEnabled,
         wakeWord: jarvis.settings.wakeWord,
@@ -664,14 +685,13 @@ export default function JarvisHud() {
         watching,
       }),
     [
-      jarvis.cloudReady,
+      jarvis.cloudReady, activity, microphone, voice.error, jarvis.settings.localOnly, jarvis.brainDownload, playing,
       watching,
       busy,
       jarvis.modelState.status,
       jarvis.settings.handsFreeEnabled,
       jarvis.settings.language,
       jarvis.settings.wakeWord,
-      speaking,
       toolRunning,
       voice.downloadProgress,
       voice.isReady,
@@ -707,7 +727,7 @@ export default function JarvisHud() {
   }, [voice.error]);
   useEffect(() => {
     recordLive('speak', speaking ? 'speaking' : 'silent');
-    session.setSpeaking(speaking);
+    session.setSpeaking(playing);
     const timer = timerRef.current;
     if (!speaking && timer?.has('firstAudio') && !timer.has('turnEnd')) {
       timer.mark('turnEnd');
@@ -719,7 +739,7 @@ export default function JarvisHud() {
       awakeUntilRef.current = Date.now() + FOLLOW_UP_MS;
       recordLive('wake', 'follow-up window open', { ms: FOLLOW_UP_MS });
     }
-  }, [speaking, session]);
+  }, [speaking, playing, session]);
   const liveStatus = useSyncExternalStore(subscribeLiveStatus, getLiveStatus, getLiveStatus);
   const live = isLiveActive(liveStatus);
 
@@ -746,30 +766,38 @@ export default function JarvisHud() {
   }
 
   function toggleVoice() {
-    // Tapping the orb while JARVIS is talking or generating means "stop", not
-    // "end my microphone session". It is the fastest gesture on the screen and
-    // it must map to the thing the owner most urgently wants.
-    if (speaking || busy) {
+    if (speaking || playing || busy) {
       haltEverything();
+      setResponse('');
+      directVoice.current = true;
+      void voice.stop().then(() => voice.start());
       return;
     }
-
     if (orbTapStartsVoice(voice.state)) {
-      if (!voice.isReady) return;
+      directVoice.current = true;
+      setResponse('');
+      setActivity(undefined);
       void voice.start();
       return;
     }
+    if (jarvis.settings.handsFreeEnabled && !directVoice.current) {
+      directVoice.current = true;
+      setResponse('');
+      return;
+    }
+    directVoice.current = false;
     void voice.stop();
   }
 
   const arabic = jarvis.settings.language === 'ar';
   useEffect(() => {
-    Object.assign(runtimeObservations, { coreState: activity ?? hud.state, sttReady: voice.isReady, sttState: voice.state, speechPlaying: playing });
-  }, [activity, hud.state, voice.isReady, voice.state, playing]);
+    Object.assign(runtimeObservations, { coreState: hud.coreState, sttReady: voice.isReady, sttState: voice.state, speechPlaying: playing });
+  }, [hud.coreState, voice.isReady, voice.state, playing]);
   const downloading = jarvis.brainDownload !== null;
   const downloadPercent =
     jarvis.brainDownload?.progress == null ? null : Math.round(jarvis.brainDownload.progress * 100);
-  const micOn = !speaking && (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING');
+  const micOn = hud.micActive;
+  useEffect(() => publishCoreState(hud.coreState), [hud.coreState]);
 
   // Edge swipe → history. The strip sits on the trailing edge for the
   // language (right in English, left in Arabic) and ignores vertical drags.
@@ -849,13 +877,13 @@ export default function JarvisHud() {
         <View style={styles.stage}>
           <CoreBoundary onPress={toggleVoice}>
           <JarvisOrb
-            activity={activity ?? (jarvis.brainDownload ? 'model_downloading' : jarvis.modelState.status === 'loading' ? 'model_loading' : hud.state === 'READY' && jarvis.settings.localOnly ? 'local_only' : undefined)}
+            activity={hud.coreState}
             state={hud.state}
             level={voice.level}
             onPress={toggleVoice}
             onLongPress={() => setSheet('menu')}
             onHistory={() => setSheet('history')}
-            label={activity?.replace(/_/g, ' ').toUpperCase() ?? (jarvis.settings.localOnly ? `${hud.headline} · LOCAL ONLY` : hud.headline)}
+            label={jarvis.settings.localOnly && hud.coreState !== 'local_only' ? `${hud.headline} · LOCAL ONLY` : hud.headline}
             size={coreSize}
             burst={burst}
             interrupted={interruptedTick}
@@ -926,7 +954,7 @@ export default function JarvisHud() {
             “{voice.transcript}”
           </Text>
         ) : null}
-        {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
+        {hud.coreState === 'warning' ? <Button title={arabic ? 'إذن الميكروفون' : 'Microphone permissions'} onPress={() => void openMicrophoneSettings()} /> : null}
         {storageBanner}
         {brainBanner}
 
@@ -986,7 +1014,7 @@ export default function JarvisHud() {
         />
         <Row>
           <Button
-            title={busy ? (arabic ? 'يعمل…' : 'Working…') : arabic ? 'إرسال' : 'Send'}
+            title={hud.isBusy ? (arabic ? 'يعمل…' : 'Working…') : arabic ? 'إرسال' : 'Send'}
             onPress={() => void runCommand(input)}
             disabled={!input.trim()}
           />

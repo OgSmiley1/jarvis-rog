@@ -21,6 +21,10 @@ export function DiagnosticsCard() {
   const [device, setDevice] = useState('Press Run Self-Test to read current device and subsystem status.');
   const tools = [...toolRegistry.values()];
   async function run() {
+    if (['thinking', 'local_inference', 'tool_execution', 'online_lookup'].includes(runtimeObservations.coreState ?? '')) {
+      setResults([{ name: 'Self-test', status: 'BLOCKED', detail: 'Finish or stop the current request before testing inference.' }]);
+      return;
+    }
     setBusy(true);
     try {
       const model = findInstalledModel({ path: jarvis.settings.modelPath, name: jarvis.settings.modelName });
@@ -47,7 +51,8 @@ export function DiagnosticsCard() {
         infer: async (signal) => {
           // Direct local runtime: self-test must never fall back to a cloud brain.
           const runtime = await import('@/lib/inference/standaloneModel');
-          return (await runtime.runCompletion({ messages: [{ role: 'user', content: 'Reply with READY.' }], mode: 'fast', maxTokens: 12, signal })).text;
+          const result = await runtime.runCompletion({ messages: [{ role: 'user', content: 'Reply with READY.' }], mode: 'fast', maxTokens: 12, signal });
+          return { text: result.text, firstTokenMs: result.metrics.firstTokenMs, totalMs: result.metrics.totalMs };
         },
       }));
     } catch (error) { setResults([{ name: 'Self-test', status: 'FAIL', detail: humanizeError(errorMessage(error)) }]); }
@@ -56,7 +61,7 @@ export function DiagnosticsCard() {
   return <Card title="System diagnostics">
     <AppText>JARVIS {Constants.expoConfig?.version ?? 'unknown'} · build {Constants.expoConfig?.android?.versionCode ?? 'unknown'}</AppText>
     <AppText muted>Source: {Constants.expoConfig?.extra?.buildCommit ?? 'UNVERIFIED'}</AppText>
-    <AppText>{jarvis.modelState.status === 'ready' ? 'OFFLINE READY' : `Brain ${jarvis.modelState.status}`}</AppText>
+    <AppText>{jarvis.modelState.status === 'ready' ? 'Local model loaded · run inference self-test to verify generation' : `Brain ${jarvis.modelState.status}`}</AppText>
     <AppText>Local Only: {jarvis.settings.localOnly ? 'ON' : 'OFF'} · Tools: {tools.length} registered · {jarvis.settings.localOnly ? tools.filter(t => t.network).length : 0} policy blocked · {tools.filter(t => t.permissions.length).length} permission dependent</AppText>
     <AppText muted>Runtime availability depends on permissions, installed Android handlers and configured providers; registry counts do not prove availability.</AppText>
     <AppText>{device}</AppText>
