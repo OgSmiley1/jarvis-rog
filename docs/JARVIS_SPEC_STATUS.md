@@ -56,9 +56,10 @@ Expo SDK 54 / RN 0.81 app, package `com.app.localjarviscoach`, one screen (no ta
   - Compiled: Skia (`shopify_react-native-skia`, CMake), Reanimated + worklets, llama.rn (CMake), expo-jarvis-phone.
   - APK: `https://expo.dev/artifacts/eas/2jnrduqaZOC6770QlZRt5lmivig42HenXS2QF_UPdeU.apk`, version 0.4.1 (2026093001).
   - Superseded by the final build below.
-- **Final EAS build `f476851a` on 5cc54dc** (everything in this report): **BUILD SUCCESSFUL in 11m 9s**, 0 Kotlin errors.
+- EAS build `f476851a` on 5cc54dc: BUILD SUCCESSFUL in 11m 9s, 0 Kotlin errors (superseded).
+- **Final EAS build `2fde9273` on 630b766** (everything in this report, including Talk over JARVIS): **BUILD SUCCESSFUL**, 0 Kotlin errors.
   - Compiled: Skia (CMake), Reanimated + worklets, llama.rn (CMake), expo-jarvis-phone.
-  - APK: `https://expo.dev/artifacts/eas/yZO9Pnnfsl7usDyytW2kFRAzQrDkf8uE3DIqkirfErM.apk`.
+  - APK: `https://expo.dev/artifacts/eas/MQ2ZSL5P-adWcMUIyou29eYT93JyTMOFCBsWmisQnwg.apk`.
   - `scripts/rog-setup.sh` installs this APK.
 
 ## 4. Device tests performed
