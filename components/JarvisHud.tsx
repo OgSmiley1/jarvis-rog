@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, PanResponder, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Row } from '@/components/Ui';
 import { HudDrawer } from '@/components/HudDrawer';
 import { JarvisOrb } from '@/components/JarvisOrb';
 import { DashboardClock } from '@/components/DashboardClock';
-import { HudBackdrop } from '@/components/HudBackdrop';
+import { FirstRunCard, HistoryList, QrView, Sheet, type HistoryItem } from '@/components/CoreSheets';
 import { CameraPage } from '@/components/CameraPage';
-import { PageBar } from '@/components/PageBar';
 import { colors } from '@/components/theme';
 import { useJarvis, type AnswerSource } from '@/context/JarvisContext';
 import { providerById } from '@/lib/online/cloudBrain';
@@ -16,7 +15,9 @@ import { appendExchange } from '@/lib/hud/conversation';
 import { describeHud, orbTapStartsVoice } from '@/lib/hud/hudState';
 import { formatPerformance } from '@/lib/inference/performance';
 import { routeDeterministicTool } from '@/lib/tools/deterministicRouter';
-import { haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
+import { followUpCommand, nextLiveContext, type LiveContext } from '@/lib/tools/liveRoutes';
+import { profileFor } from '@/lib/tools/toolProfiles';
+import { ECHO_SAFE, bargeInDecision, haltAcknowledgement, isHaltCommand } from '@/lib/voice/bargeIn';
 import { SpeechStream } from '@/lib/voice/speechStream';
 import { FILLER_AFTER_MS, thinkingFiller } from '@/lib/voice/thinkingFiller';
 import { speakQueued, speakResponse, stopSpeaking } from '@/lib/voice/voiceResponse';
@@ -38,6 +39,44 @@ import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { liveText } from '@/lib/telemetry/transcriptPolicy';
 import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
+import { StageTimer, formatLatencyReport, recordTurn, type Scenario } from '@/lib/telemetry/stageTimer';
+import { VoiceSessionController } from '@/lib/voice/voiceSession';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { SUCCESS_MS, WARNING_MS, activityAfter, activityDuring, type CoreActivity } from '@/lib/core/CorePresets';
+import type { QrMatrix } from '@/lib/tools/localExtras';
+import type { QuranPassage } from '@/lib/tools/freeApis';
+
+/** Monotonic clock for stage marks, matching StageTimer's own. */
+const monotonic = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now());
+
+/** Which latency bucket a turn belongs to, from the route it took. */
+function scenarioFor(tool: string | undefined, local: boolean): Scenario {
+  if (!tool) return local ? 'conversation' : 'cloud';
+  return tool.startsWith('live.') ? 'live-data-network' : 'local-command';
+}
+
+/** What a tool handed back besides its sentence, for the menu sheet. */
+interface ToolExtras {
+  qr?: QrMatrix;
+  passage?: QuranPassage;
+  links?: { title: string; url: string }[];
+  source?: string;
+  stale?: boolean;
+}
+function extrasFrom(data: unknown): ToolExtras {
+  if (!data || typeof data !== 'object') return {};
+  const value = data as Record<string, unknown>;
+  return {
+    qr: value.qr && typeof value.qr === 'object' ? (value.qr as QrMatrix) : undefined,
+    passage: value.passage && typeof value.passage === 'object' ? (value.passage as QuranPassage) : undefined,
+    links: Array.isArray(value.links) ? (value.links as { title: string; url: string }[]) : undefined,
+    source: typeof value.source === 'string' ? value.source : undefined,
+    stale: value.stale === true,
+  };
+}
+
+/** How long a weather/prayer answer stays the context for "and tomorrow?". */
+const FOLLOW_UP_LIVE_MS = 120_000;
 
 /** How long after JARVIS finishes speaking a reply is heard without the wake word. */
 const FOLLOW_UP_MS = 8_000;
@@ -60,6 +99,16 @@ export default function JarvisHud() {
   const [response, setResponse] = useState('');
   const [busy, setBusy] = useState(false);
   const [toolRunning, setToolRunning] = useState(false);
+  // What the Core shows on top of its state: a tool or online lookup running, then success or warning.
+  const [coreActivity, setCoreActivity] = useState<CoreActivity>('none');
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flashActivity = (look: CoreActivity) => {
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity(look);
+    if (look === 'none') return;
+    activityTimerRef.current = setTimeout(() => setCoreActivity('none'), look === 'warning' ? WARNING_MS : SUCCESS_MS);
+  };
+  useEffect(() => () => clearTimeout(activityTimerRef.current), []);
   const [watching, setWatching] = useState(false);
   // The orb page, or the live camera page with JARVIS in the corner.
   const [page, setPage] = useState<HudPage>('orb');
@@ -68,6 +117,7 @@ export default function JarvisHud() {
   // finishes, the owner can reply for a few seconds without the wake word.
   const followUpRef = useRef(false);
   const [speaking, setSpeaking] = useState(false);
+  const [playing, setPlaying] = useState(false);
   // null = not downloading; 0..1 = measured download progress.
   const [brainBusy, setBrainBusy] = useState(false);
   // Which brain produced the last answer — shown so the owner always knows
@@ -87,6 +137,36 @@ export default function JarvisHud() {
   // finish reopened the microphone while later sentences were still playing,
   // so JARVIS could transcribe its own voice.
   const pendingSystemSegmentsRef = useRef(0);
+  // The one owner of turns: IDs, cancellation, late-result rejection.
+  const sessionRef = useRef<VoiceSessionController | null>(null);
+  if (!sessionRef.current) sessionRef.current = new VoiceSessionController();
+  const session = sessionRef.current;
+  const busyRef = useRef(false);
+  // Stage timings for the turn in flight; the voice's first sound closes it.
+  const timerRef = useRef<StageTimer | null>(null);
+  const speechEndRef = useRef<number | null>(null);
+  const lastSpeechEndRef = useRef<number | null>(null);
+  const lastLiveRef = useRef<(LiveContext & { at: number }) | null>(null);
+  const [sheet, setSheet] = useState<'none' | 'menu' | 'history'>('none');
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [extras, setExtras] = useState<ToolExtras>({});
+  const [burst, setBurst] = useState(0);
+  const [interruptedTick, setInterruptedTick] = useState(0);
+  const connectivity = useConnectivity();
+  const { width, height } = useWindowDimensions();
+  const coreSize = Math.round(Math.min(width, height) * 0.82);
+
+  useEffect(() => session.setConnectivity(connectivity), [connectivity, session]);
+  useEffect(() => () => {
+    session.cancel('user');
+    speechEpochRef.current += 1;
+    void stopSpeaking();
+  }, [session]);
+
+  /** The first audible moment of the current turn's answer. */
+  function markFirstAudio() {
+    timerRef.current?.mark('firstAudio');
+  }
 
   // The on-device neural voice (Kokoro). English only; when it is not ready,
   // not enabled, or the language is Arabic, the phone's own voice speaks.
@@ -97,6 +177,9 @@ export default function JarvisHud() {
       speakingRef.current = speaking;
       setSpeaking(speaking);
     },
+    // Neural activity follows scheduled playback, not synthesis. Its engine
+    // exposes no audible-start callback, so do not invent a firstAudio timing.
+    onPlaybackChange: setPlaying,
   });
 
   useChargeReminder({
@@ -111,7 +194,15 @@ export default function JarvisHud() {
     return liveText(text, jarvis.settings.liveTranscriptsUntil, Date.now());
   }
 
+  // The last sentences JARVIS said: what its own voice sounds like to the
+  // microphone when "Talk over JARVIS" keeps it open (the echo guard).
+  const spokenRecentRef = useRef<string[]>([]);
+  const rememberSpoken = (...texts: string[]) => {
+    spokenRecentRef.current = [...spokenRecentRef.current, ...texts].slice(-8);
+  };
+
   function speakJarvis(text: string, secret = false, language = jarvis.settings.language) {
+    rememberSpoken(text);
     recordLive('speak', secret ? '[private phone data]' : said(text), { engine: neural.isReady ? 'neural' : 'system' });
     // Kokoro is English-only; anything else uses the phone's own voice for that language.
     if (neural.isReady && language === 'en') {
@@ -123,12 +214,14 @@ export default function JarvisHud() {
     const release = () => {
       speakingRef.current = false;
       setSpeaking(false);
+      setPlaying(false);
     };
     const failed = (error?: unknown) => {
       recordLive('error', 'system voice failed', { error: error === undefined ? null : errorMessage(error) });
       release();
     };
     void speakResponse(text, language, {
+      onStart: () => { setPlaying(true); markFirstAudio(); },
       onDone: release,
       onError: failed,
     }).catch(failed);
@@ -144,7 +237,19 @@ export default function JarvisHud() {
       return;
     }
 
-    if (busy) return;
+    // A new accepted turn replaces the one in flight: its generation, tools
+    // and queued speech are cancelled before this one starts.
+    if (busyRef.current) {
+      session.cancel('superseded');
+      // The Core shows it: a warp and a brief contraction, then the new turn.
+      setInterruptedTick((n) => n + 1);
+      recordLive('halt', 'superseded by a new command');
+      speechEpochRef.current += 1;
+      pendingSystemSegmentsRef.current = 0;
+      neural.stop();
+      void stopSpeaking();
+      await jarvis.stopGeneration().catch(() => undefined);
+    }
 
     const voiceReply = jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
 
@@ -184,8 +289,46 @@ export default function JarvisHud() {
 
     // The deterministic router is the same function `ask` consults first, so
     // this reports the path the request will actually take rather than a guess.
-    const route = routeDeterministicTool(command);
+    // A short follow-up ("and tomorrow?", "what about Dubai?") right after a
+    // weather or prayer answer becomes the full command, so it stays on the tool.
+    const lastLive = lastLiveRef.current && Date.now() - lastLiveRef.current.at < FOLLOW_UP_LIVE_MS ? lastLiveRef.current : null;
+    const asked = followUpCommand(command, lastLive) ?? command;
+    const route = routeDeterministicTool(asked);
     const deterministic = Boolean(route);
+    const nextLive = nextLiveContext(lastLive, route?.call ?? null);
+    lastLiveRef.current = nextLive ? { ...nextLive, at: Date.now() } : null;
+    // Tools share a short deadline (4 s requests, one retry); a spoken answer
+    // from the phone's brain can legitimately take minutes, so it gets room.
+    // A tool's turn gets its own limit plus room to speak the result (the
+    // camera's look needs far longer than a timer); never under 15 s.
+    const turn = session.beginTurn(route ? Math.max(15_000, profileFor(route.call.tool).timeoutMs + 5_000) : 300_000);
+    const onTurnAbort = () => {
+      if (turn.signal.reason !== 'deadline' && Date.now() < turn.deadlineAt) return;
+      speechEpochRef.current += 1;
+      pendingSystemSegmentsRef.current = 0;
+      neural.stop();
+      void stopSpeaking();
+      void jarvis.stopGeneration().catch(() => undefined);
+      busyRef.current = false;
+      speakingRef.current = false;
+      setBusy(false);
+      setSpeaking(false);
+      setPlaying(false);
+      setToolRunning(false);
+      setWatching(false);
+      flashActivity('warning');
+      setResponse(jarvis.settings.language === 'ar' ? 'انتهت مهلة الطلب. حاول مرة أخرى.' : 'That request timed out. Please try again.');
+    };
+    turn.signal.addEventListener('abort', onTurnAbort, { once: true });
+    const timer = new StageTimer();
+    timerRef.current = timer;
+    if (speechEndRef.current !== null) timer.mark('speechEnd', speechEndRef.current);
+    speechEndRef.current = null;
+    timer.mark('dispatch');
+    timer.language = jarvis.settings.language === 'ar' ? 'ar' : 'en';
+    timer.scenario = scenarioFor(route?.call.tool, jarvis.modelState.status === 'ready');
+    if (route) timer.mark('toolStart');
+    else timer.mark('modelStart');
     const looking = route?.call.tool === 'vision.look';
     const askedAt = Date.now();
     let firstTokenAt = 0;
@@ -199,8 +342,12 @@ export default function JarvisHud() {
       mode: turnMode,
     });
 
+    busyRef.current = true;
     setBusy(true);
     setToolRunning(deterministic);
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity(activityDuring(route?.call.tool, jarvis.modelState.status !== 'ready' && jarvis.cloudReady && !jarvis.settings.localOnly));
+    setExtras({});
     // The camera is only ever open inside this turn, and the HUD says so for all of it.
     setWatching(looking);
     if (looking) recordLive('app', 'camera on', { by: 'owner request' });
@@ -227,7 +374,10 @@ export default function JarvisHud() {
     // answer's first word in the latency figures.
     const say = (segments: string[], filler = false) => {
       if (!stream || segments.length === 0 || speechEpochRef.current !== epoch) return;
+      if (!session.isCurrent(turn.turnId) && !filler) return;
       if (!filler && !firstSpeechAt) firstSpeechAt = Date.now();
+      if (!filler) timer.mark('ttsQueued');
+      rememberSpoken(...segments);
       if (neural.isReady) {
         // Speaking state is reported by the neural queue itself.
         for (const segment of segments) neural.enqueue(segment);
@@ -237,7 +387,15 @@ export default function JarvisHud() {
       setSpeaking(true);
       pendingSystemSegmentsRef.current += segments.length;
       for (const segment of segments) {
-        void speakQueued(segment, jarvis.settings.language).then(() => {
+        void speakQueued(segment, jarvis.settings.language, {
+          onStart: () => {
+            if (speechEpochRef.current !== epoch) return;
+            setPlaying(true);
+            if (!filler) markFirstAudio();
+          },
+          onDone: () => { if (speechEpochRef.current === epoch) setPlaying(false); },
+          onError: () => { if (speechEpochRef.current === epoch) setPlaying(false); },
+        }).then(() => {
           // A newer answer, or a halt, has already taken over the speaker.
           if (speechEpochRef.current !== epoch) return;
           pendingSystemSegmentsRef.current -= 1;
@@ -245,6 +403,7 @@ export default function JarvisHud() {
           pendingSystemSegmentsRef.current = 0;
           speakingRef.current = false;
           setSpeaking(false);
+      setPlaying(false);
         });
       }
     };
@@ -262,10 +421,15 @@ export default function JarvisHud() {
 
     try {
       const result = await jarvis.ask(
-        command,
+        asked,
         turnMode,
         (token) => {
-          if (!firstTokenAt) firstTokenAt = Date.now();
+          // Tokens from a turn the owner has already moved on from are dropped.
+          if (!session.isCurrent(turn.turnId)) return;
+          if (!firstTokenAt) {
+            firstTokenAt = Date.now();
+            timer.mark('firstToken');
+          }
           setResponse((current) => current + token);
           if (stream) say(stream.push(token));
         },
@@ -274,10 +438,40 @@ export default function JarvisHud() {
         // be heard: short spoken sentences, no markdown for the synthesiser to
         // stumble over. A neural voice reading a bulleted essay still sounds
         // like a machine.
-        { spoken: voiceOut },
+        { spoken: voiceOut, turn: { signal: turn.signal, deadlineAt: turn.deadlineAt, reserveTool: () => session.reserveTool(turn.turnId), reserveRead: () => session.reserveRead(turn.turnId) } },
       );
+      // A late answer from a cancelled or superseded turn is discarded, never spoken.
+      if (!session.isCurrent(turn.turnId)) {
+        recordLive('app', 'late result discarded', { route: route?.call.tool ?? 'brain' });
+        return;
+      }
+      if (route) timer.mark('toolEnd');
+      else timer.mark('modelEnd');
+      const extra = extrasFrom(result.toolData);
+      if (extra.stale) timer.scenario = 'live-data-cached';
+      else if (route?.call.tool.startsWith('live.') && extra.source && result.toolData && (result.toolData as { fetchedAt?: number }).fetchedAt !== undefined) {
+        const fetchedAt = (result.toolData as { fetchedAt: number }).fetchedAt;
+        if (Date.now() - fetchedAt > 5_000) timer.scenario = 'live-data-cached';
+      }
+      setExtras(extra);
+      flashActivity(activityAfter({ ok: true, viaTool: result.source === 'tool', stale: extra.stale }));
+      // A QR code is an answer to look at: show it.
+      if (extra.qr) setSheet('menu');
       setResponse(result.text);
       setAnswerSource(result.source);
+      setHistory((items) =>
+        [
+          ...items,
+          {
+            id: turn.turnId,
+            question: result.private ? (arabic ? '[طلب خاص]' : '[private request]') : command,
+            answer: result.private ? (arabic ? '[بيانات خاصة من الهاتف]' : '[private phone data]') : result.text,
+            source: extra.source ?? describeSource(result.source, arabic),
+            at: Date.now(),
+            stale: extra.stale,
+          },
+        ].slice(-50),
+      );
       // Messages, calls, contacts and calendar never reach the live log
       // (a public repository) or the conversation history sent to a brain.
       recordLive('answer', result.private ? '[private phone data]' : said(result.text), {
@@ -294,7 +488,6 @@ export default function JarvisHud() {
         voice: stream ? 'streamed' : voiceOut ? 'whole' : 'off',
       });
       if (!result.private) historyRef.current = appendExchange(historyRef.current, command, result.text);
-      setInput('');
       if (jarvis.settings.handsFreeEnabled && voiceOut) followUpRef.current = true;
 
       // A tool the local brain chose returns its sentence whole, with no
@@ -305,7 +498,9 @@ export default function JarvisHud() {
         speakJarvis(result.text, result.private);
       }
     } catch (error) {
+      if (!session.isCurrent(turn.turnId)) return;
       const message = humanizeError(errorMessage(error));
+      flashActivity(activityAfter({ ok: false, viaTool: deterministic }));
       recordLive('error', message, { raw: errorMessage(error), ms: Date.now() - askedAt });
       setResponse(message);
       if (jarvis.settings.handsFreeEnabled) {
@@ -314,9 +509,26 @@ export default function JarvisHud() {
         Alert.alert('JARVIS error', message);
       }
     } finally {
+      turn.signal.removeEventListener('abort', onTurnAbort);
       clearTimeout(fillerTimer);
-      setBusy(false);
-      setToolRunning(false);
+      // Clear the typed command whatever happened: old words must not linger.
+      setInput('');
+      if (!voiceOut) {
+        timer.mark('turnEnd');
+        recordTurn(timer);
+      }
+      // Only the live turn (or no turn at all) may reset the shared state; a
+      // superseded turn finishing late must not unset the new one's "busy".
+      const current = session.snapshot().turnId;
+      if (current === turn.turnId || current === null) {
+        // Speaking is tracked by the voice itself (setSpeaking), not assumed here.
+        session.endTurn(turn.turnId, 'idle');
+        busyRef.current = false;
+        setBusy(false);
+        setToolRunning(false);
+        // A running look never outlives its turn; success and warning time out by themselves.
+        setCoreActivity((look) => (look === 'tool' || look === 'online' ? 'none' : look));
+      }
       if (looking) {
         setWatching(false);
         recordLive('app', 'camera off');
@@ -333,8 +545,14 @@ export default function JarvisHud() {
   /** Stop speech and generation now. No model call, no confirmation. */
   function haltEverything() {
     recordLive('halt', 'stopped speech and generation');
+    session.cancel('user');
+    busyRef.current = false;
+    setInterruptedTick((n) => n + 1);
+    clearTimeout(activityTimerRef.current);
+    setCoreActivity('none');
     speakingRef.current = false;
     setSpeaking(false);
+    setPlaying(false);
     awakeUntilRef.current = 0;
     // Retire the current answer's speech epoch first: segments already queued
     // resolve into a stale epoch and are dropped instead of resuming after the
@@ -350,21 +568,44 @@ export default function JarvisHud() {
   function handleVoiceFinal(text: string) {
     const clean = text.trim();
     if (!clean) return;
+    // End of speech as measured on the audio by the endpointer, when it saw
+    // this utterance end in the last few seconds; otherwise the recogniser's
+    // final, the closest observable point.
+    const measured = lastSpeechEndRef.current;
+    speechEndRef.current = measured !== null && monotonic() - measured < 5_000 ? measured : monotonic();
+    lastSpeechEndRef.current = null;
     recordLive('heard', said(clean), {
       speaking: speakingRef.current,
       awake: awakeUntilRef.current > Date.now(),
     });
 
-    // While JARVIS is speaking the recorder's frames are deliberately dropped
-    // so it cannot transcribe itself, so a spoken halt cannot be heard then —
-    // tapping the orb is the barge-in for that case. A halt spoken while it is
-    // *generating* does reach us, and stops the run before it is read out.
+    // "Talk over JARVIS" (beta): the mic stays open while it speaks. The echo
+    // guard drops what is mostly its own voice; anything else interrupts, and
+    // unless it was only "stop" it is then handled as the next request.
+    if (speakingRef.current && jarvis.settings.talkOverEnabled) {
+      const decision = bargeInDecision({ speaking: true, echoSafe: true, transcript: clean, spokenRecent: spokenRecentRef.current });
+      if (decision === 'ignore') {
+        recordLive('heard', 'ignored while speaking (echo guard)');
+        return;
+      }
+      haltEverything();
+      if (isHaltCommand(clean)) return;
+      // The owner is mid-conversation: no wake word needed for this one.
+      awakeUntilRef.current = Date.now() + 10_000;
+    }
+
+    // Otherwise, while JARVIS is speaking the recorder's frames are dropped so
+    // it cannot transcribe itself, and tapping the orb is the barge-in. A halt
+    // spoken while it is *generating* does reach us, and stops the run.
     if (isHaltCommand(clean)) {
       haltEverything();
       return;
     }
 
-    if (speakingRef.current) return;
+    // Half-duplex on this build (no verified echo cancellation): speech heard
+    // while JARVIS talks is ignored, and a tap on the Core is the barge-in.
+    // The rule lives in bargeInDecision so it can only be widened honestly.
+    if (bargeInDecision({ speaking: speakingRef.current, echoSafe: ECHO_SAFE, transcript: clean }) === 'ignore') return;
 
     if (!jarvis.settings.handsFreeEnabled) {
       setInput((current) => `${current} ${clean}`.trim());
@@ -375,6 +616,7 @@ export default function JarvisHud() {
     if (wake.heard) recordLive('wake', wake.command ? 'wake word + command' : 'wake word only', { command: wake.command ? said(wake.command) : null });
     else if (awakeUntilRef.current <= Date.now()) recordLive('wake', 'ignored: no wake word', { wakeWord: jarvis.settings.wakeWord });
     if (wake.heard) {
+      setBurst((n) => n + 1);
       if (wake.command) {
         awakeUntilRef.current = 0;
         void runCommand(wake.command);
@@ -404,7 +646,10 @@ export default function JarvisHud() {
   const voice = useLiveVoice({
     language: jarvis.settings.language,
     onFinal: handleVoiceFinal,
-    shouldAcceptAudio: () => !speakingRef.current,
+    onSpeechEnd: (msAgo) => {
+      lastSpeechEndRef.current = monotonic() - msAgo;
+    },
+    shouldAcceptAudio: () => !speakingRef.current || Boolean(jarvis.settings.talkOverEnabled),
     wakeGate: wakeEngine
       ? {
           engine: wakeEngine,
@@ -413,6 +658,7 @@ export default function JarvisHud() {
             // No spoken greeting here: JARVIS's own voice would mute the
             // microphone and swallow the command that follows the wake word.
             awakeUntilRef.current = Date.now() + 10_000;
+            setBurst((n) => n + 1);
             recordLive('wake', 'wake word (openWakeWord)');
           },
         }
@@ -510,12 +756,19 @@ export default function JarvisHud() {
   }, [voice.error]);
   useEffect(() => {
     recordLive('speak', speaking ? 'speaking' : 'silent');
+    session.setSpeaking(speaking);
+    const timer = timerRef.current;
+    if (!speaking && timer?.has('firstAudio') && !timer.has('turnEnd')) {
+      timer.mark('turnEnd');
+      recordTurn(timer);
+      recordLive('latency', timer.scenario, timer.summary());
+    }
     if (!speaking && followUpRef.current) {
       followUpRef.current = false;
       awakeUntilRef.current = Date.now() + FOLLOW_UP_MS;
       recordLive('wake', 'follow-up window open', { ms: FOLLOW_UP_MS });
     }
-  }, [speaking]);
+  }, [speaking, session]);
   const liveStatus = useSyncExternalStore(subscribeLiveStatus, getLiveStatus, getLiveStatus);
   const live = isLiveActive(liveStatus);
 
@@ -564,123 +817,207 @@ export default function JarvisHud() {
     jarvis.brainDownload?.progress == null ? null : Math.round(jarvis.brainDownload.progress * 100);
   const micOn = !speaking && (voice.state === 'LISTENING' || voice.state === 'TRANSCRIBING');
 
+  // Edge swipe → history. The strip sits on the trailing edge for the
+  // language (right in English, left in Arabic) and ignores vertical drags.
+  const edgePan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 30,
+        onPanResponderRelease: (_event, g) => {
+          if ((arabic ? g.dx : -g.dx) > 40) setSheet('history');
+        },
+      }),
+    [arabic],
+  );
+
+  const settingsNeedAttention = hud.needsBrain || (!jarvis.permanentStorage && Platform.OS === 'android');
+
+  const storageBanner =
+    !jarvis.permanentStorage && Platform.OS === 'android' ? (
+      <Pressable
+        onPress={jarvis.requestPermanentStorage}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
+      >
+        <Text style={styles.brainTitle}>{arabic ? 'احفظ كل شيء في الهاتف' : 'Keep everything on this phone'}</Text>
+        <Text style={styles.brainSub}>
+          {arabic
+            ? 'اسمح بـ «الوصول إلى كل الملفات» مرة واحدة، فيبقى العقل والصوت في مجلد Download/JARVIS حتى لو أُغلق التطبيق أو حُذف.'
+            : 'Allow "All files access" once and the brain and voice stay in Download/JARVIS — even if the app is closed or reinstalled.'}
+        </Text>
+      </Pressable>
+    ) : null;
+
+  const brainBanner =
+    hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
+      <Pressable
+        onPress={() => void installBrain()}
+        disabled={downloading || brainBusy}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
+      >
+        <Text style={styles.brainTitle}>
+          {downloading
+            ? downloadPercent === null
+              ? arabic ? 'جارٍ بدء التنزيل…' : 'Starting download…'
+              : arabic ? `جارٍ التنزيل ${downloadPercent}%` : `Downloading ${downloadPercent}%`
+            : brainBusy
+              ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
+              : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
+                ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
+                : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
+        </Text>
+        <Text style={styles.brainSub}>
+          {downloading
+            ? jarvis.brainDownload?.note ??
+              (arabic
+                ? 'يمكنك مغادرة التطبيق — أندرويد يكمل التنزيل. التقدّم في الإشعارات.'
+                : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
+            : jarvis.modelState.status === 'error' && jarvis.modelState.error
+              ? jarvis.modelState.error
+              : arabic ? 'Qwen3 4B · 2.5 جيجابايت · مرة واحدة · يعمل دون إنترنت' : 'Qwen3 4B · 2.5 GB · downloaded once · runs offline'}
+        </Text>
+        {downloading ? (
+          <View style={styles.brainTrack}>
+            <View style={[styles.brainFill, { width: `${Math.max(2, downloadPercent ?? 0)}%` }]} />
+          </View>
+        ) : null}
+      </Pressable>
+    ) : null;
+
   return (
     <SafeAreaView style={styles.screen}>
-      <HudBackdrop />
-      <View style={styles.statusBar}>
-        <View style={styles.wordRow}>
-          {live ? (
-            <Pressable
-              onPress={() => void stopLiveLink()}
-              accessibilityRole="button"
-              accessibilityLabel="Live test link is on. Tap to stop it."
-              style={styles.liveBadge}
-            >
-              <Text style={styles.liveText}>● LIVE</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+      {/* The main layer: the Core and nothing else. */}
       {page === 'camera' ? (
         <CameraPage state={hud.state} level={voice.level} onOrbPress={toggleVoice} arabic={arabic} />
       ) : (
         <View style={styles.stage}>
-          <JarvisOrb state={hud.state} level={voice.level} onPress={toggleVoice} label={hud.headline} />
-          <DashboardClock
-            lang={arabic ? 'ar' : 'en'}
-            status={{
-              modelStatus: jarvis.modelState.status,
-              modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
-              cloudReady: jarvis.cloudReady,
-              micOn,
-                camera: watching,
-            }}
+          <JarvisOrb
+            state={hud.state}
+            level={voice.level}
+            onPress={toggleVoice}
+            onLongPress={() => setSheet('menu')}
+            onHistory={() => setSheet('history')}
+            label={hud.headline}
+            size={coreSize}
+            burst={burst}
+            interrupted={interruptedTick}
+            offline={connectivity !== 'online'}
+            activity={coreActivity}
+            speechLevel={neural.levelNow}
+            showLabel={jarvis.settings.coreLabels}
+            speaking={playing}
+            transcribing={voice.state === 'TRANSCRIBING'}
+            throttled={(jarvis.powerReading?.state.thermalStatus ?? 0) >= 2}
           />
-          <Text style={styles.detail}>{hud.detail}</Text>
-          {voice.transcript ? (
-            <Text style={styles.transcript} numberOfLines={2}>
-              “{voice.transcript}”
-            </Text>
-          ) : null}
-          {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
-          {!jarvis.permanentStorage && Platform.OS === 'android' ? (
-            <Pressable
-              onPress={jarvis.requestPermanentStorage}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
-            >
-              <Text style={styles.brainTitle}>{arabic ? 'احفظ كل شيء في الهاتف' : 'Keep everything on this phone'}</Text>
-              <Text style={styles.brainSub}>
-                {arabic
-                  ? 'اسمح بـ «الوصول إلى كل الملفات» مرة واحدة، فيبقى العقل والصوت في مجلد Download/JARVIS حتى لو أُغلق التطبيق أو حُذف.'
-                  : 'Allow "All files access" once and the brain and voice stay in Download/JARVIS — even if the app is closed or reinstalled.'}
-              </Text>
-            </Pressable>
-          ) : null}
-          {hud.needsBrain && jarvis.modelState.status !== 'loading' ? (
-            <Pressable
-              onPress={() => void installBrain()}
-              disabled={downloading || brainBusy}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.brainButton, pressed && styles.brainPressed]}
-            >
-              <Text style={styles.brainTitle}>
-                {downloading
-                  ? downloadPercent === null
-                    ? arabic ? 'جارٍ بدء التنزيل…' : 'Starting download…'
-                    : arabic ? `جارٍ التنزيل ${downloadPercent}%` : `Downloading ${downloadPercent}%`
-                  : brainBusy
-                    ? arabic ? 'جارٍ تحميل العقل…' : 'Loading the brain…'
-                    : jarvis.modelState.status === 'error' && jarvis.settings.modelPath
-                      ? arabic ? 'إعادة تحميل العقل' : 'Retry loading the brain'
-                      : arabic ? 'تنزيل عقل JARVIS' : 'Download JARVIS brain'}
-              </Text>
-              <Text style={styles.brainSub}>
-                {downloading
-                  ? jarvis.brainDownload?.note ??
-                    (arabic
-                      ? 'يمكنك مغادرة التطبيق — أندرويد يكمل التنزيل. التقدّم في الإشعارات.'
-                      : 'You can leave the app — Android keeps downloading. Progress is in your notifications.')
-                  : jarvis.modelState.status === 'error' && jarvis.modelState.error
-                    ? jarvis.modelState.error
-                    : arabic ? 'Qwen3 8B · 5 جيجابايت · مرة واحدة · يعمل دون إنترنت' : 'Qwen3 8B · 5 GB · downloaded once · runs offline'}
-              </Text>
-              {downloading ? (
-                <View style={styles.brainTrack}>
-                  <View style={[styles.brainFill, { width: `${Math.max(2, downloadPercent ?? 0)}%` }]} />
-                </View>
-              ) : null}
-            </Pressable>
-          ) : null}
-          {jarvis.activeProject ? (
-            <Pressable onPress={() => setInput(jarvis.activeProject?.nextAction ?? '')} style={styles.projectPill}>
-              <Text style={styles.projectPillText} numberOfLines={1}>
-                {jarvis.activeProject.name}
-                {jarvis.activeProject.nextAction ? ` · ${jarvis.activeProject.nextAction}` : ''}
-              </Text>
-            </Pressable>
+          {jarvis.settings.coreLabels ? (
+            <Row>
+              <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
+              <Button title={arabic ? 'السجل' : 'History'} onPress={() => setSheet('history')} />
+            </Row>
           ) : null}
         </View>
       )}
 
-      <PageBar page={page} onChange={showPage} arabic={arabic} />
-
-      {response ? (
-        <ScrollView style={styles.responseWrap} contentContainerStyle={styles.responseContent}>
-          <Text style={styles.responseText}>{response}</Text>
-          {answerSource ? <Text style={styles.sourceLabel}>{describeSource(answerSource, arabic)}</Text> : null}
-          <Row>
-            <Button title={arabic ? 'انطق' : 'Speak'} onPress={() => speakJarvis(response)} />
-            <Button
-              title={arabic ? 'احفظ في الذاكرة' : 'Save memory'}
-              onPress={() => void jarvis.saveMemory('Saved JARVIS insight', response)}
-            />
-          </Row>
-        </ScrollView>
+      {/* Privacy indicator, not decoration: the live test link is streaming. */}
+      {live ? (
+        <Pressable
+          onPress={() => void stopLiveLink()}
+          accessibilityRole="button"
+          accessibilityLabel="Live test link is on. Tap to stop it."
+          hitSlop={16}
+          style={styles.liveDot}
+        />
       ) : null}
 
-      <HudDrawer language={jarvis.settings.language}>
-        <Text style={styles.metrics}>{formatPerformance(jarvis.lastMetrics)}</Text>
+      <View style={[styles.edge, arabic ? styles.edgeStart : styles.edgeEnd]} {...edgePan.panHandlers} />
+
+      {!jarvis.settings.coreHintSeen ? (
+        <FirstRunCard rtl={arabic} onDismiss={() => void jarvis.updateSettings({ coreHintSeen: true })}>
+          {settingsNeedAttention ? (
+            <View style={styles.hintSetup}>
+              {storageBanner}
+              {brainBanner}
+            </View>
+          ) : null}
+        </FirstRunCard>
+      ) : null}
+
+      <Sheet visible={sheet === 'menu'} onClose={() => setSheet('none')} title="JARVIS" rtl={arabic}>
+        <DashboardClock
+          lang={arabic ? 'ar' : 'en'}
+          status={{
+            modelStatus: jarvis.modelState.status,
+            modelName: jarvis.modelState.modelName ?? jarvis.settings.modelName,
+            cloudReady: jarvis.cloudReady,
+            micOn,
+            camera: watching,
+          }}
+        />
+        <Text style={styles.detail}>
+          {hud.detail}
+          {jarvis.settings.localOnly
+            ? arabic ? ' · محلي فقط' : ' · local only'
+            : connectivity !== 'online' ? (arabic ? ' · بدون إنترنت' : ' · offline') : ''}
+        </Text>
+        {voice.transcript ? (
+          <Text style={styles.transcript} numberOfLines={2}>
+            “{voice.transcript}”
+          </Text>
+        ) : null}
+        {voice.error ? <Text style={styles.problem}>{voice.error}</Text> : null}
+        {storageBanner}
+        {brainBanner}
+
+        {response ? (
+          <View style={styles.responseBlock}>
+            <Text style={styles.responseText} selectable>
+              {response}
+            </Text>
+            {extras.qr ? <QrView qr={extras.qr} /> : null}
+            {extras.passage ? (
+              <View style={styles.passage}>
+                <Text style={styles.arabicVerse} selectable>
+                  {extras.passage.arabic}
+                </Text>
+                <Text style={styles.responseText} selectable>
+                  {extras.passage.english}
+                </Text>
+                <Text style={styles.sourceLabel}>
+                  {extras.passage.surahName} {extras.passage.reference} · {extras.passage.editions.arabic}, {extras.passage.editions.english}
+                </Text>
+              </View>
+            ) : null}
+            {extras.links?.slice(0, 5).map((link) => (
+              <Text key={link.url} style={styles.link} selectable>
+                {link.title}
+              </Text>
+            ))}
+            {answerSource ? (
+              <Text style={styles.sourceLabel}>
+                {extras.source ?? describeSource(answerSource, arabic)}
+                {extras.stale ? (arabic ? ' · نسخة محفوظة' : ' · cached copy') : ''}
+              </Text>
+            ) : null}
+            <Row>
+              <Button title={arabic ? 'انطق' : 'Speak'} onPress={() => speakJarvis(response)} />
+              <Button
+                title={arabic ? 'احفظ في الذاكرة' : 'Save memory'}
+                onPress={() => void jarvis.saveMemory('Saved JARVIS insight', response)}
+              />
+            </Row>
+          </View>
+        ) : null}
+
+        {jarvis.activeProject ? (
+          <Pressable onPress={() => setInput(jarvis.activeProject?.nextAction ?? '')} style={styles.projectPill}>
+            <Text style={styles.projectPillText} numberOfLines={1}>
+              {jarvis.activeProject.name}
+              {jarvis.activeProject.nextAction ? ` · ${jarvis.activeProject.nextAction}` : ''}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <Field
           value={input}
           onChangeText={setInput}
@@ -690,15 +1027,15 @@ export default function JarvisHud() {
           <Button
             title={busy ? (arabic ? 'يعمل…' : 'Working…') : arabic ? 'إرسال' : 'Send'}
             onPress={() => void runCommand(input)}
-            disabled={busy || !input.trim()}
+            disabled={!input.trim()}
           />
           <Button
             title={arabic ? 'انظر' : 'Look'}
             onPress={() => void runCommand(arabic ? 'ماذا ترى' : 'what do you see')}
             disabled={busy}
           />
-          {busy ? (
-            <Button title={arabic ? 'إيقاف' : 'Stop'} onPress={() => void jarvis.stopGeneration()} />
+          {busy || speaking ? (
+            <Button title={arabic ? 'إيقاف' : 'Stop'} onPress={haltEverything} />
           ) : (
             <Button
               title={orbTapStartsVoice(voice.state) ? (arabic ? 'صوت' : 'Voice') : arabic ? 'إيقاف الصوت' : 'Stop voice'}
@@ -707,18 +1044,43 @@ export default function JarvisHud() {
             />
           )}
         </Row>
-      </HudDrawer>
+        <Row>
+          <Button
+            title={page === 'camera' ? (arabic ? 'إخفاء الكاميرا' : 'Hide camera') : arabic ? 'الكاميرا المباشرة' : 'Live camera'}
+            onPress={() => {
+              showPage(page === 'camera' ? 'orb' : 'camera');
+              setSheet('none');
+            }}
+          />
+          <Button title={arabic ? 'السجل' : 'History'} onPress={() => setSheet('history')} />
+          {live ? <Button title={arabic ? 'إيقاف الرابط المباشر' : 'Stop live link'} onPress={() => void stopLiveLink()} /> : null}
+        </Row>
+
+        <HudDrawer language={jarvis.settings.language}>
+          <Text style={styles.metrics}>{formatPerformance(jarvis.lastMetrics)}</Text>
+          <Text style={styles.metrics}>{formatLatencyReport()}</Text>
+        </HudDrawer>
+      </Sheet>
+
+      <Sheet visible={sheet === 'history'} onClose={() => setSheet('none')} title={arabic ? 'السجل' : 'History'} rtl={arabic}>
+        <HistoryList items={history} rtl={arabic} onClear={() => setHistory([])} />
+      </Sheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0A0D14' },
-  statusBar: { paddingHorizontal: 18, paddingTop: 36, minHeight: 44, gap: 2 },
-  wordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  liveBadge: { borderWidth: 1, borderColor: colors.bad, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  liveText: { color: colors.bad, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 14 },
+  screen: { flex: 1, backgroundColor: '#030406' },
+  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  liveDot: { position: 'absolute', top: 44, left: 18, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.bad },
+  edge: { position: 'absolute', top: 80, bottom: 80, width: 24 },
+  edgeEnd: { right: 0 },
+  edgeStart: { left: 0 },
+  hintSetup: { gap: 10, marginTop: 6 },
+  responseBlock: { gap: 10, borderTopWidth: 1, borderColor: colors.border, paddingTop: 12 },
+  passage: { gap: 8 },
+  arabicVerse: { color: colors.text, fontSize: 20, lineHeight: 34, textAlign: 'right', writingDirection: 'rtl' },
+  link: { color: colors.accent, fontSize: 13 },
   detail: { color: colors.text, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   transcript: { color: colors.muted, fontSize: 14, textAlign: 'center', fontStyle: 'italic' },
   problem: { color: colors.bad, fontSize: 12, textAlign: 'center' },
@@ -732,8 +1094,6 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   projectPillText: { color: colors.muted, fontSize: 12 },
-  responseWrap: { maxHeight: 240 },
-  responseContent: { paddingHorizontal: 18, paddingBottom: 12, gap: 12 },
   responseText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   metrics: { color: colors.muted, fontSize: 11 },
   sourceLabel: { color: colors.muted, fontSize: 11, letterSpacing: 0.6 },

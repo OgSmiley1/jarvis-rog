@@ -7,7 +7,7 @@ if (!fs.existsSync(reportPath)) {
   process.exit(1);
 }
 const report = fs.readFileSync(reportPath, 'utf8');
-const required = ['TypeScript:', 'Unit tests:', 'Gradle debug:', 'GGUF import:', 'Offline inference:', 'Voice:'];
+const required = ['## Build under test', '## Software gates', '## 0. Build integrity', '## 1. Launch and model lifecycle', '## 2. Local inference', '## 5. Voice', '## 8. Stability and thermals'];
 const missing = required.filter((item) => !report.includes(item));
 if (missing.length) {
   console.error(`Acceptance report is missing: ${missing.join(', ')}`);

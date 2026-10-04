@@ -13,6 +13,10 @@ interface ExpoJarvisPhoneNativeModule {
   addCalendarEvent(title: string, startMs: number, endMs: number): boolean;
   installedApps(): Promise<InstalledApp[]>;
   openApp(packageName: string): boolean;
+  /** Hands a timer to the Clock app. Older APKs lack it, hence optional. */
+  setTimer?(seconds: number, message: string): 'dispatched' | 'no-clock-app' | 'invalid' | 'unavailable';
+  setAlarm?(hour: number, minute: number, message: string): 'dispatched' | 'no-clock-app' | 'invalid' | 'unavailable';
+  showTimers?(): boolean;
 }
 
 const native = requireOptionalNativeModule<ExpoJarvisPhoneNativeModule>('ExpoJarvisPhone');

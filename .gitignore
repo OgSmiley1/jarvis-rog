@@ -12,3 +12,9 @@ termux/logs/
 termux/.venv/
 termux/**/__pycache__/
 termux/**/*.pyc
+
+.build-cache/
+artifacts/
+
+modules/**/android/build/
+modules/**/android/.cxx/

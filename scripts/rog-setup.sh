@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # JARVIS ROG — everything in one go, from Termux, no PC:
-#   the app, every permission, the brain (Qwen3 8B, 5 GB), the eyes and the voice,
+#   the app, every permission, the brain (the one already on the phone, or
+#   Qwen3 4B, 2.5 GB, once), the eyes and the voice,
 #   all saved for good in Download/JARVIS on this phone. That folder survives
 #   closing, updating and even uninstalling the app: nothing is downloaded twice.
 # Safe to run again at any time: it resumes the brain download, skips what is
@@ -18,11 +19,14 @@ set -euo pipefail
 # you leave that screen.
 
 PKG="com.app.localjarviscoach"
-LATEST_APK="https://expo.dev/artifacts/eas/6MIeNwmq3MakHkPLno7ktK3rOT8qNGFXKr7ycVdi3jY.apk"
+LATEST_APK="https://expo.dev/artifacts/eas/MQ2ZSL5P-adWcMUIyou29eYT93JyTMOFCBsWmisQnwg.apk"
 APK_URL="${1:-$LATEST_APK}"
-BRAIN_NAME="Qwen3-8B-Q4_K_M.gguf"
-BRAIN_URL="https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
-BRAIN_MIN_BYTES=4500000000
+# The brain: whichever one is already on the phone is kept. With none, the
+# 4B (2.5 GB) is downloaded once. The 8B is only ever the owner's explicit choice.
+BRAIN_NAME="Qwen3-4B-Q4_K_M.gguf"
+BRAIN_URL="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/${BRAIN_NAME}?download=true"
+BRAIN_MIN_BYTES=2000000000
+BIG_BRAIN="Qwen3-8B-Q4_K_M.gguf"
 # The permanent folder (needs "All files access", granted below).
 MODEL_DIR="/sdcard/Download/JARVIS/models"
 # Where builds before this one kept the files; moved over, never downloaded again.
@@ -71,7 +75,26 @@ for want in "lib/arm64-v8a/librnllama" "lib/arm64-v8a/libreact-native-audio-api"
   if echo "$libs" | grep -q "^$want"; then ok "APK contains $want"; else echo "FAIL: APK is missing $want — do not install it, tell Claude."; exit 8; fi
 done
 echo "$libs" | grep "^lib/arm64-v8a/librnllama" | sed 's/^/        /'
-adb install -r -g "$WORK/jarvis.apk"
+# The Core's drawing and animation engines (Skia, Reanimated). Reported, not
+# required: the names come from their build files and were not seen in an APK yet.
+for core in "lib/arm64-v8a/librnskia" "lib/arm64-v8a/libreanimated"; do
+  if echo "$libs" | grep -q "^$core"; then ok "APK contains $core"; else echo "  note: $core not found — send this line to Claude"; fi
+done
+if ! out=$(adb install -r -g "$WORK/jarvis.apk" 2>&1); then
+  if echo "$out" | grep -qE "UPDATE_INCOMPATIBLE|signatures do not match"; then
+    # A JARVIS signed by a different build (for example a test APK from
+    # elsewhere) is on the phone. Android only allows replacing it. The brain,
+    # the voice and the memory backup live in Download/JARVIS and stay put.
+    echo "  The JARVIS on this phone was signed by another build — replacing it."
+    echo "  Your brain, voice and memories stay in Download/JARVIS."
+    adb uninstall "$PKG" >/dev/null 2>&1 || true
+    adb install -g "$WORK/jarvis.apk"
+  else
+    echo "$out"
+    echo "FAIL: install refused. Send the line above to Claude."
+    exit 3
+  fi
+fi
 adb shell pm path "$PKG" >/dev/null || { echo "FAIL: $PKG is not installed."; exit 3; }
 ok "installed"
 
@@ -137,8 +160,13 @@ adb shell mkdir -p "$MODEL_DIR"
 moved=$(adb shell "n=0; for f in '$OLD_DIR'/*.gguf; do [ -f \"\$f\" ] || continue; mv -n \"\$f\" '$MODEL_DIR'/ && n=\$((n+1)); done; echo \$n" | tr -d '\r' || echo 0)
 ok "moved ${moved:-0} file(s) — nothing to download again"
 
-step "The brain (Qwen3 8B, 5 GB), the eyes (SmolVLM2, 546 MB) and the voice — all offline"
-put_model "$BRAIN_NAME" "$BRAIN_URL" "$BRAIN_MIN_BYTES" "brain"
+step "The brain, the eyes (SmolVLM2, 546 MB) and the voice — all offline"
+big=$(adb shell "stat -c %s '$MODEL_DIR/$BIG_BRAIN' 2>/dev/null" | tr -d '\r' || true)
+if [ -n "$big" ] && [ "$big" -ge 4500000000 ]; then
+  ok "brain already in place: Qwen3 8B ($((big / 1048576)) MB) — kept"
+else
+  put_model "$BRAIN_NAME" "$BRAIN_URL" "$BRAIN_MIN_BYTES" "brain (Qwen3 4B)"
+fi
 EYES_REPO="https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main"
 put_model "mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 100000000 "eyes projector"
 put_model "SmolVLM2-500M-Video-Instruct-Q8_0.gguf" "$EYES_REPO/SmolVLM2-500M-Video-Instruct-Q8_0.gguf?download=true" 400000000 "eyes"

@@ -5,13 +5,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'JARVIS ROG',
   slug: 'smiley',
   owner: 'smiley007s-team',
-  version: '0.4.0',
+  version: '0.4.1',
   orientation: 'portrait',
   scheme: 'jarvisrog',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
+    versionCode: 2026093001,
     permissions: [
       'INTERNET',
       'RECORD_AUDIO',
@@ -29,6 +30,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // Keeps the brain, eyes and voice in Download/JARVIS for good: they
       // survive closing, updating and reinstalling the app ("All files access").
       'MANAGE_EXTERNAL_STORAGE',
+      // Timers and alarms by voice, handed to the Clock app (a normal permission).
+      'com.android.alarm.permission.SET_ALARM',
     ],
   },
   plugins: [
@@ -86,6 +89,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           targetSdkVersion: 36,
           minSdkVersion: 24,
           usesCleartextTraffic: true,
+          // Compress JNI libraries for download; Android extracts them on install.
+          useLegacyPackaging: true,
+          packagingOptions: {
+            // These engines have no JNI bridges in the pinned ROG variant set.
+            exclude: [
+              '**/librnllama_v8.so',
+              '**/librnllama_v8_2.so',
+              '**/librnllama_v8_2_dotprod.so',
+              '**/librnllama_v8_2_i8mm.so',
+            ],
+          },
         },
       },
     ],

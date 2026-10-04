@@ -16,7 +16,7 @@
       "android": {
         "buildType": "apk",
         "image": "latest",
-        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a -PrnllamaBuildFromSource=false"
       },
       "env": {
         "NODE_ENV": "production"

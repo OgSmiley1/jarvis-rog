@@ -77,6 +77,35 @@ export interface JarvisSettings {
    * "Jarvis" in speech, as before. Off by default until proven on the phone.
    */
   wakeEngineEnabled?: boolean;
+  /**
+   * Beta: keep the microphone open while JARVIS speaks so the owner can talk
+   * over it. Off by default — no hardware echo cancellation is verified, so a
+   * software guard drops anything that is mostly JARVIS's own words.
+   */
+  talkOverEnabled?: boolean;
+  /** City for weather and prayer when none is named. Never changed by IP lookup. */
+  homeCity?: string;
+  temperatureUnit?: 'celsius' | 'fahrenheit';
+  /**
+   * Strict zero-cost mode (default on): only on-device work and providers
+   * verified free-with-limits. Unknown providers are refused; Puter is off.
+   */
+  strictZeroCost?: boolean;
+  /**
+   * Local only: nothing leaves the phone. Every online service — live data and
+   * the cloud brain — is refused; the phone's brain and device tools still work.
+   */
+  localOnly?: boolean;
+  /** Opt-in: approximate city from the internet connection (GeoJS). */
+  ipLocationAllowed?: boolean;
+  /** Opt-in consent to Puter's user-pays model (only outside strict mode). */
+  puterConsent?: boolean;
+  /** When Puter last reported its free allowance used up. Hard stop for a month. */
+  puterExhaustedAt?: number;
+  /** The first-run gesture card has been dismissed. */
+  coreHintSeen?: boolean;
+  /** Accessibility mode: a visible state label and visible Menu/History buttons. */
+  coreLabels?: boolean;
   /** Remind the owner to charge (notification, and spoken when on screen). */
   chargeReminderEnabled: boolean;
   /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */

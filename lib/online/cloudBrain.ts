@@ -1,3 +1,4 @@
+import { stripThinking } from '@/lib/voice/stripThinking';
 import { INTELLIGENCE_MODES } from '@/lib/inference/intelligenceModes';
 import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/inference/types';
 
@@ -27,6 +28,8 @@ import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/
  *
  * Pure: `fetch` is injected, so the whole failover is tested off-device.
  */
+
+import { checkProvider, recordPolicy } from '@/lib/net/providerPolicy';
 
 export type CloudProviderId = 'cerebras' | 'groq' | 'gemini';
 
@@ -157,7 +160,9 @@ export function extractText(raw: string): string {
 
   const content = (parsed as { choices?: { message?: { content?: unknown } }[] })?.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || !content.trim()) throw new Error('empty reply');
-  return content.trim();
+  const visible = stripThinking(content);
+  if (!visible) throw new Error('empty reply after reasoning filter');
+  return visible;
 }
 
 /** A short, owner-readable reason for an HTTP failure. */
@@ -179,8 +184,13 @@ export interface AskCloudInput {
   fetchImpl: FetchLike;
   /** Per-provider budget. A voice assistant cannot wait long on one host. */
   timeoutMs?: number;
+  /** Local only: refuse every provider (defence in depth behind cloudPlan). */
+  localOnly?: boolean;
   /** Include providers whose free tier may train on prompts (Gemini). Default false. */
   allowTraining?: boolean;
+  /** Cancellation and total deadline from the owning voice turn. */
+  signal?: AbortSignal;
+  deadlineAt?: number;
   now?: () => number;
 }
 
@@ -190,19 +200,43 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   const attempts: CloudAttempt[] = [];
   const startedAt = now();
 
+  const assertActive = () => {
+    if (input.signal?.aborted) throw Object.assign(new Error('TURN_CANCELLED'), { name: 'AbortError' });
+    if (input.deadlineAt !== undefined && now() >= input.deadlineAt) throw new Error('TURN_DEADLINE');
+  };
+  assertActive();
+
   for (const provider of usableProviders(input.keys, input.allowTraining)) {
+    assertActive();
+    // The zero-cost policy has the last word on every provider, every call.
+    const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining, localOnly: input.localOnly });
+    recordPolicy(provider.id, decision.allowed);
+    if (!decision.allowed) {
+      attempts.push({ provider: provider.id, model: '', ok: false, error: decision.reason, ms: 0 });
+      continue;
+    }
     const model = input.models?.[provider.id]?.trim() || provider.defaultModel;
     const key = input.keys[provider.id]!.trim();
     const attemptStartedAt = now();
     const controller = typeof AbortController === 'function' ? new AbortController() : undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let rejectCancelled: (error: Error) => void = () => undefined;
+    const cancelled = new Promise<never>((_, reject) => { rejectCancelled = reject; });
+    const onAbort = () => {
+      controller?.abort();
+      rejectCancelled(Object.assign(new Error('TURN_CANCELLED'), { name: 'AbortError' }));
+    };
+    input.signal?.addEventListener('abort', onAbort, { once: true });
 
     try {
+      assertActive();
+      const remainingMs = input.deadlineAt === undefined ? timeoutMs : input.deadlineAt - now();
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           controller?.abort();
-          reject(new Error('timed out'));
-        }, timeoutMs);
+          const deadlineReached = input.deadlineAt !== undefined && remainingMs <= timeoutMs;
+          reject(new Error(deadlineReached ? 'TURN_DEADLINE' : 'timed out'));
+        }, Math.min(timeoutMs, remainingMs));
       });
 
       const response = await Promise.race([
@@ -216,10 +250,12 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
           signal: controller?.signal,
         }),
         timeout,
+        cancelled,
       ]);
 
       if (!response.ok) throw new Error(describeHttpFailure(response.status));
-      const text = extractText(await Promise.race([response.text(), timeout]));
+      const text = extractText(await Promise.race([response.text(), timeout, cancelled]));
+      assertActive();
       const ms = now() - attemptStartedAt;
       attempts.push({ provider: provider.id, model, ok: true, ms });
 
@@ -231,6 +267,8 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
         metrics: { totalMs: now() - startedAt },
       };
     } catch (error) {
+      assertActive();
+      if (error instanceof Error && error.message === 'TURN_DEADLINE') throw error;
       attempts.push({
         provider: provider.id,
         model,
@@ -240,6 +278,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
       });
     } finally {
       if (timer) clearTimeout(timer);
+      input.signal?.removeEventListener('abort', onAbort);
     }
   }
 
