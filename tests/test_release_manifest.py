@@ -15,7 +15,7 @@ spec.loader.exec_module(install_release)
 PERMISSIONS = '\n'.join(f"uses-permission: name='{name}'" for name in REQUIRED_PERMISSIONS)
 
 
-def service(name=SERVICE, types='81', exported='0'):
+def service(name=SERVICE, types='82', exported='0'):
     return f'''    E: service (line=45)
       A: android:name(0x01010003)="{name}" (Raw: "{name}")
       A: android:exported(0x01010010)=(type 0x12)0x{exported}
@@ -26,6 +26,11 @@ def service(name=SERVICE, types='81', exported='0'):
 class VoiceManifestTest(unittest.TestCase):
     def test_valid_audio_service(self):
         assert_voice_manifest(PERMISSIONS, service())
+
+    def test_microphone_without_playback_and_extra_types_are_rejected(self):
+        for types in ('80', '81', '83'):
+            with self.subTest(types=types), self.assertRaisesRegex(ValueError, 'types missing'):
+                assert_voice_manifest(PERMISSIONS, service(types=types))
 
     def test_each_missing_permission_is_rejected(self):
         for name in REQUIRED_PERMISSIONS:
@@ -50,7 +55,7 @@ class VoiceManifestTest(unittest.TestCase):
 
     def test_nested_type_attribute_cannot_satisfy_audio_service(self):
         with self.assertRaisesRegex(ValueError, 'types missing'):
-            assert_voice_manifest(PERMISSIONS, service(types='1') + '      E: property\n        A: android:foregroundServiceType(0x01010599)=(type 0x11)0x81\n')
+            assert_voice_manifest(PERMISSIONS, service(types='2') + '      E: property\n        A: android:foregroundServiceType(0x01010599)=(type 0x11)0x82\n')
 
     def test_installer_prefers_the_recorded_local_artifact_without_network(self):
         with tempfile.TemporaryDirectory() as temp:

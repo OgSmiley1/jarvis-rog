@@ -2,6 +2,8 @@
 import re
 
 SERVICE = 'com.swmansion.audioapi.system.MediaNotificationManager$AudioForegroundService'
+# Android ServiceInfo: MICROPHONE = 128, MEDIA_PLAYBACK = 2.
+VOICE_SERVICE_TYPES = 0x80 | 0x02
 REQUIRED_PERMISSIONS = (
     'android.permission.RECORD_AUDIO',
     'android.permission.FOREGROUND_SERVICE',
@@ -37,7 +39,7 @@ def assert_voice_manifest(permissions, xml):
         raise ValueError('Expected exactly one microphone foreground service')
     service = matching[0]
     types = re.search(r'android:foregroundServiceType[^\n]*=\s*\(type 0x11\)0x([\da-fA-F]+)', service)
-    if not types or int(types[1], 16) != 0x81:
+    if not types or int(types[1], 16) != VOICE_SERVICE_TYPES:
         raise ValueError('Microphone/playback types missing from the audio foreground service')
     if not re.search(r'android:exported[^\n]*=\s*\(type 0x12\)0x0(?:\s|$)', service):
         raise ValueError('Audio foreground service must not be exported')
