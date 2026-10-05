@@ -21,8 +21,14 @@ def read_manifest(source=None):
     marker = '```jarvis-release\n'
     return json.loads(body.split(marker, 1)[1].split('```', 1)[0])
 
+def find_local_apk(manifest, source=None):
+    directory = pathlib.Path(source).resolve().parent if source else pathlib.Path(__file__).resolve().parent.parent / 'artifacts'
+    candidates = (directory / pathlib.Path(manifest['apk']).name, pathlib.Path(manifest.get('path', '')))
+    return next((candidate for candidate in candidates if candidate.is_file()), None)
+
 def main():
-    manifest = read_manifest(sys.argv[1] if len(sys.argv) > 1 else None)
+    source = sys.argv[1] if len(sys.argv) > 1 else None
+    manifest = read_manifest(source)
     required = ('apk', 'sha256', 'size', 'package', 'versionCode', 'sourceCommit')
     if not all(k in manifest for k in required):
         raise ValueError('Release manifest is incomplete')
@@ -35,8 +41,8 @@ def main():
     target = [adb, '-s', devices[0]]
     with tempfile.TemporaryDirectory(prefix='jarvis-release-') as temp:
         apk = pathlib.Path(temp) / pathlib.Path(manifest['apk']).name
-        local = pathlib.Path(manifest.get('path', ''))
-        if local.is_file():
+        local = find_local_apk(manifest, source)
+        if local:
             shutil.copyfile(local, apk)
         else:
             url = manifest.get('url', '')

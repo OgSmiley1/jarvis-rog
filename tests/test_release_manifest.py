@@ -61,6 +61,14 @@ class VoiceManifestTest(unittest.TestCase):
             with patch.object(install_release, '__file__', str(root / 'scripts/install-release.py')), patch.object(install_release.urllib.request, 'urlopen', side_effect=AssertionError('Unexpected network request')):
                 self.assertEqual(install_release.read_manifest(), expected)
 
+    def test_installer_can_use_an_apk_downloaded_beside_its_manifest(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = pathlib.Path(temp)
+            apk = directory / 'the-verified-build.apk'
+            apk.write_bytes(b'fixture')
+            manifest = {'apk': apk.name, 'path': '/a/different/build/machine/the-verified-build.apk'}
+            self.assertEqual(install_release.find_local_apk(manifest, directory / 'release-manifest.json'), apk)
+
 
 if __name__ == '__main__':
     unittest.main()
