@@ -7,24 +7,26 @@ Requirements:
 - Node 20.19+
 - pnpm 10+
 - Android Studio / Android SDK
-- JDK compatible with the generated Expo/Gradle project
+- Full JDK 17 (including `javac`), not only a Java runtime
 - USB debugging or Wireless debugging for development installation
 
 ## Build
 
 ```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm verify
-npx expo prebuild --platform android --clean --no-install
-cd android
-./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+corepack pnpm install --frozen-lockfile
+corepack pnpm verify
+scripts/build-android-apk.sh
+python3 scripts/install-release.py artifacts/release-manifest.json
 ```
 
-Install `android/app/build/outputs/apk/release/app-release.apk`. This release
-variant bundles JavaScript and runs without Metro or a paid service. The generated
-Expo project uses its development signing key for this personal sideload build;
-it is not a Play Store signing setup. Keep the same signing key for updates.
+Set `ANDROID_HOME` to your installed Android SDK before building. Build from a
+clean source commit: the release recorder compares the APK's embedded commit and
+version with the checkout, checks binary microphone declarations, native payload,
+signature and alignment, and writes `artifacts/release-manifest.json`.
+The installer uses that exact artifact, checks its checksum, installs with `-r`,
+then pulls back the installed APK for verification. It never uninstalls JARVIS.
+This standalone release variant includes JavaScript and uses Expo's development
+certificate for sideload testing. Keep the same signing key for updates.
 
 ## First launch
 

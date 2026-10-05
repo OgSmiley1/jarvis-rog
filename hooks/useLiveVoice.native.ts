@@ -171,6 +171,8 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
 
       recorder.onAudioReady((chunk) => {
         if (!runningRef.current || sessionRef.current !== session) return;
+        const frame = chunk.buffer.getChannelData(0);
+        if (chunk.numFrames <= 0 || frame.length === 0) return;
         if (!firstFrame.current) {
           firstFrame.current = true;
           if (captureTimer.current) clearTimeout(captureTimer.current);
@@ -182,7 +184,6 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           sessionRef.current === session &&
           (optionsRef.current.shouldAcceptAudio?.() ?? true)
         ) {
-          const frame = chunk.buffer.getChannelData(0);
           levelRef.current = levelFromFrame(frame, levelRef.current);
           const gate = optionsRef.current.wakeGate;
           const decision = gateFrame({ engineActive: Boolean(gate), accepting: true, awake: gate?.isAwake() ?? true });
@@ -198,7 +199,16 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           }
           if (decision.toSpeech) {
             try { stt.streamInsert(frame); }
-            catch { void stop(); setError('Speech recognition stopped. Please try again.'); setState('ERROR'); return; }
+            catch {
+              const cleanup = stop();
+              const failedSession = sessionRef.current;
+              void cleanup.finally(() => {
+                if (sessionRef.current !== failedSession) return;
+                setError('Speech recognition stopped. Please try again.');
+                setState('ERROR');
+              });
+              return;
+            }
             for (const event of endpointer.push(frame)) {
               if (event.type === 'end') optionsRef.current.onSpeechEnd?.(DEFAULT_ENDPOINTER.endSilenceMs);
             }
@@ -253,7 +263,13 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
       try {
         captureTimer.current = setTimeout(() => {
           if (sessionRef.current !== session || firstFrame.current) return;
-          void stop().finally(() => { setError('No microphone audio arrived. Check Android microphone access and try again.'); setState('ERROR'); });
+          const cleanup = stop();
+          const failedSession = sessionRef.current;
+          void cleanup.finally(() => {
+            if (sessionRef.current !== failedSession) return;
+            setError('No microphone audio arrived. Check Android microphone access and try again.');
+            setState('ERROR');
+          });
         }, 8000);
         recorder.start();
         if (sessionRef.current !== session) {
@@ -265,6 +281,7 @@ export function useLiveVoice(options: UseLiveVoiceOptions) {
           return;
         }
       } catch (cause) {
+        if (captureTimer.current) clearTimeout(captureTimer.current);
         runningRef.current = false;
         try {
           stt.streamStop();

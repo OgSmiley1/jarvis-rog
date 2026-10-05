@@ -23,6 +23,6 @@ it('does not globally block voice permission through image picker configuration'
 it('release gate inspects binary APK permissions and service count', () => {
   const gate = readFileSync(new URL('../scripts/record-release.py', import.meta.url), 'utf8');
   expect(gate).toContain("'dump', 'permissions'");
-  expect(gate).toContain('android.permission.RECORD_AUDIO');
-  expect(gate).toContain('Expected exactly one microphone foreground service');
+  expect(gate).toContain('assert_voice_manifest(permissions, xml)');
+  expect(gate).toContain("bundle.read('assets/app.config')");
 });

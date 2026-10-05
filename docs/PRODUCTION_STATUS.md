@@ -23,8 +23,9 @@ This is the current status authority; older session notes describe historical bu
 
 ## Verification checkpoint
 
-- COMPLETE: typecheck, existing and new automated tests (612 passed).
-- PARTIAL: Android runtime verification in progress on a software Android 11 emulator with ARM64 translation. Physical ROG Phone unavailable.
+- COMPLETE: rechecked the previous repair's typecheck, lint, smoke and 612 tests before editing. The repaired source passes 619 tests; executable Python cases cover binary microphone declarations and local artifact selection. Typecheck, lint and smoke pass.
+- COMPLETE: release manifest task with full JDK 17; merged manifest includes RECORD_AUDIO and one microphone/playback audio service. Final binary package inspection remains a separate gate.
+- UNVERIFIED: Android runtime in this workspace; no ADB device is attached. The previous checkpoint mentioned Android 11 emulator exploration but supplied no saved runtime evidence here. Physical ROG Phone unavailable.
 - UNVERIFIED: real microphone quality, audible TTS, Qwen3 4B performance/memory pressure on target phone, physical-device update survival.
 - UNVERIFIED: final 0.5.1 package until recorded in `artifacts/release-manifest.json` after the native build.
 - BLOCKED: production signing key is unavailable here. APK uses the same generated Expo debug certificate as the prior local 0.4.1 preview. It cannot update an installation signed with a different EAS/store certificate without that original signing key.
@@ -36,3 +37,9 @@ Local Only rejects unknown/network system voices rather than silently using a ne
 ## Release chain
 
 `scripts/build-android-apk.sh` embeds the clean source commit, builds the release APK, verifies signature/alignment/native payload and runs `scripts/record-release.py`. The generated manifest records version, code, branch, commit, tree, ABI, size, SHA-256 and signing fingerprint. `scripts/install-release.py` consumes that exact manifest. Runtime observations must be added after execution, never inferred from compilation.
+
+The follow-up recorder verifies the APK's embedded commit/version and the audio
+service's own non-exported microphone/playback types. The installer prefers a
+locally generated release manifest when run from a build checkout. As of this
+recheck, GitHub has no published `v0.5.1-preview`; no missing release URL is
+presented as an available download. The new Android version code is 2026100501.

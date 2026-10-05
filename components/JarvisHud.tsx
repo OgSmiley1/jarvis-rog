@@ -94,6 +94,7 @@ export default function JarvisHud() {
   const jarvis = useJarvis();
   const microphone = useSyncExternalStore(subscribeMicrophone, getMicrophonePermission, getMicrophonePermission);
   const directVoice = useRef(false);
+  const requestEpochRef = useRef(0);
   // The HUD has no mode switcher of its own: it follows the owner's default
   // mode live, so changing it in Settings or Chat takes effect here at once.
   const mode: IntelligenceMode = jarvis.settings.defaultMode;
@@ -114,7 +115,7 @@ export default function JarvisHud() {
   const [brainBusy, setBrainBusy] = useState(false);
   const [activity, setActivity] = useState<CoreState>();
   useEffect(() => {
-    if (!activity || !['success', 'error', 'interrupted'].includes(activity)) return;
+    if (!activity || !['success', 'warning', 'error', 'interrupted'].includes(activity)) return;
     const timer = setTimeout(() => setActivity(undefined), 1200);
     return () => clearTimeout(timer);
   }, [activity]);
@@ -155,6 +156,7 @@ export default function JarvisHud() {
 
   useEffect(() => session.setConnectivity(connectivity), [connectivity, session]);
   useEffect(() => () => {
+    requestEpochRef.current += 1;
     session.cancel('user');
     setBusy(false);
     setToolRunning(false);
@@ -233,6 +235,7 @@ export default function JarvisHud() {
       setInput('');
       return;
     }
+    const requestEpoch = ++requestEpochRef.current;
 
     // A new accepted turn replaces the one in flight: its generation, tools
     // and queued speech are cancelled before this one starts.
@@ -243,6 +246,7 @@ export default function JarvisHud() {
       neural.stop();
       void stopSpeaking();
       await jarvis.stopGeneration().catch(() => undefined);
+      if (requestEpochRef.current !== requestEpoch) return;
     }
 
     const voiceReply = spokenRequest || jarvis.settings.autoSpeak || jarvis.settings.handsFreeEnabled;
@@ -251,6 +255,7 @@ export default function JarvisHud() {
     const switchTo = detectLanguageSwitch(command);
     if (switchTo) {
       await jarvis.updateSettings({ language: switchTo });
+      if (requestEpochRef.current !== requestEpoch) return;
       const reply = languageSwitchedReply(switchTo);
       recordLive('app', 'language switched', { to: switchTo });
       setResponse(reply);
@@ -302,6 +307,7 @@ export default function JarvisHud() {
       setPlaying(false);
       setToolRunning(false);
       setWatching(false);
+      setActivity('error');
       setResponse(jarvis.settings.language === 'ar' ? 'انتهت مهلة الطلب. حاول مرة أخرى.' : 'That request timed out. Please try again.');
     };
     turn.signal.addEventListener('abort', onTurnAbort, { once: true });
@@ -429,8 +435,8 @@ export default function JarvisHud() {
       }
       if (route) timer.mark('toolEnd');
       else timer.mark('modelEnd');
-      setActivity('success');
       const extra = extrasFrom(result.toolData);
+      setActivity(extra.stale ? 'warning' : 'success');
       if (extra.stale) timer.scenario = 'live-data-cached';
       else if (route?.call.tool.startsWith('live.') && extra.source && result.toolData && (result.toolData as { fetchedAt?: number }).fetchedAt !== undefined) {
         const fetchedAt = (result.toolData as { fetchedAt: number }).fetchedAt;
@@ -493,8 +499,6 @@ export default function JarvisHud() {
     } finally {
       turn.signal.removeEventListener('abort', onTurnAbort);
       clearTimeout(fillerTimer);
-      // Clear the typed command whatever happened: old words must not linger.
-      setInput('');
       if (!voiceOut) {
         timer.mark('turnEnd');
         recordTurn(timer);
@@ -502,14 +506,15 @@ export default function JarvisHud() {
       // Only the live turn (or no turn at all) may reset the shared state; a
       // superseded turn finishing late must not unset the new one's "busy".
       const current = session.snapshot().turnId;
-      if (current === turn.turnId || current === null) {
+      if (requestEpochRef.current === requestEpoch && (current === turn.turnId || current === null)) {
+        setInput('');
         session.endTurn(turn.turnId, voiceOut ? 'speaking' : 'idle');
         busyRef.current = false;
         setBusy(false);
         setToolRunning(false);
-        setActivity((current) => current === 'success' || current === 'error' ? current : undefined);
+        setActivity((current) => current && ['success', 'warning', 'error', 'interrupted'].includes(current) ? current : undefined);
       }
-      if (looking) {
+      if (looking && requestEpochRef.current === requestEpoch) {
         setWatching(false);
         recordLive('app', 'camera off');
       }
@@ -524,6 +529,7 @@ export default function JarvisHud() {
 
   /** Stop speech and generation now. No model call, no confirmation. */
   function haltEverything() {
+    requestEpochRef.current += 1;
     recordLive('halt', 'stopped speech and generation');
     session.cancel('user');
     setBusy(false);
@@ -674,7 +680,7 @@ export default function JarvisHud() {
         modelStatus: jarvis.modelState.status,
         voiceState: voice.state,
         generating: busy && !toolRunning,
-        speaking: playing,
+        speaking: playing, speechQueued: speaking,
         toolRunning,
         handsFree: jarvis.settings.handsFreeEnabled,
         wakeWord: jarvis.settings.wakeWord,
@@ -685,7 +691,7 @@ export default function JarvisHud() {
         watching,
       }),
     [
-      jarvis.cloudReady, activity, microphone, voice.error, jarvis.settings.localOnly, jarvis.brainDownload, playing,
+      jarvis.cloudReady, activity, microphone, voice.error, jarvis.settings.localOnly, jarvis.brainDownload, playing, speaking,
       watching,
       busy,
       jarvis.modelState.status,
@@ -898,7 +904,10 @@ export default function JarvisHud() {
             <Text style={styles.responseText} numberOfLines={4}>{response}</Text>
           </Pressable> : null}
           <Row>
-            <Button title={busy || playing || micOn ? (arabic ? 'إيقاف' : 'Stop') : (arabic ? 'تحدث' : 'Talk')} onPress={toggleVoice} />
+            <Button title={busy || playing || speaking ? (arabic ? 'مقاطعة' : 'Interrupt') : micOn ? (arabic ? 'إيقاف الاستماع' : 'Stop listening') : (arabic ? 'تحدث' : 'Talk')} onPress={() => {
+              if (micOn && !busy && !playing && !speaking) { directVoice.current = false; void voice.stop(); }
+              else toggleVoice();
+            }} />
             <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
           </Row>
           {false ? (
@@ -954,7 +963,7 @@ export default function JarvisHud() {
             “{voice.transcript}”
           </Text>
         ) : null}
-        {hud.coreState === 'warning' ? <Button title={arabic ? 'إذن الميكروفون' : 'Microphone permissions'} onPress={() => void openMicrophoneSettings()} /> : null}
+        {hud.coreState === 'warning' && microphone !== 'granted' && activity !== 'warning' ? <Button title={arabic ? 'إذن الميكروفون' : 'Microphone permissions'} onPress={() => void openMicrophoneSettings()} /> : null}
         {storageBanner}
         {brainBanner}
 

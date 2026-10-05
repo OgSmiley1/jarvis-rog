@@ -1,6 +1,6 @@
 # Current execution checkpoint — 0.5.0
 
-See docs/PRODUCTION_STATUS.md for current evidence. Source implements hard Local Only, structured follow-ups, diagnostics/self-test, preserved 4B/8B models, serial model lifecycle and verified-release installer. 599 tests, typecheck, lint and Expo dependency checks pass. Final native build/runtime verification in progress; no physical-device completion claim.
+See docs/PRODUCTION_STATUS.md for current evidence. The existing 0.5.1 repair at b69a810 was rechecked first (612 tests, typecheck, lint and smoke passed). Follow-up runtime/voice/release fixes pass 619 tests plus executable Python manifest/installer cases. The release manifest task succeeds with JDK 17 and declares RECORD_AUDIO plus one microphone/playback service. Final APK evidence is generated under artifacts; no ADB phone is attached and no physical-device completion is claimed. See docs/JARVIS_RUNTIME_AUDIT.md for confirmed findings and dependencies.
 
 # JARVIS ROG — LIVE BUILD STATE
 

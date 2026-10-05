@@ -10,6 +10,9 @@ def run(*args, check=True):
 def read_manifest(source=None):
     if source:
         return json.loads(pathlib.Path(source).read_text())
+    local_manifest = pathlib.Path(__file__).resolve().parent.parent / 'artifacts/release-manifest.json'
+    if local_manifest.is_file():
+        return json.loads(local_manifest.read_text())
     request = urllib.request.Request(RELEASE, headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'JARVIS-installer'})
     with urllib.request.urlopen(request, timeout=30) as response:
         body = json.load(response)['body']

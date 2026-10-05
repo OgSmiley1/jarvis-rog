@@ -1,4 +1,5 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { runtimeObservations } from '@/lib/diagnostics/runtime';
 
 // Drive the hook's asynchronous permission/recorder lifecycle without a native
 // microphone. State setters and effects are observed; this is not device proof.
@@ -8,6 +9,7 @@ const harness = vi.hoisted(() => ({
   recorderStop: vi.fn(),
   streamStop: vi.fn(),
   setState: vi.fn(),
+  audioReady: null as ((chunk: { numFrames: number; buffer: { getChannelData(channel: number): Float32Array } }) => void) | null,
   cleanups: [] as (() => void)[],
 }));
 vi.mock('react', () => ({
@@ -35,7 +37,7 @@ vi.mock('react-native-audio-api', () => ({
   AudioRecorder: class {
     start = harness.recorderStart;
     stop = harness.recorderStop;
-    onAudioReady() {}
+    onAudioReady(callback: NonNullable<typeof harness.audioReady>) { harness.audioReady = callback; }
   },
 }));
 vi.mock('react-native-executorch', () => ({
@@ -55,7 +57,33 @@ import { useLiveVoice } from '@/hooks/useLiveVoice.native';
 beforeEach(() => {
   vi.clearAllMocks();
   harness.cleanups.length = 0;
+  harness.audioReady = null;
+  runtimeObservations.microphoneCaptureAt = undefined;
   harness.permission.mockResolvedValue('granted');
+});
+afterEach(() => vi.useRealTimers());
+
+it('confirms listening only after a nonempty microphone frame arrives', async () => {
+  const voice = useLiveVoice({ language: 'en' });
+  await voice.start();
+  expect(harness.setState).not.toHaveBeenCalledWith('LISTENING');
+  harness.audioReady?.({ numFrames: 0, buffer: { getChannelData: () => new Float32Array() } });
+  expect(runtimeObservations.microphoneCaptureAt).toBeUndefined();
+  harness.audioReady?.({ numFrames: 1600, buffer: { getChannelData: () => new Float32Array(1600) } });
+  expect(runtimeObservations.microphoneCaptureAt).toBeGreaterThan(0);
+  expect(harness.setState).toHaveBeenCalledWith('LISTENING');
+  await voice.stop();
+});
+
+it('preserves a recorder startup error instead of replacing it with an audio timeout', async () => {
+  vi.useFakeTimers();
+  harness.recorderStart.mockImplementationOnce(() => { throw new Error('Recorder unavailable'); });
+  const voice = useLiveVoice({ language: 'en' });
+  await voice.start();
+  expect(harness.setState).toHaveBeenCalledWith('Recorder unavailable');
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(harness.setState).not.toHaveBeenCalledWith('No microphone audio arrived. Check Android microphone access and try again.');
+  await voice.stop();
 });
 
 it('Stop during microphone permission prevents late recorder startup', async () => {

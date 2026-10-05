@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   android: {
     package: 'com.app.localjarviscoach',
-    versionCode: 2026100401,
+    versionCode: 2026100501,
     permissions: [
       'INTERNET',
       'RECORD_AUDIO',
@@ -106,8 +106,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   ],
   extra: {
-    buildCommit: process.env.JARVIS_BUILD_COMMIT ?? 'development',
     ...(config.extra ?? {}),
+    buildCommit: process.env.JARVIS_BUILD_COMMIT ?? 'development',
     eas: {
       projectId: 'eda56376-aa74-45d7-b652-68d661a9da9e',
     },

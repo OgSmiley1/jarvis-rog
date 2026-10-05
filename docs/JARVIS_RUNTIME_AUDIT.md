@@ -25,3 +25,26 @@ Evidence: user-supplied observations from an Android 16 recording; current repos
 4. Native overlay lifecycle/state/safe bounds; Core palette.
 5. Context and settings regression coverage.
 6. Full tests, clean-source release build, APK manifest/signature/hash, install and runtime evidence. Physical ROG gates remain **UNVERIFIED ON PHYSICAL DEVICE** until actually observed.
+
+## Existing-work recheck — 2026-10-05
+
+The prior repair at `b69a810` was inspected before making further changes. Its
+612 tests, typecheck, lint and smoke checks passed. A clean Expo prebuild produced
+RECORD_AUDIO and one audio foreground-service entry. The published 0.4.1 APK was
+downloaded independently: SHA-256
+`3c3d66bff6e1e21b11988de3ee940a45a4b6a19ecd099d26a0432d3e67a9df57`
+matches the release page, and `aapt dump permissions` confirms RECORD_AUDIO is
+absent. The image-picker plugin's global permission removal is confirmed in the
+installed dependency source too.
+
+| Severity | Confirmed remaining defect | Files / repair | Acceptance / dependency |
+|---|---|---|---|
+| High | Microphone initialization used a listening display before capture; queued synthesis could claim listening while input frames were suppressed. | `lib/runtime/presentation.ts`, `components/JarvisHud.tsx`: distinct startup/reply preparation labels, playback-based speaking, no active-mic claim while audio is suppressed. | Startup and queued-speech transition regressions; actual listening still requires a nonempty audio frame. Manifest fix first. |
+| High | A recorder startup exception left its 8-second capture timer armed; recognition failures could be cleared by asynchronous Stop cleanup. | `hooks/useLiveVoice.native.ts`: clear failed-start timers, publish failure after cleanup only while that session still owns it, ignore empty frames. | Failed-start error survives the timeout interval; new sessions cannot receive an older session's failure. Permission/capture first. |
+| High | An older command's asynchronous cleanup could clear a newer command's text/camera state; Stop could lose its terminal state. | `components/JarvisHud.tsx`: request epoch guards across cancellation waits and cleanup; preserve current terminal state; distinguish Interrupt from Stop listening. | Superseded results/cleanup cannot reset current controls; target-phone rapid replacement still unverified. Runtime state first. |
+| High | APK evidence recorded the checkout SHA without comparing it to the package; the service-type check could match an unrelated service. | `scripts/record-release.py`, `scripts/apk_voice_manifest.py`: compare embedded commit/version and validate the named audio service's attributes. | Reject stale embedded metadata, duplicate/exported/wrong-type services, missing permissions; fixture tests execute the validator. Final APK required. |
+| Medium | The 0.5.1 installer default referenced a nonexistent published release; older acceptance notes still described old installers as current. | `scripts/install-release.py`, release/install documentation: prefer the exact local build manifest; identify historical links and physical checks explicitly. | Local installer uses the recorded artifact, refuses checksum/signing mismatches and preserves data. Published delivery remains separate from a local build. |
+
+No independent Claude report, recording file or physical ROG device was supplied
+to this workspace. Source checks, final APK checks, installation, capture quality,
+audible speech and real model execution remain distinct evidence categories.

@@ -6,14 +6,16 @@
 >
 > Section numbers match `docs/ACCEPTANCE_TESTS.md`.
 
-## Current status — read this first (27 Sep 2026, session 10)
+## Current status — read this first (5 Oct 2026)
 
-Sections below are a history, oldest first; earlier ones (e.g. "no APK exists",
-features listed as missing) were true when written and are superseded by later
-ones. The newest session section at the end of this file is the current state.
+Historical session sections below describe earlier builds. Current release
+evidence is in `docs/PRODUCTION_STATUS.md` and the generated
+`artifacts/release-manifest.json`; old APK links are not current installers.
 
-- **Latest APK:** see Session 11 below; the default in `scripts/rog-setup.sh` is always the newest build.
-- **Build and unit gates:** PASS — Gradle release, 0 Kotlin errors; 399 tests.
+- **0.5.1 source recheck:** TypeScript, lint, tests and smoke checks passed.
+  Native compilation and final artifact checks require their own build evidence.
+- **Published APK recheck:** 0.4.1's checksum matches its release page. Its
+  binary manifest omits RECORD_AUDIO. This is a confirmed build defect.
 - **On the phone:** every device gate for the latest build is **NOT RUN**. Proven
   on older builds only: the brain loads and answers (bc047ad7, owner's video),
   37 s for one answer at 5.9 tok/s before the latency work. Under-5-s speech,
