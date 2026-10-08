@@ -1,0 +1,854 @@
+Pinned Android inference libraries are installed.
+[JARVIS] Audio foreground service requests only active capture/playback types.
+- Creating native directory (./android)
+✔ Created native directory | reusing /android
+- Updating package.json
+✔ Updated package.json | no changes
+- Running prebuild
+✔ Finished prebuild
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :app
+android.packagingOptions.excludes += [**/librnllama_v8.so, **/librnllama_v8_2.so, **/librnllama_v8_2_dotprod.so, **/librnllama_v8_2_i8mm.so] (4)
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-constants[0m (18.0.14)
+  - [32mexpo-jarvis-brain[0m (1.0.0)
+  - [32mexpo-jarvis-overlay[0m (1.0.0)
+  - [32mexpo-jarvis-phone[0m (1.0.0)
+  - [32mexpo-modules-core[0m (3.0.30)
+  - [32mexpo-thermal-status[0m (1.0.0)
+  - [33m[📦][0m [32mexpo-application[0m (7.0.8)
+  - [33m[📦][0m [32mexpo-asset[0m (12.0.13)
+  - [33m[📦][0m [32mexpo-battery[0m (10.0.8)
+  - [33m[📦][0m [32mexpo-camera[0m (17.0.10)
+  - [33m[📦][0m [32mexpo-device[0m (8.0.10)
+  - [33m[📦][0m [32mexpo-document-picker[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-file-system[0m (19.0.24)
+  - [33m[📦][0m [32mexpo-font[0m (14.0.12)
+  - [33m[📦][0m [32mexpo-image-loader[0m (6.0.0)
+  - [33m[📦][0m [32mexpo-image-picker[0m (17.0.11)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-linking[0m (8.0.12)
+  - [33m[📦][0m [32mexpo-network[0m (8.0.8)
+  - [33m[📦][0m [32mexpo-notifications[0m (0.32.17)
+  - [33m[📦][0m [32mexpo-secure-store[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-speech[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-sqlite[0m (16.0.10)
+  - [33m[📦][0m [32mexpo-system-ui[0m (6.0.9)
+
+
+> Configure project :llama.rn
+ℹ️  Building rnllama variants: rnllama_v8_2_dotprod_i8mm_hexagon_opencl,rnllama_v8_2_dotprod_i8mm,rnllama
+🚫 Hexagon SDK not found — building CPU-only
+
+> Configure project :react-native-nitro-modules
+[NitroModules] 🔥 Your app is boosted by nitro modules!
+
+> Configure project :react-native-openwakeword
+[NitroModules] 🔥 Openwakeword is boosted by nitro!
+
+> Configure project :shopify_react-native-skia
+react-native-skia: node_modules/ found at: /workspace/jarvis-rog/node_modules/.pnpm/@shopify+react-native-skia@2.2.12_react-native-reanimated@4.1.7_react-native-worklets@0_aa5b2436c8274f905e15a20d2ea0e2bd/node_modules
+react-native-skia: RN Version: 81 / 0.81.5
+react-native-skia: isSourceBuild: false
+react-native-skia: PrebuiltDir: /workspace/jarvis-rog/node_modules/.pnpm/@shopify+react-native-skia@2.2.12_react-native-reanimated@4.1.7_react-native-worklets@0_aa5b2436c8274f905e15a20d2ea0e2bd/node_modules/@shopify/react-native-skia/android/build/react-native-0*/jni
+react-native-skia: buildType: release
+react-native-skia: buildDir: /workspace/jarvis-rog/node_modules/.pnpm/@shopify+react-native-skia@2.2.12_react-native-reanimated@4.1.7_react-native-worklets@0_aa5b2436c8274f905e15a20d2ea0e2bd/node_modules/@shopify/react-native-skia/android/build
+react-native-skia: node_modules: /workspace/jarvis-rog/node_modules/.pnpm/@shopify+react-native-skia@2.2.12_react-native-reanimated@4.1.7_react-native-worklets@0_aa5b2436c8274f905e15a20d2ea0e2bd/node_modules
+react-native-skia: Enable Prefab: true
+react-native-skia: aar state post 70, do nothing
+
+> Task :app:generateAutolinkingNewArchitectureFiles UP-TO-DATE
+> Task :app:generateAutolinkingPackageList UP-TO-DATE
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :app:generateReactNativeEntryPoint UP-TO-DATE
+> Task :app:syncRNLlamaHtpAssets UP-TO-DATE
+> Task :expo:generatePackagesList UP-TO-DATE
+> Task :expo:preBuild UP-TO-DATE
+
+> Task :expo-constants:createExpoConfig
+The NODE_ENV environment variable is required but was not specified. Ensure the project is bundled with Expo CLI or NODE_ENV is set. Using only .env.local and .env
+
+> Task :expo-constants:preBuild
+> Task :expo-jarvis-brain:preBuild UP-TO-DATE
+> Task :expo-jarvis-overlay:preBuild UP-TO-DATE
+> Task :expo-jarvis-phone:preBuild UP-TO-DATE
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :expo-thermal-status:preBuild UP-TO-DATE
+> Task :llama.rn:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :llama.rn:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :llama.rn:preBuild UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-async-storage_async-storage:preBuild UP-TO-DATE
+> Task :react-native-audio-api:assertMinimalReactNativeVersionTask SKIPPED
+> Task :react-native-audio-api:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-audio-api:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-audio-api:preBuild UP-TO-DATE
+> Task :react-native-executorch:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-executorch:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-executorch:preBuild UP-TO-DATE
+> Task :react-native-nitro-modules:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-nitro-modules:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-nitro-modules:prepareHeaders UP-TO-DATE
+> Task :react-native-nitro-modules:preBuild UP-TO-DATE
+> Task :react-native-openwakeword:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-openwakeword:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-openwakeword:preBuild UP-TO-DATE
+> Task :react-native-reanimated:assertMinimalReactNativeVersionTask
+> Task :react-native-reanimated:assertNewArchitectureEnabledTask SKIPPED
+> Task :react-native-reanimated:assertWorkletsVersionTask
+> Task :react-native-reanimated:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-reanimated:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-reanimated:prepareReanimatedHeadersForPrefabs UP-TO-DATE
+> Task :react-native-reanimated:preBuild
+> Task :react-native-safe-area-context:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-safe-area-context:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-safe-area-context:preBuild UP-TO-DATE
+> Task :react-native-screens:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-screens:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-screens:preBuild UP-TO-DATE
+> Task :react-native-svg:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-svg:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-svg:preBuild UP-TO-DATE
+> Task :react-native-webview:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-webview:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-webview:preBuild UP-TO-DATE
+> Task :react-native-worklets:assertMinimalReactNativeVersionTask
+> Task :react-native-worklets:assertNewArchitectureEnabledTask SKIPPED
+> Task :react-native-worklets:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-worklets:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-worklets:prepareWorkletsHeadersForPrefabs UP-TO-DATE
+> Task :react-native-worklets:preBuild
+> Task :shopify_react-native-skia:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :shopify_react-native-skia:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :shopify_react-native-skia:prepareHeaders UP-TO-DATE
+> Task :shopify_react-native-skia:preBuild UP-TO-DATE
+> Task :app:preBuild
+> Task :app:preReleaseBuild
+> Task :react-native-executorch:preReleaseBuild UP-TO-DATE
+> Task :react-native-executorch:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-executorch:generateJsonModelRelease
+> Task :react-native-executorch:prefabReleaseConfigurePackage UP-TO-DATE
+> Task :react-native-nitro-modules:preReleaseBuild UP-TO-DATE
+> Task :react-native-nitro-modules:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-nitro-modules:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-nitro-modules:externalNativeBuildRelease
+> Task :react-native-nitro-modules:generateJsonModelRelease
+> Task :react-native-nitro-modules:prefabReleaseConfigurePackage
+> Task :react-native-reanimated:preReleaseBuild
+> Task :react-native-worklets:preReleaseBuild
+> Task :react-native-worklets:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-worklets:generateJsonModelRelease
+> Task :react-native-worklets:prefabReleaseConfigurePackage UP-TO-DATE
+> Task :react-native-reanimated:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-reanimated:generateJsonModelRelease
+> Task :react-native-reanimated:prefabReleaseConfigurePackage UP-TO-DATE
+> Task :shopify_react-native-skia:extractAARHeaders
+> Task :shopify_react-native-skia:extractJNIFiles
+> Task :shopify_react-native-skia:preReleaseBuild UP-TO-DATE
+> Task :shopify_react-native-skia:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :shopify_react-native-skia:generateJsonModelRelease
+> Task :shopify_react-native-skia:prefabReleaseConfigurePackage UP-TO-DATE
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-executorch:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-executorch:externalNativeBuildRelease
+> Task :react-native-executorch:prefabReleasePackage UP-TO-DATE
+> Task :react-native-nitro-modules:prefabReleasePackage UP-TO-DATE
+> Task :react-native-worklets:buildCMakeRelWithDebInfo[arm64-v8a][worklets]
+> Task :react-native-worklets:externalNativeBuildRelease
+> Task :react-native-worklets:prefabReleasePackage UP-TO-DATE
+> Task :react-native-reanimated:buildCMakeRelWithDebInfo[arm64-v8a][reanimated]
+> Task :react-native-worklets:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-worklets:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-worklets:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-reanimated:externalNativeBuildRelease
+> Task :react-native-reanimated:prefabReleasePackage UP-TO-DATE
+> Task :shopify_react-native-skia:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :shopify_react-native-skia:externalNativeBuildRelease
+> Task :shopify_react-native-skia:prefabReleasePackage UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo:preReleaseBuild UP-TO-DATE
+> Task :expo:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-constants:preReleaseBuild
+> Task :expo-constants:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-constants:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-jarvis-brain:preReleaseBuild UP-TO-DATE
+> Task :expo-jarvis-brain:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-jarvis-brain:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-jarvis-brain:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-jarvis-overlay:preReleaseBuild UP-TO-DATE
+> Task :expo-jarvis-overlay:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-jarvis-overlay:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-jarvis-overlay:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-jarvis-phone:preReleaseBuild UP-TO-DATE
+> Task :expo-jarvis-phone:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-jarvis-phone:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-jarvis-phone:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-modules-core:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-modules-core:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-modules-core:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-modules-core:mergeReleaseNativeLibs UP-TO-DATE
+> Task :expo-modules-core:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-thermal-status:preReleaseBuild UP-TO-DATE
+> Task :expo-thermal-status:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-thermal-status:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-thermal-status:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :llama.rn:preReleaseBuild UP-TO-DATE
+> Task :llama.rn:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :llama.rn:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :llama.rn:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :llama.rn:mergeReleaseNativeLibs UP-TO-DATE
+> Task :llama.rn:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-async-storage_async-storage:preReleaseBuild UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-async-storage_async-storage:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-audio-api:preReleaseBuild UP-TO-DATE
+> Task :react-native-audio-api:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-audio-api:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-audio-api:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-audio-api:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-audio-api:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-executorch:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-executorch:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-executorch:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-nitro-modules:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-nitro-modules:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-nitro-modules:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-openwakeword:preReleaseBuild UP-TO-DATE
+> Task :react-native-openwakeword:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-openwakeword:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-openwakeword:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-openwakeword:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-openwakeword:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-reanimated:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-reanimated:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-reanimated:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-safe-area-context:preReleaseBuild UP-TO-DATE
+> Task :react-native-safe-area-context:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-safe-area-context:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-safe-area-context:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-screens:preReleaseBuild UP-TO-DATE
+> Task :react-native-screens:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-screens:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-screens:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-screens:mergeReleaseNativeLibs UP-TO-DATE
+> Task :react-native-screens:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-svg:preReleaseBuild UP-TO-DATE
+> Task :react-native-svg:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-svg:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-svg:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-webview:preReleaseBuild UP-TO-DATE
+> Task :react-native-webview:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-webview:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-webview:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :shopify_react-native-skia:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :shopify_react-native-skia:mergeReleaseNativeLibs UP-TO-DATE
+> Task :shopify_react-native-skia:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeReleaseNativeDebugMetadata UP-TO-DATE
+> Task :react-native-audio-api:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-audio-api:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-audio-api:generateReleaseResValues UP-TO-DATE
+> Task :react-native-audio-api:generateReleaseResources UP-TO-DATE
+> Task :react-native-audio-api:packageReleaseResources UP-TO-DATE
+> Task :react-native-audio-api:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-audio-api:generateReleaseRFile UP-TO-DATE
+> Task :react-native-worklets:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-worklets:generateReleaseResValues UP-TO-DATE
+> Task :react-native-worklets:generateReleaseResources UP-TO-DATE
+> Task :react-native-worklets:packageReleaseResources UP-TO-DATE
+> Task :react-native-worklets:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-worklets:generateReleaseRFile UP-TO-DATE
+> Task :react-native-worklets:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-worklets:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-worklets:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-audio-api:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-audio-api:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-audio-api:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-audio-api:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-executorch:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-executorch:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-executorch:generateReleaseResValues UP-TO-DATE
+> Task :react-native-executorch:generateReleaseResources UP-TO-DATE
+> Task :react-native-executorch:packageReleaseResources UP-TO-DATE
+> Task :react-native-executorch:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-executorch:generateReleaseRFile UP-TO-DATE
+> Task :react-native-executorch:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-executorch:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-executorch:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-executorch:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-nitro-modules:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-nitro-modules:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-nitro-modules:generateReleaseResValues UP-TO-DATE
+> Task :react-native-nitro-modules:generateReleaseResources UP-TO-DATE
+> Task :react-native-nitro-modules:packageReleaseResources UP-TO-DATE
+> Task :react-native-nitro-modules:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-nitro-modules:generateReleaseRFile UP-TO-DATE
+> Task :react-native-nitro-modules:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-nitro-modules:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-nitro-modules:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-nitro-modules:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-openwakeword:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-openwakeword:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-openwakeword:generateReleaseResValues UP-TO-DATE
+> Task :react-native-openwakeword:generateReleaseResources UP-TO-DATE
+> Task :react-native-openwakeword:packageReleaseResources UP-TO-DATE
+> Task :react-native-openwakeword:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-openwakeword:generateReleaseRFile UP-TO-DATE
+> Task :react-native-openwakeword:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-openwakeword:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-openwakeword:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-openwakeword:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-nitro-modules:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-safe-area-context:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-safe-area-context:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-safe-area-context:generateReleaseResValues UP-TO-DATE
+> Task :react-native-safe-area-context:generateReleaseResources UP-TO-DATE
+> Task :react-native-safe-area-context:packageReleaseResources UP-TO-DATE
+> Task :react-native-safe-area-context:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-safe-area-context:generateReleaseRFile UP-TO-DATE
+> Task :react-native-safe-area-context:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-safe-area-context:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-safe-area-context:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-safe-area-context:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-screens:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-screens:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-screens:generateReleaseResValues UP-TO-DATE
+> Task :react-native-screens:generateReleaseResources UP-TO-DATE
+> Task :react-native-screens:packageReleaseResources UP-TO-DATE
+> Task :react-native-screens:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-screens:generateReleaseRFile UP-TO-DATE
+> Task :react-native-screens:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-screens:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-screens:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-screens:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-webview:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-webview:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-webview:generateReleaseResValues UP-TO-DATE
+> Task :react-native-webview:generateReleaseResources UP-TO-DATE
+> Task :react-native-webview:packageReleaseResources UP-TO-DATE
+> Task :react-native-webview:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-webview:generateReleaseRFile UP-TO-DATE
+> Task :react-native-webview:compileReleaseKotlin UP-TO-DATE
+> Task :react-native-webview:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-webview:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-webview:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateReleaseResValues UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateReleaseResources UP-TO-DATE
+> Task :react-native-async-storage_async-storage:packageReleaseResources UP-TO-DATE
+> Task :react-native-async-storage_async-storage:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateReleaseRFile UP-TO-DATE
+> Task :react-native-async-storage_async-storage:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-async-storage_async-storage:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :shopify_react-native-skia:generateReleaseBuildConfig UP-TO-DATE
+> Task :shopify_react-native-skia:generateReleaseResValues UP-TO-DATE
+> Task :shopify_react-native-skia:generateReleaseResources UP-TO-DATE
+> Task :shopify_react-native-skia:packageReleaseResources UP-TO-DATE
+> Task :shopify_react-native-skia:parseReleaseLocalResources UP-TO-DATE
+> Task :shopify_react-native-skia:generateReleaseRFile UP-TO-DATE
+> Task :shopify_react-native-skia:javaPreCompileRelease UP-TO-DATE
+> Task :shopify_react-native-skia:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :shopify_react-native-skia:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo:generateReleaseResValues UP-TO-DATE
+> Task :expo:generateReleaseResources UP-TO-DATE
+> Task :expo:packageReleaseResources UP-TO-DATE
+> Task :expo:parseReleaseLocalResources UP-TO-DATE
+> Task :expo:generateReleaseRFile UP-TO-DATE
+> Task :expo-constants:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-constants:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-constants:generateReleaseResValues UP-TO-DATE
+> Task :expo-constants:generateReleaseResources UP-TO-DATE
+> Task :expo-constants:packageReleaseResources UP-TO-DATE
+> Task :expo-constants:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-constants:generateReleaseRFile UP-TO-DATE
+> Task :expo-modules-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-modules-core:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-modules-core:generateReleaseResValues UP-TO-DATE
+> Task :expo-modules-core:generateReleaseResources UP-TO-DATE
+> Task :expo-modules-core:packageReleaseResources UP-TO-DATE
+> Task :expo-modules-core:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-modules-core:generateReleaseRFile UP-TO-DATE
+> Task :expo-modules-core:compileReleaseKotlin UP-TO-DATE
+> Task :expo-modules-core:javaPreCompileRelease UP-TO-DATE
+> Task :expo-modules-core:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-modules-core:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo-constants:compileReleaseKotlin UP-TO-DATE
+> Task :expo-constants:javaPreCompileRelease UP-TO-DATE
+> Task :expo-constants:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-constants:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo-jarvis-brain:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-jarvis-brain:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-jarvis-brain:generateReleaseResValues UP-TO-DATE
+> Task :expo-jarvis-brain:generateReleaseResources UP-TO-DATE
+> Task :expo-jarvis-brain:packageReleaseResources UP-TO-DATE
+> Task :expo-jarvis-brain:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-jarvis-brain:generateReleaseRFile UP-TO-DATE
+> Task :expo-jarvis-brain:compileReleaseKotlin UP-TO-DATE
+> Task :expo-jarvis-brain:javaPreCompileRelease UP-TO-DATE
+> Task :expo-jarvis-brain:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-jarvis-brain:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo-jarvis-overlay:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-jarvis-overlay:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-jarvis-overlay:generateReleaseResValues UP-TO-DATE
+> Task :expo-jarvis-overlay:generateReleaseResources UP-TO-DATE
+> Task :expo-jarvis-overlay:packageReleaseResources UP-TO-DATE
+> Task :expo-jarvis-overlay:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-jarvis-overlay:generateReleaseRFile UP-TO-DATE
+> Task :expo-jarvis-overlay:compileReleaseKotlin UP-TO-DATE
+> Task :expo-jarvis-overlay:javaPreCompileRelease UP-TO-DATE
+> Task :expo-jarvis-overlay:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-jarvis-overlay:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo-jarvis-phone:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-jarvis-phone:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-jarvis-phone:generateReleaseResValues UP-TO-DATE
+> Task :expo-jarvis-phone:generateReleaseResources UP-TO-DATE
+> Task :expo-jarvis-phone:packageReleaseResources UP-TO-DATE
+> Task :expo-jarvis-phone:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-jarvis-phone:generateReleaseRFile UP-TO-DATE
+> Task :expo-jarvis-phone:compileReleaseKotlin UP-TO-DATE
+> Task :expo-jarvis-phone:javaPreCompileRelease UP-TO-DATE
+> Task :expo-jarvis-phone:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-jarvis-phone:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo-thermal-status:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-thermal-status:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-thermal-status:generateReleaseResValues UP-TO-DATE
+> Task :expo-thermal-status:generateReleaseResources UP-TO-DATE
+> Task :expo-thermal-status:packageReleaseResources UP-TO-DATE
+> Task :expo-thermal-status:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-thermal-status:generateReleaseRFile UP-TO-DATE
+> Task :expo-thermal-status:compileReleaseKotlin UP-TO-DATE
+> Task :expo-thermal-status:javaPreCompileRelease UP-TO-DATE
+> Task :expo-thermal-status:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo-thermal-status:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :expo:compileReleaseKotlin UP-TO-DATE
+> Task :expo:javaPreCompileRelease UP-TO-DATE
+> Task :expo:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :expo:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :llama.rn:generateReleaseBuildConfig UP-TO-DATE
+> Task :llama.rn:generateReleaseResValues UP-TO-DATE
+> Task :llama.rn:generateReleaseResources UP-TO-DATE
+> Task :llama.rn:packageReleaseResources UP-TO-DATE
+> Task :llama.rn:parseReleaseLocalResources UP-TO-DATE
+> Task :llama.rn:generateReleaseRFile UP-TO-DATE
+> Task :llama.rn:javaPreCompileRelease UP-TO-DATE
+> Task :llama.rn:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :llama.rn:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-reanimated:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-reanimated:generateReleaseResValues UP-TO-DATE
+> Task :react-native-reanimated:generateReleaseResources UP-TO-DATE
+> Task :react-native-reanimated:packageReleaseResources UP-TO-DATE
+> Task :react-native-reanimated:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-reanimated:generateReleaseRFile UP-TO-DATE
+> Task :react-native-reanimated:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-reanimated:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-reanimated:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-svg:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-svg:generateReleaseResValues UP-TO-DATE
+> Task :react-native-svg:generateReleaseResources UP-TO-DATE
+> Task :react-native-svg:packageReleaseResources UP-TO-DATE
+> Task :react-native-svg:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-svg:generateReleaseRFile UP-TO-DATE
+> Task :react-native-svg:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-svg:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :react-native-svg:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :react-native-worklets:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-modules-core:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-constants:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-jarvis-brain:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-jarvis-overlay:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-jarvis-phone:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :expo-thermal-status:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+> Task :app:buildKotlinToolingMetadata UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-constants:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-jarvis-brain:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-jarvis-overlay:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-jarvis-phone:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-modules-core:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-thermal-status:writeReleaseAarMetadata UP-TO-DATE
+> Task :llama.rn:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-async-storage_async-storage:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-audio-api:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-executorch:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-nitro-modules:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-openwakeword:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-reanimated:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-safe-area-context:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-screens:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-svg:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-webview:writeReleaseAarMetadata UP-TO-DATE
+> Task :react-native-worklets:writeReleaseAarMetadata UP-TO-DATE
+> Task :shopify_react-native-skia:writeReleaseAarMetadata UP-TO-DATE
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+> Task :app:createBundleReleaseJsAndAssets UP-TO-DATE
+> Task :app:generateReleaseResValues UP-TO-DATE
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :app:generateReleaseResources UP-TO-DATE
+> Task :app:mergeReleaseResources UP-TO-DATE
+> Task :app:packageReleaseResources UP-TO-DATE
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+> Task :expo:extractDeepLinksRelease UP-TO-DATE
+> Task :expo:processReleaseManifest UP-TO-DATE
+> Task :expo-constants:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-constants:processReleaseManifest UP-TO-DATE
+> Task :expo-jarvis-brain:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-jarvis-brain:processReleaseManifest UP-TO-DATE
+> Task :expo-jarvis-overlay:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-jarvis-overlay:processReleaseManifest UP-TO-DATE
+> Task :expo-jarvis-phone:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-jarvis-phone:processReleaseManifest UP-TO-DATE
+> Task :expo-modules-core:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-modules-core:processReleaseManifest UP-TO-DATE
+> Task :expo-thermal-status:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-thermal-status:processReleaseManifest UP-TO-DATE
+> Task :llama.rn:extractDeepLinksRelease UP-TO-DATE
+> Task :llama.rn:processReleaseManifest UP-TO-DATE
+> Task :react-native-async-storage_async-storage:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-async-storage_async-storage:processReleaseManifest UP-TO-DATE
+> Task :react-native-audio-api:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-audio-api:processReleaseManifest UP-TO-DATE
+> Task :react-native-executorch:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-executorch:processReleaseManifest UP-TO-DATE
+> Task :react-native-nitro-modules:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-nitro-modules:processReleaseManifest UP-TO-DATE
+> Task :react-native-openwakeword:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-openwakeword:processReleaseManifest UP-TO-DATE
+> Task :react-native-reanimated:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-reanimated:processReleaseManifest UP-TO-DATE
+> Task :react-native-safe-area-context:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-safe-area-context:processReleaseManifest UP-TO-DATE
+> Task :react-native-screens:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-screens:processReleaseManifest UP-TO-DATE
+> Task :react-native-svg:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-svg:processReleaseManifest UP-TO-DATE
+> Task :react-native-webview:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-webview:processReleaseManifest UP-TO-DATE
+> Task :react-native-worklets:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-worklets:processReleaseManifest UP-TO-DATE
+> Task :shopify_react-native-skia:extractDeepLinksRelease UP-TO-DATE
+> Task :shopify_react-native-skia:processReleaseManifest UP-TO-DATE
+> Task :app:processReleaseMainManifest UP-TO-DATE
+> Task :app:processReleaseManifest UP-TO-DATE
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+> Task :expo:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-constants:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-jarvis-brain:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-jarvis-overlay:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-jarvis-phone:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-modules-core:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-thermal-status:compileReleaseLibraryResources UP-TO-DATE
+> Task :llama.rn:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-async-storage_async-storage:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-audio-api:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-executorch:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-nitro-modules:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-openwakeword:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-reanimated:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-safe-area-context:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-screens:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-svg:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-webview:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-worklets:compileReleaseLibraryResources UP-TO-DATE
+> Task :shopify_react-native-skia:compileReleaseLibraryResources UP-TO-DATE
+> Task :app:processReleaseResources UP-TO-DATE
+> Task :expo:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :llama.rn:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-async-storage_async-storage:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-audio-api:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-executorch:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-openwakeword:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-reanimated:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-safe-area-context:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-screens:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-svg:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :react-native-webview:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :shopify_react-native-skia:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:compileReleaseKotlin UP-TO-DATE
+> Task :app:javaPreCompileRelease UP-TO-DATE
+> Task :app:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :app:dexBuilderRelease UP-TO-DATE
+> Task :app:desugarReleaseFileDependencies UP-TO-DATE
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+> Task :app:mergeExtDexRelease UP-TO-DATE
+> Task :app:mergeDexRelease UP-TO-DATE
+> Task :expo:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-constants:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-jarvis-brain:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-jarvis-overlay:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-jarvis-phone:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-modules-core:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-thermal-status:prepareReleaseArtProfile UP-TO-DATE
+> Task :llama.rn:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-async-storage_async-storage:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-audio-api:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-executorch:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-nitro-modules:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-openwakeword:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-reanimated:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-safe-area-context:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-screens:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-svg:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-webview:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-worklets:prepareReleaseArtProfile UP-TO-DATE
+> Task :shopify_react-native-skia:prepareReleaseArtProfile UP-TO-DATE
+> Task :app:mergeReleaseArtProfile UP-TO-DATE
+> Task :react-native-audio-api:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-executorch:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-openwakeword:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-nitro-modules:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-safe-area-context:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-screens:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-webview:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :shopify_react-native-skia:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :llama.rn:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-reanimated:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-svg:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :react-native-worklets:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-modules-core:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-constants:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-jarvis-brain:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-jarvis-overlay:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-jarvis-phone:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :expo-thermal-status:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :app:mergeReleaseShaders UP-TO-DATE
+> Task :app:mergeReleaseGlobalSynthetics UP-TO-DATE
+> Task :app:compileReleaseArtProfile UP-TO-DATE
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :expo:mergeReleaseShaders UP-TO-DATE
+> Task :expo:compileReleaseShaders NO-SOURCE
+> Task :expo:generateReleaseAssets UP-TO-DATE
+> Task :expo:mergeReleaseAssets UP-TO-DATE
+> Task :expo-constants:mergeReleaseShaders UP-TO-DATE
+> Task :expo-constants:compileReleaseShaders NO-SOURCE
+> Task :expo-constants:generateReleaseAssets UP-TO-DATE
+> Task :expo-constants:mergeReleaseAssets
+> Task :expo-jarvis-brain:mergeReleaseShaders UP-TO-DATE
+> Task :expo-jarvis-brain:compileReleaseShaders NO-SOURCE
+> Task :expo-jarvis-brain:generateReleaseAssets UP-TO-DATE
+> Task :expo-jarvis-brain:mergeReleaseAssets UP-TO-DATE
+> Task :expo-jarvis-overlay:mergeReleaseShaders UP-TO-DATE
+> Task :expo-jarvis-overlay:compileReleaseShaders NO-SOURCE
+> Task :expo-jarvis-overlay:generateReleaseAssets UP-TO-DATE
+> Task :expo-jarvis-overlay:mergeReleaseAssets UP-TO-DATE
+> Task :expo-jarvis-phone:mergeReleaseShaders UP-TO-DATE
+> Task :expo-jarvis-phone:compileReleaseShaders NO-SOURCE
+> Task :expo-jarvis-phone:generateReleaseAssets UP-TO-DATE
+> Task :expo-jarvis-phone:mergeReleaseAssets UP-TO-DATE
+> Task :expo-modules-core:mergeReleaseShaders UP-TO-DATE
+> Task :expo-modules-core:compileReleaseShaders NO-SOURCE
+> Task :expo-modules-core:generateReleaseAssets UP-TO-DATE
+> Task :expo-modules-core:mergeReleaseAssets UP-TO-DATE
+> Task :expo-thermal-status:mergeReleaseShaders UP-TO-DATE
+> Task :expo-thermal-status:compileReleaseShaders NO-SOURCE
+> Task :expo-thermal-status:generateReleaseAssets UP-TO-DATE
+> Task :expo-thermal-status:mergeReleaseAssets UP-TO-DATE
+> Task :llama.rn:mergeReleaseShaders UP-TO-DATE
+> Task :llama.rn:compileReleaseShaders NO-SOURCE
+> Task :llama.rn:generateReleaseAssets UP-TO-DATE
+> Task :llama.rn:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-async-storage_async-storage:compileReleaseShaders NO-SOURCE
+> Task :react-native-async-storage_async-storage:generateReleaseAssets UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-audio-api:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-audio-api:compileReleaseShaders NO-SOURCE
+> Task :react-native-audio-api:generateReleaseAssets UP-TO-DATE
+> Task :react-native-audio-api:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-executorch:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-executorch:compileReleaseShaders NO-SOURCE
+> Task :react-native-executorch:generateReleaseAssets UP-TO-DATE
+> Task :react-native-executorch:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-nitro-modules:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-nitro-modules:compileReleaseShaders NO-SOURCE
+> Task :react-native-nitro-modules:generateReleaseAssets UP-TO-DATE
+> Task :react-native-nitro-modules:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-openwakeword:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-openwakeword:compileReleaseShaders NO-SOURCE
+> Task :react-native-openwakeword:generateReleaseAssets UP-TO-DATE
+> Task :react-native-openwakeword:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-reanimated:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-reanimated:compileReleaseShaders NO-SOURCE
+> Task :react-native-reanimated:generateReleaseAssets UP-TO-DATE
+> Task :react-native-reanimated:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-safe-area-context:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-safe-area-context:compileReleaseShaders NO-SOURCE
+> Task :react-native-safe-area-context:generateReleaseAssets UP-TO-DATE
+> Task :react-native-safe-area-context:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-screens:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-screens:compileReleaseShaders NO-SOURCE
+> Task :react-native-screens:generateReleaseAssets UP-TO-DATE
+> Task :react-native-screens:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-svg:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-svg:compileReleaseShaders NO-SOURCE
+> Task :react-native-svg:generateReleaseAssets UP-TO-DATE
+> Task :react-native-svg:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-webview:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-webview:compileReleaseShaders NO-SOURCE
+> Task :react-native-webview:generateReleaseAssets UP-TO-DATE
+> Task :react-native-webview:mergeReleaseAssets UP-TO-DATE
+> Task :react-native-worklets:mergeReleaseShaders UP-TO-DATE
+> Task :react-native-worklets:compileReleaseShaders NO-SOURCE
+> Task :react-native-worklets:generateReleaseAssets UP-TO-DATE
+> Task :react-native-worklets:mergeReleaseAssets UP-TO-DATE
+> Task :shopify_react-native-skia:mergeReleaseShaders UP-TO-DATE
+> Task :shopify_react-native-skia:compileReleaseShaders NO-SOURCE
+> Task :shopify_react-native-skia:generateReleaseAssets UP-TO-DATE
+> Task :shopify_react-native-skia:mergeReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+> Task :app:processReleaseJavaRes UP-TO-DATE
+> Task :expo:processReleaseJavaRes UP-TO-DATE
+> Task :expo-constants:processReleaseJavaRes UP-TO-DATE
+> Task :expo-jarvis-brain:processReleaseJavaRes UP-TO-DATE
+> Task :expo-jarvis-overlay:processReleaseJavaRes UP-TO-DATE
+> Task :expo-jarvis-phone:processReleaseJavaRes UP-TO-DATE
+> Task :expo-modules-core:processReleaseJavaRes UP-TO-DATE
+> Task :expo-thermal-status:processReleaseJavaRes UP-TO-DATE
+> Task :llama.rn:processReleaseJavaRes NO-SOURCE
+> Task :react-native-async-storage_async-storage:processReleaseJavaRes NO-SOURCE
+> Task :react-native-audio-api:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-executorch:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-nitro-modules:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-openwakeword:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-reanimated:processReleaseJavaRes NO-SOURCE
+> Task :react-native-safe-area-context:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-screens:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-svg:processReleaseJavaRes NO-SOURCE
+> Task :react-native-webview:processReleaseJavaRes UP-TO-DATE
+> Task :react-native-worklets:processReleaseJavaRes NO-SOURCE
+> Task :shopify_react-native-skia:processReleaseJavaRes NO-SOURCE
+> Task :app:mergeReleaseJavaResource UP-TO-DATE
+> Task :app:optimizeReleaseResources UP-TO-DATE
+> Task :app:collectReleaseDependencies UP-TO-DATE
+> Task :app:sdkReleaseDependencyData UP-TO-DATE
+> Task :app:validateSigningRelease UP-TO-DATE
+> Task :app:writeReleaseAppMetadata UP-TO-DATE
+> Task :app:writeReleaseSigningConfigVersions UP-TO-DATE
+> Task :app:compressReleaseAssets
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleRelease
+
+[Incubating] Problems report is available at: file:///workspace/jarvis-rog/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 37s
+587 actionable tasks: 38 executed, 549 up-to-date
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+6b1acfe527b1da3914004710314509f4849924db29c493f817bb0bbbdea790db  artifacts/Jarvis-0.5.2-arm64.apk
+{
+  "apk": "Jarvis-0.5.2-arm64.apk",
+  "path": "/workspace/jarvis-rog/artifacts/Jarvis-0.5.2-arm64.apk",
+  "size": 62114209,
+  "sha256": "6b1acfe527b1da3914004710314509f4849924db29c493f817bb0bbbdea790db",
+  "package": "com.app.localjarviscoach",
+  "versionCode": 2026100801,
+  "versionName": "0.5.2",
+  "sourceCommit": "7edb55dfa52fb553e8cedf81ffdfde91a4971d97",
+  "sourceTree": "6926f5b7ff12a8fd8eae9cd6b5913808dc3b35a0",
+  "branch": "release/jarvis-0.5.2",
+  "buildType": "release",
+  "signing": "Expo debug certificate; sideload preview",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "install": "UNVERIFIED",
+  "launch": "UNVERIFIED",
+  "device": "UNVERIFIED",
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c"
+}

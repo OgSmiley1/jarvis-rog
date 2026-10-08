@@ -1,0 +1,26 @@
+{
+  "version": "0.5.2",
+  "date": "2026-10-08",
+  "sourceCommit": "7edb55dfa52fb553e8cedf81ffdfde91a4971d97",
+  "applicationChecks": {
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "vitest": {"result": "PASS", "tests": 619, "files": 69},
+    "smoke": "PASS"
+  },
+  "installerChecks": {
+    "pythonUnittest": {"result": "PASS", "tests": 15},
+    "bridgeShellSyntax": "PASS"
+  },
+  "scope": "Application checks ran before the final installer file-close, distribution URL and bridge pip-only changes. Python tests ran after installer changes; shell syntax was checked after the bridge repair. Application source was unchanged afterwards.",
+  "githubActions": "BLOCKED: account billing lock prevented the job starting",
+  "device": {
+    "adbConnectedDevices": 0,
+    "install": "UNVERIFIED",
+    "microphoneCapture": "UNVERIFIED",
+    "audibleSpeech": "UNVERIFIED",
+    "offlineInference": "UNVERIFIED",
+    "handsFree": "UNVERIFIED",
+    "overlayLifecycle": "UNVERIFIED"
+  }
+}
