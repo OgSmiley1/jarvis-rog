@@ -36,7 +36,9 @@ def verify_apk(apk, manifest):
         raise ValueError('Wrong release version or Android package')
     if not re.fullmatch(r'[0-9a-f]{40}', manifest.get('sourceCommit', '')):
         raise ValueError('Missing exact source commit')
-    if apk.stat().st_size != manifest['size'] or hashlib.file_digest(apk.open('rb'), 'sha256').hexdigest() != manifest['sha256']:
+    with apk.open('rb') as source:
+        digest = hashlib.file_digest(source, 'sha256').hexdigest()
+    if apk.stat().st_size != manifest['size'] or digest != manifest['sha256']:
         raise ValueError('APK checksum/size mismatch; installation refused')
     with zipfile.ZipFile(apk) as bundle:
         config = json.loads(bundle.read('assets/app.config'))
