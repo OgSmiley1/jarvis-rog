@@ -2,7 +2,7 @@
 """Install the APK named by a verified release manifest without wiping user data."""
 import hashlib, json, pathlib, shutil, subprocess, sys, tempfile, urllib.request, zipfile
 
-RELEASE = 'https://api.github.com/repos/OgSmiley1/jarvis-rog/releases/tags/v0.5.1-preview'
+RELEASE = 'https://api.github.com/repos/OgSmiley1/jarvis-rog/releases/tags/v0.5.2-preview'
 
 def run(*args, check=True):
     return subprocess.run(args, check=check, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout

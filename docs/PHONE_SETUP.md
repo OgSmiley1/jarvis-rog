@@ -2,12 +2,16 @@
 
 Do these steps once after installing the APK.
 
+For the current APK and Termux command, use [0.5.2 release setup](RELEASE_0.5.2.md).
+Keep Local Only off during initial model/voice downloads; enable it after resources
+are installed. Existing models should be reused rather than downloaded again.
+
 1. Open **JARVIS ROG**.
 2. Allow **Microphone** and **Notifications** when Android asks.
 3. Open **Settings** inside JARVIS.
 4. Tap **Download free local brain**. Keep the app open until the download finishes and JARVIS shows the brain as ready.
 5. In **Owner profile**, write any private preferences or personal context you want JARVIS to know. This stays in the app's local settings.
-6. Keep **Hands-free JARVIS** ON and leave the wake word as **Jarvis** unless you want another word.
+6. Test **Talk** first. Enable **Hands-free JARVIS** only after microphone permission and audio capture work. The setting alone does not prove wake-word listening is active.
 7. In Android: **Settings → Apps → Default apps → Digital assistant app → JARVIS ROG**.
 8. In Android: **Settings → Apps → JARVIS ROG → Battery → Unrestricted** (wording can vary by Android/ROG firmware).
 9. Optional but recommended for app-control tools: install **Termux** and **Termux:Boot** from F-Droid, place this repo's `termux` folder in Termux, then run:

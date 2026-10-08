@@ -1,6 +1,12 @@
-# JARVIS 0.5.1 release evidence
+# JARVIS 0.5.2 release evidence
 
 This is the current status authority; older session notes describe historical builds.
+
+0.5.2 carries forward the runtime repairs below and adds a versioned Termux
+installer with APK checksum, size, embedded version and source-commit checks.
+Version code: 2026100801. See [release setup](RELEASE_0.5.2.md).
+The GitHub release assets contain the final build manifest and verification
+results. The checks below describe the earlier 0.5.1 checkpoint where named.
 
 ## Completed software work
 
@@ -27,7 +33,7 @@ This is the current status authority; older session notes describe historical bu
 - COMPLETE: release manifest task with full JDK 17; merged manifest includes RECORD_AUDIO and one microphone/playback audio service. Final binary package inspection remains a separate gate.
 - UNVERIFIED: Android runtime in this workspace; no ADB device is attached. The previous checkpoint mentioned Android 11 emulator exploration but supplied no saved runtime evidence here. Physical ROG Phone unavailable.
 - UNVERIFIED: real microphone quality, audible TTS, Qwen3 4B performance/memory pressure on target phone, physical-device update survival.
-- UNVERIFIED: final 0.5.1 package until recorded in `artifacts/release-manifest.json` after the native build.
+- Final package evidence is generated in `artifacts/release-manifest.json` and published alongside the APK; it does not establish device acceptance.
 - BLOCKED: production signing key is unavailable here. APK uses the same generated Expo debug certificate as the prior local 0.4.1 preview. It cannot update an installation signed with a different EAS/store certificate without that original signing key.
 
 The APK contains the native application and bundled JS, not multi-gigabyte GGUF or speech weights. Those install once into persistent model folders. Routine in-place updates preserve app-private data too; uninstall can remove app-private data. Shared Download/JARVIS preservation requires Android storage permission.
@@ -41,5 +47,5 @@ Local Only rejects unknown/network system voices rather than silently using a ne
 The follow-up recorder verifies the APK's embedded commit/version and the audio
 service's own non-exported microphone/playback types. The installer prefers a
 locally generated release manifest when run from a build checkout. As of this
-recheck, GitHub has no published `v0.5.1-preview`; no missing release URL is
-presented as an available download. The new Android version code is 2026100501.
+0.5.1 recheck, GitHub had no published `v0.5.1-preview`. The 0.5.2 installers
+explicitly target `v0.5.2-preview`, whose assets must be published before use.
