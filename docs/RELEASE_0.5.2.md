@@ -10,7 +10,7 @@ package: `com.app.localjarviscoach`; ABI: `arm64-v8a`.
 Use a current Termux installation. Paste:
 
 ```bash
-pkg install -y python curl termux-tools && curl --fail --location --retry 3 https://github.com/OgSmiley1/jarvis-rog/releases/download/v0.5.2-preview/install-on-termux.py -o "$HOME/jarvis-install-0.5.2.py" && python "$HOME/jarvis-install-0.5.2.py" --bridge
+pkg install -y python curl termux-tools && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/apk-0.5.2/install-on-termux.py -o "$HOME/jarvis-install-0.5.2.py" && python "$HOME/jarvis-install-0.5.2.py" --bridge
 ```
 
 This downloads the release manifest and APK, checks size/SHA-256 and embedded
@@ -20,6 +20,12 @@ installs Python bridge dependencies and starts the bridge. Copy the bridge secre
 printed in your Termux session into JARVIS's Advanced / Termux settings. Omit
 `--bridge` if you do not need that integration. Install/open Termux:Boot separately
 if you want the bridge to start after reboot.
+
+The APK and evidence are stored under the immutable GitHub `apk-0.5.2` tag on
+the distribution branch and linked from the release page. GitHub's release-asset
+upload endpoint rejected the build environment's credentials; ordinary repository
+pushes work. The `v0.5.2-preview` release tag identifies application source, while
+`apk-0.5.2` identifies the distribution files.
 
 The APK uses the preview Expo debug certificate. A differently signed installed
 app cannot be updated with it. If Android reports a signing conflict, preserve
