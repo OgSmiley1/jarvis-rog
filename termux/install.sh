@@ -12,11 +12,11 @@ pkg install -y python git
 cd "$(dirname "$0")"
 JARVIS_TERMUX_DIR="$(pwd)"
 if [ ! -d .venv ]; then
-  python -m venv .venv
+  # The bridge uses only Python's standard library. Avoid replacing Termux's
+  # package-managed pip or requiring an unnecessary PyPI connection.
+  python -m venv --without-pip .venv
 fi
 source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
 
 mkdir -p runtime logs
 chmod 700 runtime logs
