@@ -32,6 +32,19 @@ app cannot be updated with it. If Android reports a signing conflict, preserve
 the installed app and obtain a build signed with its original key. Do not
 uninstall or clear data to work around this.
 
+To save the complete brain, vision, Whisper/VAD, English Kokoro and wake-word
+model pack into `Download/JARVIS/models` before installation, run this instead:
+
+```bash
+pkg install -y python curl termux-tools && termux-setup-storage && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/fb9b01a48db48eb97cc101b289afa6324854d323/scripts/setup-device-0.5.2.py -o "$HOME/jarvis-setup-0.5.2.py" && python "$HOME/jarvis-setup-0.5.2.py"
+```
+
+Allow shared-storage access, close JARVIS while files download, and press Enter
+when prompted. It downloads about 3.63 GB of models plus the APK, checks upstream
+model metadata, verifies every complete model file, then installs the APK and
+optional Termux bridge. It resumes safely if interrupted. After installation,
+grant JARVIS Android's All files access so it can load models from Downloads.
+
 ## Finish setup on the phone
 
 1. Open JARVIS and keep Local Only off during initial downloads. Reuse an existing
