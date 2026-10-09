@@ -24,11 +24,14 @@ export const Linking = {
     if (!/^https?:\/\//i.test(url)) throw new Error('INVALID_URL');
   },
   canOpenURL: async (): Promise<boolean> => true,
+  sendIntent: async (_action: string): Promise<void> => undefined,
+  openSettings: async (): Promise<void> => undefined,
 };
 
 export const PermissionsAndroid = {
   PERMISSIONS: { RECORD_AUDIO: 'android.permission.RECORD_AUDIO' },
   RESULTS: { GRANTED: 'granted', DENIED: 'denied', NEVER_ASK_AGAIN: 'never_ask_again' },
+  check: async (): Promise<boolean> => true,
   request: async (): Promise<string> => 'granted',
 };
 

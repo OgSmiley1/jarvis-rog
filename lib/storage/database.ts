@@ -15,16 +15,41 @@ const DB_NAME = 'jarvis.db';
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export const DEFAULT_SETTINGS: JarvisSettings = {
+  localOnly: false,
   language: 'en',
   defaultMode: 'fast',
   approvedMemoryEnabled: true,
   autoSpeak: false,
+  handsFreeEnabled: false,
+  wakeWord: 'jarvis',
+  ownerProfile: 'Keep explanations simple and direct. Prefer voice-first interaction, local-first operation, free tools where practical, and clear next actions. This assistant is optimized for the ASUS ROG Phone 8 Pro.',
   contextSize: 4096,
   batchSize: 512,
   threads: 6,
   gpuLayers: 99,
   adaptiveRuntime: true,
+  gpuAcceleration: false,
   onlineFreeOnly: true,
+  // Off by default: a network voice sounds better but stops working the moment
+  // the phone loses signal, and JARVIS is local-first.
+  ttsAllowNetworkVoice: false,
+  // Off by default: enabling it lets a question leave the phone.
+  cloudFallbackEnabled: false,
+  cloudFirst: false,
+  cloudAllowTraining: false,
+  floatingOrbEnabled: false,
+  // Off by default: 351 MB should never start downloading on mobile data unasked.
+  neuralVoiceEnabled: false,
+  wakeEngineEnabled: false,
+  chargeReminderEnabled: true,
+  chargeReminderLevel: 0.2,
+  homeCity: 'Ajman',
+  temperatureUnit: 'celsius',
+  strictZeroCost: true,
+  ipLocationAllowed: false,
+  puterConsent: false,
+  coreHintSeen: false,
+  coreLabels: false,
 };
 
 export { SCHEMA_STEPS, SCHEMA_VERSION } from './schema';
@@ -97,6 +122,12 @@ export async function loadSettings(): Promise<JarvisSettings> {
   } catch {
     return DEFAULT_SETTINGS;
   }
+}
+
+/** True once settings were ever saved on this install; false on a fresh one. */
+export async function hasSavedSettings(): Promise<boolean> {
+  const db = await getDb();
+  return Boolean(await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', 'app'));
 }
 
 export async function saveSettings(settings: JarvisSettings): Promise<void> {

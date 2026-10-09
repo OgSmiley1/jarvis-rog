@@ -1,3 +1,4 @@
+import { assertNetworkAllowed } from '@/lib/net/localOnly';
 import * as SecureStore from 'expo-secure-store';
 
 const TOKEN_KEY = 'jarvis.termux.secret';
@@ -16,6 +17,7 @@ export async function callTermux(action: string, params: Record<string, unknown>
   const secret = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!secret) throw new Error('TERMUX_NOT_CONFIGURED');
 
+  assertNetworkAllowed();
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {

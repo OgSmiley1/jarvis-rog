@@ -1,6 +1,7 @@
-import { initLlama, releaseAllLlama, loadLlamaModelInfo } from 'llama.rn';
+import { initLlama, loadLlamaModelInfo } from 'llama.rn';
 import { INTELLIGENCE_MODES } from './intelligenceModes';
 import { requireNonBlankCompletion } from './inferenceResponse';
+import { createThinkFilter, stripThinking } from '@/lib/voice/stripThinking';
 import { planRuntime, type DevicePowerState, type RuntimePlan } from './thermalPlan';
 import type { ModelRuntimeState, RunCompletionInput, RuntimeMetrics } from './types';
 
@@ -35,11 +36,27 @@ export function getModelRuntimeState(): ModelRuntimeState {
   return { ...state };
 }
 
+let lifecycle: Promise<unknown> = Promise.resolve();
+let pendingLoad: { path: string; promise: Promise<ModelRuntimeState> } | null = null;
+export function loadLocalModel(path: string, name: string, options: LoadModelOptions = {}): Promise<ModelRuntimeState> {
+  if (pendingLoad?.path === path) return pendingLoad.promise;
+  const promise = lifecycle.catch(() => undefined).then(() => loadModelExclusive(path, name, options));
+  lifecycle = promise;
+  pendingLoad = { path, promise };
+  void promise.finally(() => { if (pendingLoad?.promise === promise) pendingLoad = null; }).catch(() => undefined);
+  return promise;
+}
+export function unloadLocalModel(): Promise<void> {
+  const promise = lifecycle.catch(() => undefined).then(unloadModelExclusive);
+  lifecycle = promise;
+  return promise;
+}
+
 export async function validateGguf(path: string): Promise<unknown> {
   return loadLlamaModelInfo(path);
 }
 
-export async function loadLocalModel(
+async function loadModelExclusive(
   modelPath: string,
   modelName: string,
   options: LoadModelOptions = {},
@@ -47,7 +64,8 @@ export async function loadLocalModel(
   state = { status: 'loading', modelPath, modelName };
   try {
     if (context) {
-      await releaseAllLlama();
+      await context.stopCompletion();
+      await context.release();
       context = null;
     }
 
@@ -57,16 +75,30 @@ export async function loadLocalModel(
     // readings this yields the previous fixed defaults, so behaviour is
     // unchanged until a real thermal signal arrives.
     const plan = planRuntime(options.device ?? {});
+    const appliedPlan: RuntimePlan = {
+      ...plan,
+      contextSize: options.contextSize ?? plan.contextSize,
+      batchSize: options.batchSize ?? plan.batchSize,
+      threads: options.threads ?? plan.threads,
+      gpuLayers: options.gpuLayers ?? plan.gpuLayers,
+      reason:
+        options.contextSize !== undefined ||
+        options.batchSize !== undefined ||
+        options.threads !== undefined ||
+        options.gpuLayers !== undefined
+          ? `${plan.reason}; explicit runtime overrides applied`
+          : plan.reason,
+    };
     context = await initLlama({
       model: modelPath,
-      n_ctx: options.contextSize ?? plan.contextSize,
-      n_batch: options.batchSize ?? plan.batchSize,
-      n_threads: options.threads ?? plan.threads,
-      n_gpu_layers: options.gpuLayers ?? plan.gpuLayers,
+      n_ctx: appliedPlan.contextSize,
+      n_batch: appliedPlan.batchSize,
+      n_threads: appliedPlan.threads,
+      n_gpu_layers: appliedPlan.gpuLayers,
       use_mmap: true,
       use_mlock: options.useMlock ?? false,
     });
-    activePlan = plan;
+    activePlan = appliedPlan;
 
     state = {
       status: 'ready',
@@ -89,8 +121,8 @@ export async function loadLocalModel(
   }
 }
 
-export async function unloadLocalModel(): Promise<void> {
-  if (context) await releaseAllLlama();
+async function unloadModelExclusive(): Promise<void> {
+  if (context) { await context.stopCompletion(); await context.release(); }
   context = null;
   activePlan = null;
   state = { status: 'unloaded' };
@@ -103,47 +135,71 @@ export async function stopGeneration(): Promise<void> {
 export async function runCompletion(input: RunCompletionInput): Promise<{ text: string; metrics: RuntimeMetrics }> {
   if (!context) throw new Error('MODEL_NOT_LOADED');
 
-  await context.clearCache(false);
-  const mode = INTELLIGENCE_MODES[input.mode];
-  const startedAt = performance.now();
-  let firstTokenAt: number | undefined;
-  let streamedTokens = 0;
-
-  const result = await context.completion(
-    {
-      messages: input.messages,
-      n_predict: mode.maxTokens,
-      temperature: mode.temperature,
-      top_p: mode.topP,
-      top_k: mode.topK,
-      stop: ['</s>', '<|end|>', '<|eot_id|>', '<|end_of_text|>', '<|im_end|>', '<|endoftext|>'],
-      ...(input.grammar ? { grammar: input.grammar } : {}),
-    },
-    (data) => {
-      const token = data.token ?? '';
-      if (token) {
-        streamedTokens += 1;
-        if (firstTokenAt === undefined) firstTokenAt = performance.now();
-        input.onToken?.(token);
-      }
-    },
-  );
-
-  const endedAt = performance.now();
-  const text = requireNonBlankCompletion(result.text);
-  const nativeTimings = result.timings;
-  const metrics: RuntimeMetrics = {
-    totalMs: endedAt - startedAt,
-    firstTokenMs: firstTokenAt === undefined ? undefined : firstTokenAt - startedAt,
-    generatedTokens: streamedTokens || undefined,
-    tokensPerSecond:
-      typeof nativeTimings?.predicted_per_second === 'number'
-        ? nativeTimings.predicted_per_second
-        : streamedTokens > 0
-          ? streamedTokens / ((endedAt - startedAt) / 1000)
-          : undefined,
-    nativeTimings,
+  const activeContext = context;
+  const assertActive = () => {
+    if (input.signal?.aborted) throw new Error('TURN_CANCELLED');
+    if (input.deadlineAt !== undefined && Date.now() >= input.deadlineAt) throw new Error('TURN_DEADLINE');
   };
+  assertActive();
+  const onAbort = () => { void activeContext.stopCompletion().catch(() => undefined); };
+  input.signal?.addEventListener('abort', onAbort, { once: true });
+  const deadlineTimer = input.deadlineAt === undefined ? undefined : setTimeout(onAbort, Math.max(0, input.deadlineAt - Date.now()));
+  try {
+    const mode = INTELLIGENCE_MODES[input.mode];
+    // Reasoning never reaches the screen or the voice: the chat template is told
+    // not to think, and anything that still arrives inside <think> is dropped
+    // from the stream here, before any caller sees a token.
+    const thinkFilter = createThinkFilter();
+    const startedAt = performance.now();
+    let firstTokenAt: number | undefined;
+    let streamedTokens = 0;
 
-  return { text, metrics };
+    const result = await activeContext.completion(
+      {
+        messages: input.messages,
+        n_predict: Math.max(1, Math.min(mode.maxTokens, input.maxTokens ?? mode.maxTokens)),
+        temperature: mode.temperature,
+        top_p: mode.topP,
+        top_k: mode.topK,
+        stop: ['</s>', '<|end|>', '<|eot_id|>', '<|end_of_text|>', '<|im_end|>', '<|endoftext|>'],
+        enable_thinking: input.thinking ?? false,
+        ...(input.grammar ? { grammar: input.grammar } : {}),
+      },
+      (data) => {
+        if (input.signal?.aborted || (input.deadlineAt !== undefined && Date.now() >= input.deadlineAt)) return;
+        const token = data.token ?? '';
+        if (!token) return;
+        streamedTokens += 1;
+        const visible = thinkFilter.push(token);
+        if (visible) {
+          if (firstTokenAt === undefined) firstTokenAt = performance.now();
+          input.onToken?.(visible);
+        }
+      },
+    );
+
+    assertActive();
+    const tail = thinkFilter.end();
+    if (tail) input.onToken?.(tail);
+    const endedAt = performance.now();
+    const text = requireNonBlankCompletion(stripThinking(result.text));
+    const nativeTimings = result.timings;
+    const metrics: RuntimeMetrics = {
+      totalMs: endedAt - startedAt,
+      firstTokenMs: firstTokenAt === undefined ? undefined : firstTokenAt - startedAt,
+      generatedTokens: streamedTokens || undefined,
+      tokensPerSecond:
+        typeof nativeTimings?.predicted_per_second === 'number'
+          ? nativeTimings.predicted_per_second
+          : streamedTokens > 0
+            ? streamedTokens / ((endedAt - startedAt) / 1000)
+            : undefined,
+      nativeTimings,
+    };
+
+    return { text, metrics };
+  } finally {
+    input.signal?.removeEventListener('abort', onAbort);
+    if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+  }
 }

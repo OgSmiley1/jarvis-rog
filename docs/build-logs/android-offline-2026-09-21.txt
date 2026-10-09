@@ -1,0 +1,302 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-constants[0m (18.0.14)
+  - [32mexpo-modules-core[0m (3.0.30)
+  - [32mexpo-thermal-status[0m (1.0.0)
+  - [33m[📦][0m [32mexpo-application[0m (7.0.8)
+  - [33m[📦][0m [32mexpo-asset[0m (12.0.13)
+  - [33m[📦][0m [32mexpo-battery[0m (10.0.8)
+  - [33m[📦][0m [32mexpo-device[0m (8.0.10)
+  - [33m[📦][0m [32mexpo-document-picker[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-file-system[0m (19.0.24)
+  - [33m[📦][0m [32mexpo-font[0m (14.0.12)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-linking[0m (8.0.12)
+  - [33m[📦][0m [32mexpo-notifications[0m (0.32.17)
+  - [33m[📦][0m [32mexpo-secure-store[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-speech[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-sqlite[0m (16.0.10)
+  - [33m[📦][0m [32mexpo-system-ui[0m (6.0.9)
+
+
+> Configure project :llama.rn
+🚫 Hexagon SDK not found — building CPU-only
+
+[Incubating] Problems report is available at: file:///workspace/scratch/9a054fd1b2ae/jarvis-active/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+A problem occurred configuring project ':react-native-executorch'.
+> Could not resolve all dependencies for configuration 'classpath'.
+   > Could not resolve org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:gradle-settings-api:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:repository:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:aaptcompiler:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:shared:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.lint:lint-model:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > androidx.databinding:databinding-compiler-common:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-emulator-control-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-retention-proto:31.4.2
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20 available for offline mode.
+   > Could not resolve commons-io:commons-io:2.13.0.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > androidx.databinding:databinding-compiler-common:8.4.2
+      > No cached version of commons-io:commons-io:2.13.0 available for offline mode.
+      > No cached version of commons-io:commons-io:2.13.0 available for offline mode.
+      > No cached version of commons-io:commons-io:2.13.0 available for offline mode.
+   > Could not resolve org.ow2.asm:asm-analysis:9.6.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of org.ow2.asm:asm-analysis:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-analysis:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-analysis:9.6 available for offline mode.
+   > Could not resolve org.ow2.asm:asm-commons:9.6.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of org.ow2.asm:asm-commons:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-commons:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-commons:9.6 available for offline mode.
+   > Could not resolve org.ow2.asm:asm-util:9.6.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of org.ow2.asm:asm-util:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-util:9.6 available for offline mode.
+      > No cached version of org.ow2.asm:asm-util:9.6 available for offline mode.
+   > Could not resolve org.bouncycastle:bcpkix-jdk18on:1.77.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+      > No cached version of org.bouncycastle:bcpkix-jdk18on:1.77 available for offline mode.
+      > No cached version of org.bouncycastle:bcpkix-jdk18on:1.77 available for offline mode.
+      > No cached version of org.bouncycastle:bcpkix-jdk18on:1.77 available for offline mode.
+   > Could not resolve com.google.protobuf:protobuf-java:3.22.3.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.ddms:ddmlib:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:aapt2-proto:8.4.2-11315950
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:aaptcompiler:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-device-provider-ddmlib-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-device-provider-gradle-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-additional-test-output-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-coverage-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-emulator-control-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-logcat-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-apk-installer-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-host-retention-proto:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of com.google.protobuf:protobuf-java:3.22.3 available for offline mode.
+      > No cached version of com.google.protobuf:protobuf-java:3.22.3 available for offline mode.
+      > No cached version of com.google.protobuf:protobuf-java:3.22.3 available for offline mode.
+   > Could not resolve com.google.protobuf:protobuf-java-util:3.22.3.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of com.google.protobuf:protobuf-java-util:3.22.3 available for offline mode.
+      > No cached version of com.google.protobuf:protobuf-java-util:3.22.3 available for offline mode.
+      > No cached version of com.google.protobuf:protobuf-java-util:3.22.3 available for offline mode.
+   > Could not resolve io.grpc:grpc-core:1.57.0.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of io.grpc:grpc-core:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-core:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-core:1.57.0 available for offline mode.
+   > Could not resolve io.grpc:grpc-netty:1.57.0.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of io.grpc:grpc-netty:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-netty:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-netty:1.57.0 available for offline mode.
+   > Could not resolve io.grpc:grpc-protobuf:1.57.0.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of io.grpc:grpc-protobuf:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-protobuf:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-protobuf:1.57.0 available for offline mode.
+   > Could not resolve io.grpc:grpc-stub:1.57.0.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of io.grpc:grpc-stub:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-stub:1.57.0 available for offline mode.
+      > No cached version of io.grpc:grpc-stub:1.57.0 available for offline mode.
+   > Could not resolve com.google.testing.platform:core-proto:0.0.9-alpha02.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of com.google.testing.platform:core-proto:0.0.9-alpha02 available for offline mode.
+      > No cached version of com.google.testing.platform:core-proto:0.0.9-alpha02 available for offline mode.
+      > No cached version of com.google.testing.platform:core-proto:0.0.9-alpha02 available for offline mode.
+   > Could not resolve com.android.tools.build:builder:8.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of com.android.tools.build:builder:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:builder:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:builder:8.4.2 available for offline mode.
+   > Could not resolve com.android.tools.build:builder-model:8.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.lint:lint-model:31.4.2
+      > No cached version of com.android.tools.build:builder-model:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:builder-model:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:builder-model:8.4.2 available for offline mode.
+   > Could not resolve com.android.tools.build:gradle-api:8.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2
+      > No cached version of com.android.tools.build:gradle-api:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:gradle-api:8.4.2 available for offline mode.
+      > No cached version of com.android.tools.build:gradle-api:8.4.2 available for offline mode.
+   > Could not resolve com.android.tools:common:31.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdklib:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:repository:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.ddms:ddmlib:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:aaptcompiler:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:shared:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.lint:lint-model:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:builder-test-api:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.layoutlib:layoutlib-api:31.4.2
+      > No cached version of com.android.tools:common:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:common:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:common:31.4.2 available for offline mode.
+   > Could not resolve com.google.guava:guava:32.0.1-jre.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:aaptcompiler:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:crash:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:shared:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.lint:lint-typedef-remover:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > androidx.databinding:databinding-compiler-common:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:builder-test-api:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.utp:android-test-plugin-result-listener-gradle-proto:31.4.2
+      > No cached version of com.google.guava:guava:32.0.1-jre available for offline mode.
+      > No cached version of com.google.guava:guava:32.0.1-jre available for offline mode.
+      > No cached version of com.google.guava:guava:32.0.1-jre available for offline mode.
+   > Could not resolve org.bouncycastle:bcprov-jdk18on:1.77.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+      > No cached version of org.bouncycastle:bcprov-jdk18on:1.77 available for offline mode.
+      > No cached version of org.bouncycastle:bcprov-jdk18on:1.77 available for offline mode.
+      > No cached version of org.bouncycastle:bcprov-jdk18on:1.77 available for offline mode.
+   > Could not resolve org.jetbrains.kotlin:kotlin-reflect:1.9.20.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdk-common:31.4.2
+      > No cached version of org.jetbrains.kotlin:kotlin-reflect:1.9.20 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-reflect:1.9.20 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-reflect:1.9.20 available for offline mode.
+   > Could not resolve com.android.tools:dvlib:31.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools:sdklib:31.4.2
+      > No cached version of com.android.tools:dvlib:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:dvlib:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:dvlib:31.4.2 available for offline mode.
+   > Could not resolve com.android.tools:annotations:31.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:crash:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:shared:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.lint:lint-typedef-remover:31.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > androidx.databinding:databinding-compiler-common:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build:builder-test-api:8.4.2
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.layoutlib:layoutlib-api:31.4.2
+      > No cached version of com.android.tools:annotations:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:annotations:31.4.2 available for offline mode.
+      > No cached version of com.android.tools:annotations:31.4.2 available for offline mode.
+   > Could not resolve com.android.tools.analytics-library:protos:31.4.2.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.analytics-library:shared:31.4.2
+      > No cached version of com.android.tools.analytics-library:protos:31.4.2 available for offline mode.
+      > No cached version of com.android.tools.analytics-library:protos:31.4.2 available for offline mode.
+      > No cached version of com.android.tools.analytics-library:protos:31.4.2 available for offline mode.
+   > Could not resolve org.jetbrains.kotlin:kotlin-stdlib:1.3.71.
+     Required by:
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build.jetifier:jetifier-core:1.0.0-beta10
+         project :react-native-executorch > com.android.tools.build:gradle:8.4.2 > com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta10
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib:1.3.71 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib:1.3.71 available for offline mode.
+      > No cached version of org.jetbrains.kotlin:kotlin-stdlib:1.3.71 available for offline mode.
+> There are 21 more failures with identical causes.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 25s
+24 actionable tasks: 24 up-to-date

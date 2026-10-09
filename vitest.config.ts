@@ -20,6 +20,8 @@ export default defineConfig({
       { find: /^react-native$/, replacement: here('./tests/stubs/react-native.ts') },
       { find: /^expo-speech$/, replacement: here('./tests/stubs/expo-speech.ts') },
       { find: /^expo-secure-store$/, replacement: here('./tests/stubs/expo-secure-store.ts') },
+      { find: /^expo$/, replacement: here('./tests/stubs/expo.ts') },
+      { find: /^expo-battery$/, replacement: here('./tests/stubs/expo-battery.ts') },
       { find: '@', replacement: here('./') },
     ],
   },

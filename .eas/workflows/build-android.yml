@@ -1,5 +1,6 @@
 name: Build JARVIS ROG Android APK
 
+# Personal APK builds are manual so each source/docs push does not consume a cloud build.
 # `workflow_dispatch:` with no value parses as YAML null. GitHub Actions
 # tolerates that, but the EAS workflow schema requires an object and rejects
 # the whole definition with:
@@ -8,9 +9,6 @@ name: Build JARVIS ROG Android APK
 # An empty mapping is the manual trigger with no inputs.
 on:
   workflow_dispatch: {}
-  push:
-    branches:
-      - main
 
 jobs:
   build_android:

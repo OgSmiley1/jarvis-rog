@@ -25,5 +25,13 @@ export interface ToolDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
   target: ToolTarget;
   confirmation: ToolConfirmation;
   schema: TSchema;
-  execute: (input: z.infer<TSchema>) => Promise<unknown>;
+  execute: (input: z.infer<TSchema>, context?: ToolRunContext) => Promise<unknown>;
+}
+
+/** The turn a tool runs inside: its cancellation and its deadline. */
+export interface ToolRunContext {
+  signal?: AbortSignal;
+  deadlineAt?: number;
+  reserveTool?: () => boolean;
+  reserveRead?: () => (() => void) | null;
 }

@@ -1,0 +1,7 @@
+{
+  "name": "expo-jarvis-brain",
+  "version": "1.0.0",
+  "description": "Downloads the JARVIS brain through Android's DownloadManager so it survives the app leaving the screen. Local Expo module, autolinked from ./modules, not published.",
+  "license": "UNLICENSED",
+  "private": true
+}

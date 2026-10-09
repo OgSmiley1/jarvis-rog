@@ -33,7 +33,7 @@ export function Button({ title, onPress, disabled = false, danger = false }: { t
   );
 }
 
-export function Field({ value, onChangeText, placeholder, multiline = false }: { value: string; onChangeText: (value: string) => void; placeholder?: string; multiline?: boolean }) {
+export function Field({ value, onChangeText, placeholder, multiline = false, secureTextEntry = false }: { value: string; onChangeText: (value: string) => void; placeholder?: string; multiline?: boolean; secureTextEntry?: boolean }) {
   return (
     <TextInput
       value={value}
@@ -41,6 +41,9 @@ export function Field({ value, onChangeText, placeholder, multiline = false }: {
       placeholder={placeholder}
       placeholderTextColor={colors.muted}
       multiline={multiline}
+      secureTextEntry={secureTextEntry}
+      autoCorrect={!secureTextEntry}
+      autoCapitalize={secureTextEntry ? 'none' : 'sentences'}
       style={[styles.input, multiline && styles.multiline]}
     />
   );

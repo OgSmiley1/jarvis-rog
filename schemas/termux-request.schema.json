@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["action", "params"],
   "properties": {
-    "action": { "enum": ["system.status", "git.status"] },
+    "action": { "enum": ["system.status", "git.status", "app.open"] },
     "params": { "type": "object" }
   }
 }

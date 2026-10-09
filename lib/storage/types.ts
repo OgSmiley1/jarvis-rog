@@ -4,10 +4,15 @@ export type MemoryType = 'preference' | 'fact' | 'project' | 'lesson' | 'mistake
 export type MemorySource = 'manual' | 'coach' | 'understand' | 'project' | 'imported';
 
 export interface JarvisSettings {
+  /** Hard block on remote providers, downloads and network voices. */
+  localOnly?: boolean;
   language: 'en' | 'ar';
   defaultMode: IntelligenceMode;
   approvedMemoryEnabled: boolean;
   autoSpeak: boolean;
+  handsFreeEnabled: boolean;
+  wakeWord: string;
+  ownerProfile: string;
   contextSize: number;
   batchSize: number;
   threads: number;
@@ -18,11 +23,97 @@ export interface JarvisSettings {
    * pins the runtime to the explicit contextSize/batchSize/threads/gpuLayers.
    */
   adaptiveRuntime: boolean;
+  /**
+   * Offload the brain to the Adreno GPU (OpenCL). Off by default: on the ROG
+   * it measured 5.9 tok/s with Q4_K_M and hung System UI while loading, so
+   * the CPU path (dotprod + i8mm) is the default.
+   */
+  gpuAcceleration: boolean;
   modelPath?: string;
   modelName?: string;
   modelSize?: number;
   onlineFreeOnly: boolean;
   onlineModelId?: string;
+  /**
+   * A specific system voice the owner pinned in Settings. When unset, JARVIS
+   * ranks the installed voices and picks the best neural one for the language.
+   * If a pinned voice is later uninstalled, ranking takes over again.
+   */
+  ttsVoiceId?: string;
+  /**
+   * Allow Google's server-synthesised `-network` voices. They sound the best
+   * but need internet and add round-trip latency, so a local-first assistant
+   * leaves this off by default.
+   */
+  ttsAllowNetworkVoice: boolean;
+  /**
+   * Answer through the owner's free cloud keys (Cerebras → Groq → Gemini)
+   * when the local model is not loaded. Off by default: turning it on means a
+   * question can leave the phone, and that has to be the owner's choice. The
+   * keys themselves are in the Android keystore, never in these settings.
+   */
+  cloudFallbackEnabled: boolean;
+  /**
+   * With the cloud on: ask it FIRST (about 50x faster than the phone) and let
+   * the phone answer in the same turn if the cloud fails or is rate limited.
+   * Off (default): the cloud only answers when no local brain is loaded.
+   */
+  cloudFirst?: boolean;
+  /** Also use providers whose free tier may train on prompts (Gemini). Off by default. */
+  cloudAllowTraining?: boolean;
+  /**
+   * Keep the floating JARVIS orb over other apps. Only takes effect once the
+   * owner has granted "Display over other apps"; JARVIS never assumes it.
+   */
+  floatingOrbEnabled: boolean;
+  /**
+   * Speak English replies with Kokoro, an on-device neural voice (British,
+   * "Daniel"). About 351 MB, downloaded once when switched on. Arabic keeps
+   * the phone's best voice: Kokoro has no Arabic model.
+   */
+  neuralVoiceEnabled: boolean;
+  /**
+   * Beta. Listen for "hey jarvis" with the on-device openWakeWord engine
+   * instead of transcribing everything said near the phone. Needs a one-time
+   * 3.6 MB download; if it cannot start, the assistant falls back to hearing
+   * "Jarvis" in speech, as before. Off by default until proven on the phone.
+   */
+  wakeEngineEnabled?: boolean;
+  /** City for weather and prayer when none is named. Never changed by IP lookup. */
+  homeCity?: string;
+  temperatureUnit?: 'celsius' | 'fahrenheit';
+  /**
+   * Strict zero-cost mode (default on): only on-device work and providers
+   * verified free-with-limits. Unknown providers are refused; Puter is off.
+   */
+  strictZeroCost?: boolean;
+  /** Opt-in: approximate city from the internet connection (GeoJS). */
+  ipLocationAllowed?: boolean;
+  /** Opt-in consent to Puter's user-pays model (only outside strict mode). */
+  puterConsent?: boolean;
+  /** When Puter last reported its free allowance used up. Hard stop for a month. */
+  puterExhaustedAt?: number;
+  /** The first-run gesture card has been dismissed. */
+  coreHintSeen?: boolean;
+  /** Accessibility mode: a visible state label and visible Menu/History buttons. */
+  coreLabels?: boolean;
+  /** Remind the owner to charge (notification, and spoken when on screen). */
+  chargeReminderEnabled: boolean;
+  /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */
+  chargeReminderLevel: number;
+  /** Per-provider model overrides; unset uses the provider's default. */
+  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
+  /**
+   * Where the live test link posts: a private GitHub repository, and
+   * optionally an issue or PR number in it (unset opens one issue per
+   * session). The token is in the Android keystore, never here.
+   */
+  liveChannel?: { owner: string; repo: string; number?: number };
+  /**
+   * Until when (epoch ms) the live test log may include the owner's actual
+   * words. Unset or past: only word counts are logged. See transcriptPolicy.ts.
+   */
+  liveTranscriptsUntil?: number;
 }
 
 export interface MemoryRecord {
