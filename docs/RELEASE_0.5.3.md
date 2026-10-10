@@ -12,6 +12,11 @@ then blocked the bridge's loopback request in Local Only mode. The fix allows
 only the authenticated bridge's exact `http://127.0.0.1:8765/` route. Live
 providers and other outbound traffic remain blocked by Local Only.
 
+The cloud fallback also supports DeepInfra's OpenAI-compatible endpoint. Add a
+DeepInfra key in Advanced settings to use promotional/free credits when
+available. Credits, rate limits and model availability are controlled by
+DeepInfra; JARVIS never assumes a balance, upgrades an account or spends money.
+
 When hands-free wake detection was enabled, a Core tap marked the turn as
 direct but still withheld audio frames from Whisper until the wake engine
 detected the phrase. The fix opens speech recognition immediately on that tap.
