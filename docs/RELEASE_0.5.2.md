@@ -36,7 +36,7 @@ To save the complete brain, vision, Whisper/VAD, English Kokoro and wake-word
 model pack into `Download/JARVIS/models` before installation, run this instead:
 
 ```bash
-pkg install -y python curl termux-tools && termux-setup-storage && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/release/jarvis-0.5.2/scripts/setup-device-0.5.2.py -o "$HOME/jarvis-setup-0.5.2.py" && python "$HOME/jarvis-setup-0.5.2.py"
+pkg install -y python curl termux-tools && termux-setup-storage && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/fix/termux-model-complete-0.5.2/scripts/setup-device-0.5.2.py -o "$HOME/jarvis-setup-0.5.2.py" && python "$HOME/jarvis-setup-0.5.2.py"
 ```
 
 Allow shared-storage access, close JARVIS while files download, and press Enter
