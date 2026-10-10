@@ -9,11 +9,12 @@ Android version code: 2026101001. The owner's 0.5.2 screenshots showed the
 model file loaded and bridge responding, but no measured complete model turn;
 that runtime outcome needs a fresh on-device check with 0.5.3.
 
-0.5.2 carries forward the runtime repairs below and adds a versioned Termux
-installer with APK checksum, size, embedded version and source-commit checks.
-Version code: 2026100801. See [release setup](RELEASE_0.5.2.md).
-The GitHub release assets contain the final build manifest and verification
-results. The checks below describe the earlier 0.5.1 checkpoint where named.
+0.5.2 carried forward the runtime repairs below and introduced the versioned
+Termux installer. The current 0.5.3 installer verifies the APK checksum, size,
+embedded version and source commit. The APK and verification files are
+published under the immutable `apk-0.5.3` distribution tag; the preview release
+contains source notes. The checks below describe earlier checkpoints where
+named.
 
 ## Completed software work
 
@@ -54,5 +55,5 @@ Local Only rejects unknown/network system voices rather than silently using a ne
 The follow-up recorder verifies the APK's embedded commit/version and the audio
 service's own non-exported microphone/playback types. The installer prefers a
 locally generated release manifest when run from a build checkout. As of this
-0.5.1 recheck, GitHub had no published `v0.5.1-preview`. The 0.5.2 installers
-explicitly target `v0.5.2-preview`, whose assets must be published before use.
+The current 0.5.3 installer explicitly targets the immutable `apk-0.5.3`
+distribution tag, so it does not depend on mutable release-asset URLs.
