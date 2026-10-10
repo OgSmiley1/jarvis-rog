@@ -11,6 +11,29 @@ spec.loader.exec_module(setup)
 
 
 class DeviceSetupTest(unittest.TestCase):
+    def test_whisper_plan_includes_decoder_required_by_runtime(self):
+        def response(request, timeout):
+            repo = request.full_url.split('/api/models/', 1)[1].split('/revision/', 1)[0]
+            group = next(group for group in setup.GROUPS if group[0] == repo)
+            class Result:
+                def __enter__(self):
+                    return self
+                def __exit__(self, *_args):
+                    return False
+                def read(self):
+                    return json.dumps({'sha': 'b' * 40, 'siblings': [
+                        {'rfilename': name, 'size': 100, 'blobId': 'a' * 40} for name in group[3]
+                    ]}).encode()
+            return Result()
+
+        # Supply exact upstream directory entries while keeping this unit test offline.
+        from unittest.mock import patch
+        import json
+        with patch.object(setup.urllib.request, 'urlopen', side_effect=response):
+            plan = setup.model_plan()
+        decoder = {entry['path'] for entry in plan if entry['path'].startswith('voice/bk-sdm-tiny/')}
+        self.assertIn('voice/bk-sdm-tiny/v0.9.0/xnnpack/bk_sdm_tiny_vae_256_xnnpack_fp32.pte', decoder)
+
     def entry(self):
         return {'path': 'voice/model.bin', 'size': 4, 'sha256': hashlib.sha256(b'good').hexdigest(), 'url': 'https://example.test/model'}
 
