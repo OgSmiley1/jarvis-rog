@@ -1,0 +1,22 @@
+{
+  "apk": "Jarvis-0.5.3-arm64.apk",
+  "path": "/workspace/jarvis-rog/artifacts/Jarvis-0.5.3-arm64.apk",
+  "size": 62114649,
+  "sha256": "b241d16d2319d0303b9f02e316e9768e9f3efcab526c048d3ff50e9b73595d6e",
+  "package": "com.app.localjarviscoach",
+  "versionCode": 2026101001,
+  "versionName": "0.5.3",
+  "sourceCommit": "e11cc987f67aa82c046859a93d1d4e54ec74450c",
+  "sourceTree": "145d314d4539bf9cd59d7db95eb7826095e65d66",
+  "branch": "fix/runtime-loopback-0.5.3",
+  "buildType": "release",
+  "signing": "Expo debug certificate; sideload preview",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "install": "UNVERIFIED",
+  "launch": "UNVERIFIED",
+  "device": "UNVERIFIED",
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "url": "https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/apk-0.5.3/Jarvis-0.5.3-arm64.apk"
+}
