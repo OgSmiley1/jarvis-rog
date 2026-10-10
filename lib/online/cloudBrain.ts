@@ -260,6 +260,10 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   assertActive();
 
   for (const provider of usableProviders(input.keys, input.allowTraining, { ollamaEnabled: input.ollamaEnabled })) {
+    if (isLocalOnly() && provider.id !== 'ollama') {
+      attempts.push({ provider: provider.id, model: input.models?.[provider.id]?.trim() || provider.defaultModel, ok: false, ms: 0, error: 'LOCAL_ONLY_BLOCKED' });
+      continue;
+    }
     assertActive(provider.id);
     // The zero-cost policy has the last word on every provider, every call.
     const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining });

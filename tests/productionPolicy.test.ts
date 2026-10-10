@@ -89,6 +89,21 @@ describe('hard Local Only', () => {
     await expect(fetch('http://192.168.1.20:11434/v1/chat/completions')).rejects.toThrow('LOCAL_ONLY_BLOCKED');
     expect(transport).toHaveBeenCalledWith('http://127.0.0.1:11434/v1/chat/completions', expect.objectContaining({ method: 'POST' }));
   });
+  it('skips configured hosted providers and still reaches Ollama in Local Only', async () => {
+    const transport = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: 'Local fallback.' } }] }), { status: 200 }));
+    setLocalOnly(true);
+    const answer = await askCloud({
+      messages: [{ role: 'user', content: 'hello' }],
+      mode: 'fast',
+      keys: { groq: 'configured-but-blocked' },
+      ollamaEnabled: true,
+      endpoints: { ollama: 'http://127.0.0.1:11434' },
+      fetchImpl: transport as unknown as Parameters<typeof askCloud>[0]['fetchImpl'],
+    });
+    expect(answer.provider).toBe('ollama');
+    expect(answer.attempts[0]).toMatchObject({ provider: 'groq', error: 'LOCAL_ONLY_BLOCKED' });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
 });
 
 it('returns from an uncooperative tool on cancellation and timeout', async () => {
