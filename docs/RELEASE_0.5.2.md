@@ -36,11 +36,11 @@ To save the complete brain, vision, Whisper/VAD, English Kokoro and wake-word
 model pack into `Download/JARVIS/models` before installation, run this instead:
 
 ```bash
-pkg install -y python curl termux-tools && termux-setup-storage && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/fb9b01a48db48eb97cc101b289afa6324854d323/scripts/setup-device-0.5.2.py -o "$HOME/jarvis-setup-0.5.2.py" && python "$HOME/jarvis-setup-0.5.2.py"
+pkg install -y python curl termux-tools && termux-setup-storage && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/fix/termux-model-complete-0.5.2/scripts/setup-device-0.5.2.py -o "$HOME/jarvis-setup-0.5.2.py" && python "$HOME/jarvis-setup-0.5.2.py"
 ```
 
 Allow shared-storage access, close JARVIS while files download, and press Enter
-when prompted. It downloads about 3.63 GB of models plus the APK, checks upstream
+when prompted. It downloads about 3.83 GB of models plus the APK, checks upstream
 model metadata, verifies every complete model file, then installs the APK and
 optional Termux bridge. It resumes safely if interrupted. After installation,
 grant JARVIS Android's All files access so it can load models from Downloads.

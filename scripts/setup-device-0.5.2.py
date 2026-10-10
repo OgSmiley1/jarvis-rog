@@ -19,6 +19,8 @@ GROUPS = [
         'SmolVLM2-500M-Video-Instruct-Q8_0.gguf', 'mmproj-SmolVLM2-500M-Video-Instruct-Q8_0.gguf']),
     (VOICE + 'whisper-tiny', 'v0.9.0', 'voice/whisper-tiny/v0.9.0/', [
         'xnnpack/whisper_tiny_xnnpack_fp32.pte', 'tokenizer.json']),
+    (VOICE + 'bk-sdm-tiny', 'v0.9.0', 'voice/bk-sdm-tiny/v0.9.0/',
+        ['xnnpack/bk_sdm_tiny_vae_256_xnnpack_fp32.pte']),
     (VOICE + 'fsmn-vad', 'v0.9.0', 'voice/fsmn-vad/v0.9.0/', ['xnnpack/fsmn_vad_xnnpack_fp32.pte']),
     (VOICE + 'kokoro', 'v0.9.0', 'voice/kokoro/v0.9.0/', [
         'xnnpack/standard/duration_predictor_std.pte', 'xnnpack/standard/synthesizer_std.pte',
