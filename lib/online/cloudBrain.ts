@@ -232,6 +232,8 @@ export interface AskCloudInput {
   fetchImpl: FetchLike;
   /** Per-provider budget. A voice assistant cannot wait long on one host. */
   timeoutMs?: number;
+  /** Bound spoken replies so generation and speech can finish promptly. */
+  maxTokens?: number;
   /** Include providers whose free tier may train on prompts (Gemini). Default false. */
   allowTraining?: boolean;
   /** Enable the no-key Ollama server configured on this phone. */
@@ -314,7 +316,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
             'Content-Type': 'application/json',
             ...(key ? { Authorization: `Bearer ${key}` } : {}),
           },
-          body: JSON.stringify(buildChatBody(model, input.messages, input.mode)),
+          body: JSON.stringify({ ...buildChatBody(model, input.messages, input.mode), ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}) }),
           signal: controller?.signal,
         }),
         timeout,

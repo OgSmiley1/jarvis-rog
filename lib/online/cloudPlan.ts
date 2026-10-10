@@ -11,6 +11,10 @@
  */
 export type CloudPlan = 'local' | 'cloud-only' | 'cloud-then-local';
 
+export function backendEnabled(input: { enabled: boolean; localOnly: boolean; ollamaEnabled?: boolean }): boolean {
+  return input.enabled && (!input.localOnly || input.ollamaEnabled === true);
+}
+
 export function cloudPlan(input: { cloudEnabled: boolean; localReady: boolean; cloudFirst: boolean }): CloudPlan {
   if (!input.cloudEnabled) return 'local';
   if (!input.localReady) return 'cloud-only';

@@ -1,6 +1,7 @@
 import { isLocalOnly, subscribeNetworkPolicy } from '@/lib/net/localOnly';
 import { toolRegistry } from './registry';
 import type { JarvisToolCall, ToolResult, ToolRunContext } from './types';
+import { observeToolResult } from '@/lib/diagnostics/toolEvidence';
 
 export interface ExecuteToolOptions {
   confirmed?: boolean;
@@ -59,7 +60,7 @@ export async function executeTool(
     });
     const data = await Promise.race([definition.execute(parsed.data, turn), stopped]);
     assertActive();
-    return { callId: call.id, tool: call.tool, ok: true, startedAt, finishedAt: Date.now(), data };
+    return observeToolResult({ callId: call.id, tool: call.tool, ok: true, startedAt, finishedAt: Date.now(), data });
     } finally {
       if (timeout) clearTimeout(timeout);
       if (cancelled) abort.signal.removeEventListener('abort', cancelled);
@@ -67,13 +68,13 @@ export async function executeTool(
       unsubscribe();
     }
   } catch (error) {
-    return {
+    return observeToolResult({
       callId: call.id,
       tool: call.tool,
       ok: false,
       startedAt,
       finishedAt: Date.now(),
       error: error instanceof Error ? error.message : String(error),
-    };
+    });
   }
 }

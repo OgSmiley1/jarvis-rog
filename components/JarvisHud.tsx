@@ -911,12 +911,6 @@ export default function JarvisHud() {
             }} />
             <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
           </Row>
-          {false ? (
-            <Row>
-              <Button title={arabic ? 'القائمة' : 'Menu'} onPress={() => setSheet('menu')} />
-              <Button title={arabic ? 'السجل' : 'History'} onPress={() => setSheet('history')} />
-            </Row>
-          ) : null}
         </View>
       )}
 

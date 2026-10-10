@@ -39,6 +39,11 @@ const GEMINI = 'generativelanguage.googleapis.com';
 const DEEPINFRA = 'api.deepinfra.com';
 
 describe('cloud brain failover', () => {
+  it('limits spoken backend generation to the supplied token budget', async () => {
+    const net = fakeFetch({ [GROQ]: { body: reply('Ready.') } });
+    await askCloud({ messages: MESSAGES, mode: 'fast', keys: { groq: 'k' }, fetchImpl: net.impl, maxTokens: 128 });
+    expect(net.calls[0]?.body.max_tokens).toBe(128);
+  });
   it('answers from the first provider that works', async () => {
     const net = fakeFetch({ [GROQ]: { body: reply('It is nine.') } });
     const answer = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { cerebras: 'k1', groq: 'k2' }, fetchImpl: net.impl });

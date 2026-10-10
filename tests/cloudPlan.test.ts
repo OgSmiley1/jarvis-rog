@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildMessages } from '@/lib/inference/promptBuilder';
-import { cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
+import { backendEnabled, cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
 
 describe('when a question goes to the free cloud', () => {
+  it('keeps local Ollama reachable under Local Only while disabling hosted backends', () => {
+    expect(backendEnabled({ enabled: true, localOnly: true, ollamaEnabled: true })).toBe(true);
+    expect(backendEnabled({ enabled: true, localOnly: true, ollamaEnabled: false })).toBe(false);
+    expect(backendEnabled({ enabled: false, localOnly: false, ollamaEnabled: true })).toBe(false);
+  });
   it('off: nothing leaves the phone, whatever else is set', () => {
     expect(cloudPlan({ cloudEnabled: false, localReady: true, cloudFirst: true })).toBe('local');
     expect(cloudPlan({ cloudEnabled: false, localReady: false, cloudFirst: true })).toBe('local');

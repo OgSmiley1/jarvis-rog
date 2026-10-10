@@ -1,4 +1,6 @@
-# JARVIS 0.5.5 release evidence
+# JARVIS 0.5.6 release evidence
+
+0.5.6 fixes the app-level Local Only routing gate for Ollama, bounds fast spoken backend replies to 128 tokens, removes a dead menu block, and shows individual diagnostics for every registered feature. Device operations remain unverified until observed. See RELEASE_0.5.6.md for installation and verification scope.
 
 This is the current status authority; older session notes describe historical builds.
 

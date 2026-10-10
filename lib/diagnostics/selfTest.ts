@@ -3,6 +3,8 @@ import { executeTool } from '@/lib/tools/router';
 import { ToolConversation } from '@/lib/tools/toolConversation';
 import { checkProvider } from '@/lib/net/providerPolicy';
 import { CORE_PRESETS } from '@/lib/core/CorePresets';
+import { toolEvidence } from './toolEvidence';
+import { isLocalOnly } from '@/lib/net/localOnly';
 export type CheckStatus = 'PASS' | 'FAIL' | 'BLOCKED' | 'SKIPPED' | 'UNVERIFIED';
 export interface CheckResult { name: string; status: CheckStatus; detail: string }
 export interface SelfTestInput {
@@ -46,5 +48,15 @@ export async function runSelfTest(input: SelfTestInput): Promise<CheckResult[]> 
   add('TTS voices', input.ttsVoices === undefined ? 'UNVERIFIED' : input.ttsVoices > 0 ? 'PASS' : 'BLOCKED', `${input.ttsVoices ?? 'Unknown'} voices enumerated; audible playback unverified.`);
   add('Phone actions / speech / restart', 'UNVERIFIED', 'Requires interactive Android checks; no call, alarm or message was triggered.');
   add('Live providers', 'SKIPPED', 'Self-test makes no external network requests.');
+  for (const tool of toolRegistry.values()) {
+    const observed = toolEvidence(tool.name);
+    const registered = typeof tool.execute === 'function' && typeof tool.schema.safeParse === 'function';
+    const blocked = isLocalOnly() && tool.network;
+    const status: CheckStatus = !registered ? 'FAIL' : blocked ? 'BLOCKED' : observed ? observed.ok ? 'PASS' : 'FAIL' : 'UNVERIFIED';
+    add(`Feature: ${tool.name}`, status,
+      !registered ? 'Registry definition invalid.' : blocked ? 'Blocked by Local Only.' : observed
+        ? `${observed.ok ? 'Handler returned' : 'Handler failed'} · ${observed.ms} ms · ${new Date(observed.at).toISOString()}${observed.error ? ' · ' + observed.error : ''}. Device action and result quality require confirmation.`
+        : `Registry verified; handler not exercised this session. ${tool.permissions.length ? 'Permissions: ' + tool.permissions.join(', ') + '. ' : ''}${tool.confirmation === 'required' ? 'Requires confirmation. ' : ''}Availability: ${tool.availability}.`);
+  }
   return results;
 }

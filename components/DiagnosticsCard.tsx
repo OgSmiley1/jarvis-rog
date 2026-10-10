@@ -68,6 +68,7 @@ export function DiagnosticsCard() {
     <AppText muted>{formatLatencyReport()}</AppText>
     {jarvis.lastMetrics ? <AppText>Last request: {Math.round(jarvis.lastMetrics.totalMs)} ms · first token {jarvis.lastMetrics.firstTokenMs ?? 'unmeasured'} ms</AppText> : null}
     <Button title={busy ? 'Testing…' : 'Run Self-Test'} disabled={busy} onPress={() => void run()} />
+    {results.length ? <AppText muted>{(['PASS', 'FAIL', 'BLOCKED', 'SKIPPED', 'UNVERIFIED'] as const).map(status => `${status}: ${results.filter(result => result.status === status).length}`).join(' · ')}</AppText> : null}
     {results.map(result => <AppText key={result.name}>{result.status} · {result.name}: {result.detail}</AppText>)}
   </Card>;
 }

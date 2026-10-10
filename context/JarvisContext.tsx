@@ -54,7 +54,7 @@ import { liveCache } from '@/lib/net/cache';
 import type { ToolRunContext } from '@/lib/tools/types';
 import { shortModelName } from '@/lib/hud/dashboard';
 import { AppState, Platform } from 'react-native';
-import { cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
+import { backendEnabled, cloudPlan, cloudSeesPersonalContext } from '@/lib/online/cloudPlan';
 import { askCloud, providerById, type CloudProviderId, type FetchLike } from '@/lib/online/cloudBrain';
 import { clearCloudKey, cloudProvidersWithKeys, readCloudKeys, setCloudKey } from '@/lib/online/cloudKeys';
 
@@ -385,7 +385,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   // Ready means a provider that will actually be tried: a Gemini-only key does
   // nothing until the owner allows providers that train on prompts.
   const cloudReady =
-    !settings.localOnly && settings.cloudFallbackEnabled &&
+    backendEnabled({ enabled: settings.cloudFallbackEnabled, localOnly: Boolean(settings.localOnly), ollamaEnabled: settings.ollamaEnabled }) &&
     (settings.ollamaEnabled === true || cloudProviders.some((id) => Boolean(settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts));
 
   useEffect(() => {
@@ -589,7 +589,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     // fails (429, quota, offline, bad key), so the assistant never goes quiet.
     const localReady = modelState.status === 'ready';
     const plan = cloudPlan({
-      cloudEnabled: !isLocalOnly() && settings.cloudFallbackEnabled,
+      cloudEnabled: backendEnabled({ enabled: settings.cloudFallbackEnabled, localOnly: isLocalOnly(), ollamaEnabled: settings.ollamaEnabled }),
       localReady,
       cloudFirst: Boolean(settings.cloudFirst),
     });
@@ -625,6 +625,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           fetchImpl: fetch as unknown as FetchLike,
           signal: abort.signal,
           deadlineAt: options.turn?.deadlineAt,
+          maxTokens: options.spoken && mode === 'fast' ? 128 : undefined,
         });
         // Not streamed (see cloudBrain.ts): the whole reply arrives at once and
         // goes through the same token callback, so the HUD's sentence-level
