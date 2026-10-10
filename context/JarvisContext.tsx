@@ -386,7 +386,7 @@ export function JarvisProvider({ children }: PropsWithChildren) {
   // nothing until the owner allows providers that train on prompts.
   const cloudReady =
     !settings.localOnly && settings.cloudFallbackEnabled &&
-    cloudProviders.some((id) => Boolean(settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts);
+    (settings.ollamaEnabled === true || cloudProviders.some((id) => Boolean(settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts));
 
   useEffect(() => {
     // "System information" reports the brain as the app knows it right now.
@@ -620,6 +620,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
           keys: await readCloudKeys(),
           models: settings.cloudModels,
           allowTraining: settings.cloudAllowTraining,
+          ollamaEnabled: settings.ollamaEnabled,
+          endpoints: { ollama: settings.ollamaEndpoint },
           fetchImpl: fetch as unknown as FetchLike,
           signal: abort.signal,
           deadlineAt: options.turn?.deadlineAt,
@@ -662,6 +664,8 @@ export function JarvisProvider({ children }: PropsWithChildren) {
     settings.cloudFirst,
     settings.cloudAllowTraining,
     settings.cloudModels,
+    settings.ollamaEnabled,
+    settings.ollamaEndpoint,
     settings.language,
     settings.ownerProfile,
   ]);

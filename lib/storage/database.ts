@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   cloudFallbackEnabled: false,
   cloudFirst: false,
   cloudAllowTraining: false,
+  ollamaEnabled: false,
+  ollamaEndpoint: 'http://127.0.0.1:11434',
   floatingOrbEnabled: false,
   // Off by default: 351 MB should never start downloading on mobile data unasked.
   neuralVoiceEnabled: false,

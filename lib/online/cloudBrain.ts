@@ -1,4 +1,4 @@
-import { assertNetworkAllowed } from '@/lib/net/localOnly';
+import { assertNetworkAllowed, isLocalOnly } from '@/lib/net/localOnly';
 import { stripThinking } from '@/lib/voice/stripThinking';
 import { INTELLIGENCE_MODES } from '@/lib/inference/intelligenceModes';
 import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/inference/types';
@@ -32,7 +32,7 @@ import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/
 
 import { checkProvider, recordPolicy } from '@/lib/net/providerPolicy';
 
-export type CloudProviderId = 'cerebras' | 'groq' | 'gemini' | 'deepinfra';
+export type CloudProviderId = 'cerebras' | 'groq' | 'gemini' | 'deepinfra' | 'ollama';
 
 export interface CloudProvider {
   id: CloudProviderId;
@@ -48,6 +48,8 @@ export interface CloudProvider {
   keyUrl: string;
   /** True when the free tier may use prompts for training: skipped unless the owner allows it. */
   trainsOnPrompts: boolean;
+  /** Ollama runs without a key; every hosted provider still requires one. */
+  requiresKey?: boolean;
 }
 
 export const CLOUD_PROVIDERS: readonly CloudProvider[] = [
@@ -87,10 +89,20 @@ export const CLOUD_PROVIDERS: readonly CloudProvider[] = [
     // assumes that a paid fallback is available.
     trainsOnPrompts: false,
   },
+  {
+    id: 'ollama',
+    name: 'Ollama (local)',
+    endpoint: 'http://127.0.0.1:11434/v1/chat/completions',
+    defaultModel: 'llama3.2:3b',
+    keyUrl: '',
+    trainsOnPrompts: false,
+    requiresKey: false,
+  },
 ] as const;
 
 export type CloudKeys = Partial<Record<CloudProviderId, string>>;
 export type CloudModels = Partial<Record<CloudProviderId, string>>;
+export type CloudEndpoints = Partial<Record<CloudProviderId, string>>;
 
 export interface CloudAttempt {
   provider: CloudProviderId;
@@ -139,10 +151,34 @@ export function providerById(id: CloudProviderId): CloudProvider {
  * Providers that can actually be tried: in order, with a key, and — unless
  * the owner allowed it — only those whose free tier does not train on prompts.
  */
-export function usableProviders(keys: CloudKeys, allowTraining = false): CloudProvider[] {
+export function usableProviders(keys: CloudKeys, allowTraining = false, options: { ollamaEnabled?: boolean } = {}): CloudProvider[] {
   return CLOUD_PROVIDERS.filter(
-    (provider) => Boolean(keys[provider.id]?.trim()) && (allowTraining || !provider.trainsOnPrompts),
+    (provider) => (provider.requiresKey === false
+      ? provider.id === 'ollama' && options.ollamaEnabled === true
+      : Boolean(keys[provider.id]?.trim()))
+      && (allowTraining || !provider.trainsOnPrompts),
   );
+}
+
+function providerEndpoint(provider: CloudProvider, endpoints: CloudEndpoints | undefined): string {
+  const configured = endpoints?.[provider.id]?.trim();
+  if (provider.id !== 'ollama' || !configured) return provider.endpoint;
+  const base = new URL(configured);
+  if (base.protocol !== 'http:' && base.protocol !== 'https:') throw new Error('OLLAMA_ENDPOINT_PROTOCOL');
+  const path = base.pathname.replace(/\/+$/, '');
+  base.pathname = path.endsWith('/v1/chat/completions') ? path : `${path || ''}/v1/chat/completions`;
+  base.search = '';
+  base.hash = '';
+  return base.toString();
+}
+
+function loopbackEndpoint(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' && (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost' || parsed.hostname === '::1') && parsed.port === '11434';
+  } catch {
+    return false;
+  }
 }
 
 export function buildChatBody(model: string, messages: CompletionMessage[], mode: IntelligenceMode): Record<string, unknown> {
@@ -198,6 +234,10 @@ export interface AskCloudInput {
   timeoutMs?: number;
   /** Include providers whose free tier may train on prompts (Gemini). Default false. */
   allowTraining?: boolean;
+  /** Enable the no-key Ollama server configured on this phone. */
+  ollamaEnabled?: boolean;
+  /** Optional Ollama base URL, defaulting to http://127.0.0.1:11434. */
+  endpoints?: CloudEndpoints;
   /** Cancellation and total deadline from the owning voice turn. */
   signal?: AbortSignal;
   deadlineAt?: number;
@@ -210,15 +250,17 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
   const attempts: CloudAttempt[] = [];
   const startedAt = now();
 
-  const assertActive = () => {
-    assertNetworkAllowed();
+  const configuredOllamaEndpoint = input.endpoints?.ollama?.trim() || 'http://127.0.0.1:11434';
+  const assertActive = (providerId?: CloudProviderId) => {
+    const localOllama = (providerId === undefined || providerId === 'ollama') && input.ollamaEnabled === true && loopbackEndpoint(`${configuredOllamaEndpoint.replace(/\/+$/, '')}/v1/chat/completions`);
+    if (!localOllama) assertNetworkAllowed();
     if (input.signal?.aborted) throw Object.assign(new Error('TURN_CANCELLED'), { name: 'AbortError' });
     if (input.deadlineAt !== undefined && now() >= input.deadlineAt) throw new Error('TURN_DEADLINE');
   };
   assertActive();
 
-  for (const provider of usableProviders(input.keys, input.allowTraining)) {
-    assertActive();
+  for (const provider of usableProviders(input.keys, input.allowTraining, { ollamaEnabled: input.ollamaEnabled })) {
+    assertActive(provider.id);
     // The zero-cost policy has the last word on every provider, every call.
     const decision = checkProvider(provider.id, { strict: true, allowTraining: input.allowTraining });
     recordPolicy(provider.id, decision.allowed);
@@ -227,7 +269,18 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
       continue;
     }
     const model = input.models?.[provider.id]?.trim() || provider.defaultModel;
-    const key = input.keys[provider.id]!.trim();
+    const key = input.keys[provider.id]?.trim();
+    let endpoint: string;
+    try {
+      endpoint = providerEndpoint(provider, input.endpoints);
+    } catch (error) {
+      attempts.push({ provider: provider.id, model, ok: false, ms: 0, error: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
+    if (provider.id === 'ollama' && isLocalOnly() && !loopbackEndpoint(endpoint)) {
+      attempts.push({ provider: provider.id, model, ok: false, ms: 0, error: 'LOCAL_ONLY_BLOCKED' });
+      continue;
+    }
     const attemptStartedAt = now();
     const controller = typeof AbortController === 'function' ? new AbortController() : undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -240,7 +293,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
     input.signal?.addEventListener('abort', onAbort, { once: true });
 
     try {
-      assertActive();
+      assertActive(provider.id);
       const remainingMs = input.deadlineAt === undefined ? timeoutMs : input.deadlineAt - now();
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
@@ -251,11 +304,11 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
       });
 
       const response = await Promise.race([
-        input.fetchImpl(provider.endpoint, {
+        input.fetchImpl(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${key}`,
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
           },
           body: JSON.stringify(buildChatBody(model, input.messages, input.mode)),
           signal: controller?.signal,
@@ -266,7 +319,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
 
       if (!response.ok) throw new Error(describeHttpFailure(response.status));
       const text = extractText(await Promise.race([response.text(), timeout, cancelled]));
-      assertActive();
+      assertActive(provider.id);
       const ms = now() - attemptStartedAt;
       attempts.push({ provider: provider.id, model, ok: true, ms });
 
@@ -278,7 +331,7 @@ export async function askCloud(input: AskCloudInput): Promise<CloudAnswer> {
         metrics: { totalMs: now() - startedAt },
       };
     } catch (error) {
-      assertActive();
+      assertActive(provider.id);
       if (error instanceof Error && error.message === 'TURN_DEADLINE') throw error;
       attempts.push({
         provider: provider.id,

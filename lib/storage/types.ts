@@ -61,6 +61,10 @@ export interface JarvisSettings {
   cloudFirst?: boolean;
   /** Also use providers whose free tier may train on prompts (Gemini). Off by default. */
   cloudAllowTraining?: boolean;
+  /** Use an Ollama OpenAI-compatible server on this device without an API key. */
+  ollamaEnabled?: boolean;
+  /** Ollama base URL; default is the Termux loopback server on port 11434. */
+  ollamaEndpoint?: string;
   /**
    * Keep the floating JARVIS orb over other apps. Only takes effect once the
    * owner has granted "Display over other apps"; JARVIS never assumes it.
@@ -102,7 +106,7 @@ export interface JarvisSettings {
   /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */
   chargeReminderLevel: number;
   /** Per-provider model overrides; unset uses the provider's default. */
-  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini' | 'deepinfra', string>>;
+  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini' | 'deepinfra' | 'ollama', string>>;
   /**
    * Where the live test link posts: a private GitHub repository, and
    * optionally an issue or PR number in it (unset opens one issue per

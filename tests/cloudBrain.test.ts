@@ -191,10 +191,11 @@ describe('cloud brain request and response', () => {
     expect(describeHttpFailure(502)).toBe('provider error 502');
   });
 
-  it('keeps the provider order Groq, Cerebras, Gemini, DeepInfra; Gemini only when training is allowed', () => {
-    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini', 'deepinfra']);
+  it('keeps the provider order Groq, Cerebras, Gemini, DeepInfra, Ollama', () => {
+    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini', 'deepinfra', 'ollama']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }).map((provider) => provider.id)).toEqual(['cerebras']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }, true).map((provider) => provider.id)).toEqual(['cerebras', 'gemini']);
+    expect(usableProviders({}, false, { ollamaEnabled: true }).map((provider) => provider.id)).toEqual(['ollama']);
   });
 });
 

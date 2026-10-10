@@ -104,6 +104,11 @@ export const PROVIDERS: Record<string, ProviderEntry> = {
     termsUrl: 'https://deepinfra.com/terms', checked: CHECKED, auth: 'free-key',
     limits: 'Promotional/free credits may be limited; account balance controls availability', fallback: 'Local brain',
   },
+  ollama: {
+    id: 'ollama', name: 'Ollama (local)', class: 'local', host: '127.0.0.1:11434',
+    termsUrl: 'https://ollama.com/terms', checked: CHECKED, auth: 'none',
+    limits: 'On-device loopback; model storage and RAM are local', fallback: 'Installed JARVIS brain',
+  },
   puter: {
     id: 'puter', name: 'Puter', class: 'user-pays', host: 'puter.com',
     termsUrl: 'https://docs.puter.com/', checked: CHECKED, auth: 'account',

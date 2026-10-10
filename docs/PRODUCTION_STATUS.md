@@ -1,4 +1,4 @@
-# JARVIS 0.5.4 release evidence
+# JARVIS 0.5.5 release evidence
 
 This is the current status authority; older session notes describe historical builds.
 
@@ -9,10 +9,16 @@ Android version code: 2026101001. The owner's 0.5.2 screenshots showed the
 model file loaded and bridge responding, but no measured complete model turn;
 that runtime outcome needs a fresh on-device check with the current release.
 
-0.5.4 adds the DeepInfra OpenAI-compatible cloud fallback. It uses the same
+0.5.4 added the DeepInfra OpenAI-compatible cloud fallback. It uses the same
 secure-key storage and failover path as the other configured providers. Free or
 promotional credits are not guaranteed by DeepInfra; JARVIS refuses to spend
 money or upgrade an account automatically.
+
+0.5.5 adds an optional Ollama OpenAI-compatible backend on
+`http://127.0.0.1:11434`. It requires no API key, stays on-device under Local
+Only, and is only used when Ollama is explicitly enabled in Cloud brain
+settings. `llama3.2:3b` is the speed default; `dolphin-llama3:8b` remains an
+optional quality model if it is installed.
 
 0.5.2 carried forward the runtime repairs below and introduced the versioned
 Termux installer. The current 0.5.3 installer verifies the APK checksum, size,

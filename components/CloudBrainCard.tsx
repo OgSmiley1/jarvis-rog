@@ -17,6 +17,7 @@ export function CloudBrainCard() {
   const jarvis = useJarvis();
   const [drafts, setDrafts] = useState<Partial<Record<CloudProviderId, string>>>({});
   const [modelDrafts, setModelDrafts] = useState<Partial<Record<CloudProviderId, string>>>({});
+  const [ollamaEndpointDraft, setOllamaEndpointDraft] = useState('');
   const [testResult, setTestResult] = useState<string>();
   const [testing, setTesting] = useState(false);
 
@@ -54,6 +55,8 @@ export function CloudBrainCard() {
         keys: await readCloudKeys(),
         models: jarvis.settings.cloudModels,
         allowTraining: jarvis.settings.cloudAllowTraining,
+        ollamaEnabled: jarvis.settings.ollamaEnabled,
+        endpoints: { ollama: jarvis.settings.ollamaEndpoint },
         fetchImpl: fetch as unknown as FetchLike,
       });
       const tried = answer.attempts.map((attempt) => `${attempt.provider} ${attempt.ok ? 'OK' : attempt.error} (${attempt.ms} ms)`);
@@ -68,7 +71,7 @@ export function CloudBrainCard() {
   // Providers that will actually be tried: Gemini needs its own switch.
   const usableCount = jarvis.cloudProviders.filter(
     (id) => Boolean(jarvis.settings.cloudAllowTraining) || !providerById(id).trainsOnPrompts,
-  ).length;
+  ).length + (jarvis.settings.ollamaEnabled ? 1 : 0);
 
   return (
     <Card title="Cloud brain (fallback)">
@@ -82,9 +85,9 @@ export function CloudBrainCard() {
       <AppText muted>
         Off by default. When on, and only while no local brain is loaded, your question and the recent conversation are
         sent to the first provider below that answers. A loaded local brain answers first and sends nothing, unless you
-        switch on “Cloud first” below. Groq and Cerebras offer free tiers; DeepInfra may require promotional credits or
-        an account balance. JARVIS never upgrades or spends money automatically. Keys are stored in the Android keystore
-        and never shown again.
+        switch on “Cloud first” below. Ollama runs locally through Termux with no key; Groq and Cerebras offer free
+        tiers; DeepInfra may require promotional credits or an account balance. JARVIS never upgrades or spends money
+        automatically. Keys are stored in the Android keystore and never shown again.
       </AppText>
       <View style={styles.switchRow}>
         <AppText>Cloud first — much faster; the phone answers if the cloud fails</AppText>
@@ -110,6 +113,42 @@ export function CloudBrainCard() {
       </AppText>
 
       {CLOUD_PROVIDERS.map((provider, index) => {
+        if (provider.id === 'ollama') {
+          const model = jarvis.settings.cloudModels?.ollama ?? provider.defaultModel;
+          return (
+            <View key={provider.id} style={styles.provider}>
+              <View style={styles.switchRow}>
+                <AppText>{index + 1}. Ollama local · no API key</AppText>
+                <Switch
+                  value={jarvis.settings.ollamaEnabled === true}
+                  onValueChange={(value) => void jarvis.updateSettings({ ollamaEnabled: value })}
+                />
+              </View>
+              <AppText muted>Runs on this phone through Termux at `127.0.0.1:11434`. It stays inside the device when Local Only is on.</AppText>
+              <TextInput
+                value={ollamaEndpointDraft || jarvis.settings.ollamaEndpoint || ''}
+                onChangeText={setOllamaEndpointDraft}
+                placeholder="http://127.0.0.1:11434"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
+              <Button title="Save Ollama endpoint" onPress={() => void jarvis.updateSettings({ ollamaEndpoint: (ollamaEndpointDraft || jarvis.settings.ollamaEndpoint || 'http://127.0.0.1:11434').trim() })} />
+              <AppText muted>Model: {model} · use `llama3.2:3b` for speed or `dolphin-llama3:8b` for quality if installed.</AppText>
+              <TextInput
+                value={modelDrafts.ollama ?? ''}
+                onChangeText={(value) => setModelDrafts((current) => ({ ...current, ollama: value }))}
+                placeholder={`Model override (default ${provider.defaultModel})`}
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
+              <Button title="Save Ollama model" onPress={() => void saveModel('ollama')} />
+            </View>
+          );
+        }
         const hasKey = jarvis.cloudProviders.includes(provider.id);
         const model = jarvis.settings.cloudModels?.[provider.id] ?? provider.defaultModel;
         return (
@@ -149,7 +188,7 @@ export function CloudBrainCard() {
 
       <Button
         title={testing ? 'Testing…' : 'Test cloud brain'}
-        disabled={testing || jarvis.cloudProviders.length === 0}
+        disabled={testing || (jarvis.cloudProviders.length === 0 && !jarvis.settings.ollamaEnabled)}
         onPress={() => void test()}
       />
       {testResult ? <AppText muted>{testResult}</AppText> : null}
