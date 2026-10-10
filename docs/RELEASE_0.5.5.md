@@ -14,7 +14,7 @@ Settings after it is pulled if its response quality is preferred.
 ## Install the APK
 
 ```bash
-pkg install -y python curl termux-tools && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/apk-0.5.5/install-on-termux.py -o "$HOME/jarvis-install-0.5.5.py" && python "$HOME/jarvis-install-0.5.5.py"
+pkg install -y python curl termux-tools && curl --fail --location --retry 3 https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/apk-0.5.5-r1/install-on-termux.py -o "$HOME/jarvis-install-0.5.5.py" && python "$HOME/jarvis-install-0.5.5.py"
 ```
 
 Keep the existing installation and model directory. The update is signed with

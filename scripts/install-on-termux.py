@@ -18,7 +18,7 @@ import zipfile
 VERSION = '0.5.5'
 TAG = 'v0.5.5-preview'
 REPO = 'OgSmiley1/jarvis-rog'
-BASE = f'https://raw.githubusercontent.com/{REPO}/apk-0.5.5'
+BASE = f'https://raw.githubusercontent.com/{REPO}/apk-0.5.5-r1'
 
 
 def download(url, destination):
