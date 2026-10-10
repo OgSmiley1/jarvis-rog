@@ -1,6 +1,13 @@
-# JARVIS 0.5.2 release evidence
+# JARVIS 0.5.3 release evidence
 
 This is the current status authority; older session notes describe historical builds.
+
+0.5.3 fixes two device-observed paths: Local Only now permits the authenticated
+Termux bridge at 127.0.0.1, and tapping the Core opens Whisper input even when
+hands-free wake detection is asleep. Recent tool history includes timestamps.
+Android version code: 2026101001. The owner's 0.5.2 screenshots showed the
+model file loaded and bridge responding, but no measured complete model turn;
+that runtime outcome needs a fresh on-device check with 0.5.3.
 
 0.5.2 carries forward the runtime repairs below and adds a versioned Termux
 installer with APK checksum, size, embedded version and source-commit checks.

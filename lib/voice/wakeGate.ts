@@ -23,6 +23,11 @@ export interface GateDecision {
   toSpeech: boolean;
 }
 
+/** A tap opens speech recognition even if the wake engine is asleep. */
+export function speechWindowOpen(directRequest: boolean, awakeUntil: number, now: number): boolean {
+  return directRequest || awakeUntil > now;
+}
+
 export function gateFrame(input: GateInput): GateDecision {
   if (!input.accepting) return { toEngine: false, toSpeech: false };
   if (!input.engineActive) return { toEngine: false, toSpeech: true };

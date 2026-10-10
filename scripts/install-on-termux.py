@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download and verify JARVIS 0.5.2, then request Android installation.
+"""Download and verify JARVIS 0.5.3, then request Android installation.
 
 Android owns installation and permission approval. Existing application data is
 preserved by an in-place update; this installer never uninstalls the application.
@@ -15,10 +15,10 @@ import sys
 import urllib.request
 import zipfile
 
-VERSION = '0.5.2'
-TAG = 'v0.5.2-preview'
+VERSION = '0.5.3'
+TAG = 'v0.5.3-preview'
 REPO = 'OgSmiley1/jarvis-rog'
-BASE = f'https://raw.githubusercontent.com/{REPO}/apk-0.5.2'
+BASE = f'https://raw.githubusercontent.com/{REPO}/apk-0.5.3'
 
 
 def download(url, destination):
@@ -55,6 +55,7 @@ def verify_apk(apk, manifest):
 def install_bridge(manifest, directory):
     archive = directory / 'source.zip'
     download(f'https://api.github.com/repos/{REPO}/zipball/{manifest["sourceCommit"]}', archive)
+    # Reuse the owner's existing bridge secret and boot registration on update.
     bridge = pathlib.Path.home() / 'jarvis-termux-0.5.2'
     # Copy only tracked bridge source; preserve existing secret and environment.
     with zipfile.ZipFile(archive) as bundle:
@@ -105,7 +106,7 @@ def main():
     print('Open JARVIS: reuse your brain, or download the recommended brain with Local Only off.')
     print('Download voice resources on Wi-Fi, then grant microphone when starting Talk.')
     print('Enable Local Only afterwards and run Diagnostics: local inference and a real voice request.')
-    print('Opening the installer does not prove installation or phone functionality. See docs/RELEASE_0.5.2.md.')
+    print('Opening the installer does not prove installation or phone functionality. See docs/RELEASE_0.5.3.md.')
 
 
 if __name__ == '__main__':

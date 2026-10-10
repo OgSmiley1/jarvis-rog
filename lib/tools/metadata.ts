@@ -17,8 +17,9 @@ const PERMISSIONS: Record<string, string[]> = {
 };
 /** Enrich the one registry; no second set of execution handlers. */
 export function toolMetadata(tool: ToolDefinition): ToolMetadata {
-  const network = tool.name.startsWith('live.') || ['device.open_url', 'device.open_map_search', 'phone.web_search'].includes(tool.name)
-    || tool.target === 'TERMUX'; // arbitrary bridge operations cannot guarantee offline execution
+  const network = tool.name.startsWith('live.') || ['device.open_url', 'device.open_map_search', 'phone.web_search'].includes(tool.name);
+  // Termux's authenticated bridge is bound to 127.0.0.1; its registered
+  // handlers run on this phone. Internet operations need separate tool routes.
   const local = /^(?:utility\.(?:calculate|time)|local\.(?:qr|note_add|notes_read))$/.test(tool.name);
   return {
     network, permissions: PERMISSIONS[tool.name] ?? [], localOnlyCompatible: !network,
