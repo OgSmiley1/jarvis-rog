@@ -2,6 +2,8 @@
 
 This branch contains the corrected sideloadable APK and build evidence produced from `main`.
 
+Immutable artifact ref: `apk-0.5.5-r1`.
+
 - APK: `Jarvis-0.5.5-arm64.apk`
 - Package/version: `com.app.localjarviscoach` / `0.5.5` (`versionCode 2026101003`)
 - Source commit: `1f0d5ff1aae07ee528e6fb6a8ffc89ccdbbfdfc7`
