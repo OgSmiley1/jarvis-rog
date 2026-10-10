@@ -42,6 +42,7 @@ import { useChargeReminder } from '@/hooks/useChargeReminder';
 import { errorMessage, humanizeError } from '@/lib/utils/errors';
 import { recordLive } from '@/lib/telemetry/liveLog';
 import { liveText } from '@/lib/telemetry/transcriptPolicy';
+import { speechWindowOpen } from '@/lib/voice/wakeGate';
 import { getLiveStatus, isLiveActive, stopLiveLink, subscribeLiveStatus } from '@/lib/telemetry/liveSession';
 import { StageTimer, formatLatencyReport, recordTurn, type Scenario } from '@/lib/telemetry/stageTimer';
 import { VoiceSessionController } from '@/lib/voice/voiceSession';
@@ -630,7 +631,7 @@ export default function JarvisHud() {
     wakeGate: wakeEngine
       ? {
           engine: wakeEngine,
-          isAwake: () => awakeUntilRef.current > Date.now(),
+          isAwake: () => speechWindowOpen(directVoice.current, awakeUntilRef.current, Date.now()),
           onWake: () => {
             // No spoken greeting here: JARVIS's own voice would mute the
             // microphone and swallow the command that follows the wake word.

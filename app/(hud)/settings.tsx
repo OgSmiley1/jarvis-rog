@@ -477,7 +477,7 @@ export default function SettingsScreen() {
           </Card>
 
           <DiagnosticsCard />
-          <Card title="Recent tool runs">
+          <Card title="Recent tool runs (history)">
             <AppText>Database: {jarvis.initError ? `ERROR · ${jarvis.initError}` : 'READY'}</AppText>
             <AppText>Model: {jarvis.modelState.status}</AppText>
             <AppText>Active project: {jarvis.activeProject?.name ?? 'None'}</AppText>
@@ -485,7 +485,7 @@ export default function SettingsScreen() {
             <AppText>Projects: {jarvis.projects.length}</AppText>
             <Button title="Refresh diagnostics" onPress={() => void refreshDiagnostics()} />
             {toolRuns.length ? toolRuns.map((run) => (
-              <AppText key={run.id} muted>{run.ok ? 'HANDLER RETURNED' : 'HANDLER FAILED'} · {run.tool} · {Math.max(0, run.finishedAt - run.startedAt)} ms{run.error ? ` · ${run.error}` : ''}</AppText>
+              <AppText key={run.id} muted>{new Date(run.finishedAt).toLocaleTimeString()} · {run.ok ? 'HANDLER RETURNED' : 'HANDLER FAILED'} · {run.tool} · {Math.max(0, run.finishedAt - run.startedAt)} ms{run.error ? ` · ${run.error}` : ''}</AppText>
             )) : <AppText muted>No tool runs recorded yet.</AppText>}
           </Card>
 

@@ -6,6 +6,7 @@ import { executeTool } from '@/lib/tools/router';
 import { toolRegistry } from '@/lib/tools/registry';
 import { z } from 'zod';
 import { runSelfTest } from '@/lib/diagnostics/selfTest';
+import { setTermuxSecret } from '@/lib/tools/termuxClient';
 const originalFetch = globalThis.fetch;
 afterEach(() => { setLocalOnly(false); globalThis.fetch = originalFetch; toolRegistry.delete('test.hanging'); vi.useRealTimers(); });
 
@@ -51,6 +52,23 @@ describe('hard Local Only', () => {
     setLocalOnly(true);
     await outcome;
     expect(signal?.aborted).toBe(true);
+    await expect(fetch('https://example.com')).rejects.toThrow('LOCAL_ONLY_BLOCKED');
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it('allows the authenticated local Termux handler in Local Only while blocking lookalike hosts', async () => {
+    const transport = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { uptimeSeconds: 1 } }), { status: 200 }));
+    globalThis.fetch = transport;
+    installNetworkGuard();
+    await setTermuxSecret('local-test-secret');
+    setLocalOnly(true);
+
+    expect(toolRegistry.get('termux.system_status')).toMatchObject({ network: false, localOnlyCompatible: true });
+    const result = await executeTool({ id: 'termux-local', tool: 'termux.system_status', arguments: {} });
+    expect(result).toMatchObject({ ok: true, data: { uptimeSeconds: 1 } });
+    expect(transport).toHaveBeenCalledWith('http://127.0.0.1:8765', expect.objectContaining({ method: 'POST' }));
+
+    await expect(fetch('http://127.0.0.1:8765.evil.example')).rejects.toThrow('LOCAL_ONLY_BLOCKED');
+    await expect(fetch('http://127.0.0.1:8766')).rejects.toThrow('LOCAL_ONLY_BLOCKED');
     await expect(fetch('https://example.com')).rejects.toThrow('LOCAL_ONLY_BLOCKED');
     expect(transport).toHaveBeenCalledTimes(1);
   });

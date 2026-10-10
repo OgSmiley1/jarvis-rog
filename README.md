@@ -2,7 +2,7 @@
 
 JARVIS is a Core-first personal assistant with an original animated Skia interface, local GGUF inference, English/Arabic voice input and speech, structured Android tools, optional free live information, and a hard Local Only policy.
 
-**Current release: 0.5.2 preview.** See [installation and release scope](docs/RELEASE_0.5.2.md) and [production status](docs/PRODUCTION_STATUS.md). Download the APK and verification evidence from [GitHub Releases](https://github.com/OgSmiley1/jarvis-rog/releases/tag/v0.5.2-preview). Historical status files and old EAS URLs are not the current release authority.
+**Current release: 0.5.3 preview.** See [installation and release scope](docs/RELEASE_0.5.3.md) and [production status](docs/PRODUCTION_STATUS.md). Download the APK and verification evidence from [GitHub Releases](https://github.com/OgSmiley1/jarvis-rog/releases/tag/v0.5.3-preview). Historical status files and old EAS URLs are not the current release authority.
 
 The app detects and reuses installed models. New installations offer a one-time Qwen3 4B Q4_K_M download (~2.5 GB); existing 8B/custom models are preserved. Speech weights are separate one-time downloads. The APK therefore does not contain the entire AI brain. Models in Download/JARVIS remain there across updates; app-private files survive in-place updates but not uninstall.
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toInt16 } from '@/lib/voice/pcm';
-import { gateFrame } from '@/lib/voice/wakeGate';
+import { gateFrame, speechWindowOpen } from '@/lib/voice/wakeGate';
 import { isComplete, looksLikeTflite, WAKE_MODEL_FILES } from '@/lib/voice/wakeModelFiles';
 
 describe('wake-word gate', () => {
@@ -9,6 +9,10 @@ describe('wake-word gate', () => {
   });
   it('awake: speech recognition hears the command, the engine keeps listening', () => {
     expect(gateFrame({ engineActive: true, accepting: true, awake: true })).toEqual({ toEngine: true, toSpeech: true });
+  });
+  it('lets a tap-to-talk request reach speech even while the wake engine is asleep', () => {
+    expect(gateFrame({ engineActive: true, accepting: true, awake: speechWindowOpen(true, 0, 100) })).toEqual({ toEngine: true, toSpeech: true });
+    expect(speechWindowOpen(false, 0, 100)).toBe(false);
   });
   it('without the engine, behaviour is unchanged: everything goes to speech recognition', () => {
     expect(gateFrame({ engineActive: false, accepting: true, awake: false })).toEqual({ toEngine: false, toSpeech: true });
