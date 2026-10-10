@@ -82,8 +82,9 @@ export function CloudBrainCard() {
       <AppText muted>
         Off by default. When on, and only while no local brain is loaded, your question and the recent conversation are
         sent to the first provider below that answers. A loaded local brain answers first and sends nothing, unless you
-        switch on “Cloud first” below. Every provider here has a free tier with no card. Keys are stored in the Android
-        keystore and never shown again.
+        switch on “Cloud first” below. Groq and Cerebras offer free tiers; DeepInfra may require promotional credits or
+        an account balance. JARVIS never upgrades or spends money automatically. Keys are stored in the Android keystore
+        and never shown again.
       </AppText>
       <View style={styles.switchRow}>
         <AppText>Cloud first — much faster; the phone answers if the cloud fails</AppText>

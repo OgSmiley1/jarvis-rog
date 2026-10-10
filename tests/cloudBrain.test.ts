@@ -36,6 +36,7 @@ function fakeFetch(script: Record<string, { status?: number; body?: string; hang
 const CEREBRAS = 'api.cerebras.ai';
 const GROQ = 'api.groq.com';
 const GEMINI = 'generativelanguage.googleapis.com';
+const DEEPINFRA = 'api.deepinfra.com';
 
 describe('cloud brain failover', () => {
   it('answers from the first provider that works', async () => {
@@ -84,6 +85,20 @@ describe('cloud brain failover', () => {
     const failure = await askCloud({ messages: MESSAGES, mode: 'fast', keys: { gemini: 'c' }, fetchImpl: net.impl }).catch((error: unknown) => error);
     expect((failure as Error).message).toBe('CLOUD_NO_KEYS');
     expect(net.calls).toHaveLength(0);
+  });
+
+  it('supports the OpenAI-compatible DeepInfra backend with the configured model', async () => {
+    const net = fakeFetch({ [DEEPINFRA]: { body: reply('DeepInfra online.') } });
+    const answer = await askCloud({
+      messages: MESSAGES,
+      mode: 'fast',
+      keys: { deepinfra: 'free-or-promotional-key' },
+      fetchImpl: net.impl,
+    });
+    expect(answer.provider).toBe('deepinfra');
+    expect(net.calls[0]?.url).toBe('https://api.deepinfra.com/v1/openai/chat/completions');
+    expect(net.calls[0]?.auth).toBe('Bearer free-or-promotional-key');
+    expect(net.calls[0]?.body.model).toBe('meta-llama/Meta-Llama-3.1-8B-Instruct');
   });
 
   it('skips a provider the owner has no key for, rather than sending an empty key', async () => {
@@ -176,8 +191,8 @@ describe('cloud brain request and response', () => {
     expect(describeHttpFailure(502)).toBe('provider error 502');
   });
 
-  it('keeps the provider order Groq, Cerebras, Gemini; Gemini only when training is allowed', () => {
-    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini']);
+  it('keeps the provider order Groq, Cerebras, Gemini, DeepInfra; Gemini only when training is allowed', () => {
+    expect(CLOUD_PROVIDERS.map((provider) => provider.id)).toEqual(['groq', 'cerebras', 'gemini', 'deepinfra']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }).map((provider) => provider.id)).toEqual(['cerebras']);
     expect(usableProviders({ gemini: 'x', cerebras: 'y' }, true).map((provider) => provider.id)).toEqual(['cerebras', 'gemini']);
   });

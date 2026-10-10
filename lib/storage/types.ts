@@ -102,7 +102,7 @@ export interface JarvisSettings {
   /** Battery fraction for the first reminder, e.g. 0.2. A second always comes at 10%. */
   chargeReminderLevel: number;
   /** Per-provider model overrides; unset uses the provider's default. */
-  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini', string>>;
+  cloudModels?: Partial<Record<'cerebras' | 'groq' | 'gemini' | 'deepinfra', string>>;
   /**
    * Where the live test link posts: a private GitHub repository, and
    * optionally an issue or PR number in it (unset opens one issue per

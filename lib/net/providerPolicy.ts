@@ -99,6 +99,11 @@ export const PROVIDERS: Record<string, ProviderEntry> = {
     termsUrl: 'https://ai.google.dev/gemini-api/terms', checked: CHECKED, auth: 'free-key',
     limits: 'Free tier; prompts may be used to improve products', fallback: 'Local brain', trainsOnPrompts: true,
   },
+  deepinfra: {
+    id: 'deepinfra', name: 'DeepInfra', class: 'verified-free-with-limits', host: 'api.deepinfra.com',
+    termsUrl: 'https://deepinfra.com/terms', checked: CHECKED, auth: 'free-key',
+    limits: 'Promotional/free credits may be limited; account balance controls availability', fallback: 'Local brain',
+  },
   puter: {
     id: 'puter', name: 'Puter', class: 'user-pays', host: 'puter.com',
     termsUrl: 'https://docs.puter.com/', checked: CHECKED, auth: 'account',

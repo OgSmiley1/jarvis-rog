@@ -1,13 +1,18 @@
-# JARVIS 0.5.3 release evidence
+# JARVIS 0.5.4 release evidence
 
 This is the current status authority; older session notes describe historical builds.
 
-0.5.3 fixes two device-observed paths: Local Only now permits the authenticated
+0.5.3 fixed two device-observed paths: Local Only now permits the authenticated
 Termux bridge at 127.0.0.1, and tapping the Core opens Whisper input even when
 hands-free wake detection is asleep. Recent tool history includes timestamps.
 Android version code: 2026101001. The owner's 0.5.2 screenshots showed the
 model file loaded and bridge responding, but no measured complete model turn;
-that runtime outcome needs a fresh on-device check with 0.5.3.
+that runtime outcome needs a fresh on-device check with the current release.
+
+0.5.4 adds the DeepInfra OpenAI-compatible cloud fallback. It uses the same
+secure-key storage and failover path as the other configured providers. Free or
+promotional credits are not guaranteed by DeepInfra; JARVIS refuses to spend
+money or upgrade an account automatically.
 
 0.5.2 carried forward the runtime repairs below and introduced the versioned
 Termux installer. The current 0.5.3 installer verifies the APK checksum, size,

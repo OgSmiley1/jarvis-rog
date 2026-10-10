@@ -32,7 +32,7 @@ import type { CompletionMessage, IntelligenceMode, RuntimeMetrics } from '@/lib/
 
 import { checkProvider, recordPolicy } from '@/lib/net/providerPolicy';
 
-export type CloudProviderId = 'cerebras' | 'groq' | 'gemini';
+export type CloudProviderId = 'cerebras' | 'groq' | 'gemini' | 'deepinfra';
 
 export interface CloudProvider {
   id: CloudProviderId;
@@ -75,6 +75,17 @@ export const CLOUD_PROVIDERS: readonly CloudProvider[] = [
     keyUrl: 'https://aistudio.google.com/apikey',
     // Google's free tier may use prompts to improve its products.
     trainsOnPrompts: true,
+  },
+  {
+    id: 'deepinfra',
+    name: 'DeepInfra',
+    endpoint: 'https://api.deepinfra.com/v1/openai/chat/completions',
+    defaultModel: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
+    keyUrl: 'https://deepinfra.com/dash/api_keys',
+    // DeepInfra may provide promotional/free credits, but availability and
+    // balance are account-dependent. The UI labels this clearly; JARVIS never
+    // assumes that a paid fallback is available.
+    trainsOnPrompts: false,
   },
 ] as const;
 
