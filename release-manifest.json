@@ -1,0 +1,22 @@
+{
+  "apk": "Jarvis-0.5.7-arm64.apk",
+  "path": "Jarvis-0.5.7-arm64.apk",
+  "url": "https://raw.githubusercontent.com/OgSmiley1/jarvis-rog/apk-0.5.7/Jarvis-0.5.7-arm64.apk",
+  "size": 62122065,
+  "sha256": "6c658a08fb8c94815a0db7b111824b38641acb53043b62e8c8f3f12beea3e1af",
+  "package": "com.app.localjarviscoach",
+  "versionCode": 2026101101,
+  "versionName": "0.5.7",
+  "sourceCommit": "6e3a018b643e1040507a84455e3eed5627a86129",
+  "sourceTree": "ce38348c8b11c3a8ec8d32186b8943e9ac89d654",
+  "branch": "main",
+  "buildType": "release",
+  "signing": "Expo debug certificate; sideload preview",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "install": "UNVERIFIED",
+  "launch": "UNVERIFIED",
+  "device": "UNVERIFIED",
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c"
+}
