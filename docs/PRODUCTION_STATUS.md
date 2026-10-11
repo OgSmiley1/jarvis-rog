@@ -1,4 +1,6 @@
-# JARVIS 0.5.6 release evidence
+# JARVIS 0.5.7 release evidence
+
+0.5.7 adds a real loopback Ollama inference check to System Diagnostics. It distinguishes the optional embedded GGUF state from the configured Ollama backend, so an invalid GGUF no longer makes a working Ollama configuration look like the whole assistant is offline.
 
 0.5.6 fixes the app-level Local Only routing gate for Ollama, bounds fast spoken backend replies to 128 tokens, removes a dead menu block, and shows individual diagnostics for every registered feature. Device operations remain unverified until observed. See RELEASE_0.5.6.md for installation and verification scope.
 

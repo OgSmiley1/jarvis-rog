@@ -12,6 +12,8 @@ export interface SelfTestInput {
   microphoneGranted?: boolean; sttReady?: boolean; ttsVoices?: number;
   microphoneCaptureAt?: number; transcriptAt?: number;
   infer?: (signal: AbortSignal) => Promise<string | { text: string; firstTokenMs?: number; totalMs: number }>;
+  backendName?: string;
+  backendInfer?: (signal: AbortSignal) => Promise<string | { text: string; firstTokenMs?: number; totalMs: number }>;
 }
 export async function runSelfTest(input: SelfTestInput): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
@@ -41,13 +43,25 @@ export async function runSelfTest(input: SelfTestInput): Promise<CheckResult[]> 
     } catch (error) { add('Local inference', 'FAIL', error instanceof Error ? error.message : 'Inference failed'); }
     finally { if (timer) clearTimeout(timer); }
   } else add('Local inference', 'BLOCKED', 'A loaded local model is required.');
+  if (input.backendInfer) {
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { abort.abort(); reject(new Error('Backend inference exceeded 20 seconds')); }, 20_000); });
+      const response = await Promise.race([input.backendInfer(abort.signal), timeout]);
+      const text = typeof response === 'string' ? response : response.text;
+      const timing = typeof response === 'string' ? '' : ` First token: ${response.firstTokenMs === undefined ? 'unmeasured' : Math.round(response.firstTokenMs) + ' ms'}; total ${Math.round(response.totalMs)} ms.`;
+      check(`${input.backendName ?? 'Backend'} inference`, text.trim().length > 0, text.trim() ? 'A real local backend request returned text.' + timing : 'Empty backend reply.');
+    } catch (error) { add(`${input.backendName ?? 'Backend'} inference`, 'FAIL', error instanceof Error ? error.message : 'Backend inference failed'); }
+    finally { if (timer) clearTimeout(timer); }
+  } else add('Ollama inference', 'SKIPPED', 'Ollama local is not enabled.');
   add('Microphone permission', input.microphoneGranted === undefined ? 'UNVERIFIED' : input.microphoneGranted ? 'PASS' : 'BLOCKED', 'Permission check only; no microphone recording performed.');
   add('Microphone capture', input.microphoneCaptureAt ? 'PASS' : 'UNVERIFIED', input.microphoneCaptureAt ? `Audio frames observed this app session at ${new Date(input.microphoneCaptureAt).toISOString()}; quality is not assessed.` : 'No microphone frames observed this session.');
   add('Speech transcription', input.transcriptAt ? 'PASS' : 'UNVERIFIED', input.transcriptAt ? `Local STT produced text this app session at ${new Date(input.transcriptAt).toISOString()}; accuracy requires listening.` : 'No actual transcription observed this session.');
   add('Speech model', input.sttReady === undefined ? 'UNVERIFIED' : input.sttReady ? 'PASS' : 'BLOCKED', 'Observed STT graph readiness; not a speech-quality test.');
   add('TTS voices', input.ttsVoices === undefined ? 'UNVERIFIED' : input.ttsVoices > 0 ? 'PASS' : 'BLOCKED', `${input.ttsVoices ?? 'Unknown'} voices enumerated; audible playback unverified.`);
   add('Phone actions / speech / restart', 'UNVERIFIED', 'Requires interactive Android checks; no call, alarm or message was triggered.');
-  add('Live providers', 'SKIPPED', 'Self-test makes no external network requests.');
+  add('Hosted providers', 'SKIPPED', 'Self-test makes no external network requests.');
   for (const tool of toolRegistry.values()) {
     const observed = toolEvidence(tool.name);
     const registered = typeof tool.execute === 'function' && typeof tool.schema.safeParse === 'function';

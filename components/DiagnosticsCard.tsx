@@ -13,6 +13,8 @@ import { formatLatencyReport } from '@/lib/telemetry/stageTimer';
 import { runSelfTest, type CheckResult } from '@/lib/diagnostics/selfTest';
 import { runtimeObservations } from '@/lib/diagnostics/runtime';
 import { humanizeError, errorMessage } from '@/lib/utils/errors';
+import { askCloud, type FetchLike } from '@/lib/online/cloudBrain';
+import { buildMessages } from '@/lib/inference/promptBuilder';
 
 export function DiagnosticsCard() {
   const jarvis = useJarvis();
@@ -54,6 +56,18 @@ export function DiagnosticsCard() {
           const result = await runtime.runCompletion({ messages: [{ role: 'user', content: 'Reply with READY.' }], mode: 'fast', maxTokens: 12, signal });
           return { text: result.text, firstTokenMs: result.metrics.firstTokenMs, totalMs: result.metrics.totalMs };
         },
+        ...(jarvis.settings.ollamaEnabled ? {
+          backendName: 'Ollama',
+          backendInfer: async (signal: AbortSignal) => {
+            const answer = await askCloud({
+              messages: buildMessages({ mode: 'fast', language: jarvis.settings.language, userMessage: 'Reply with exactly: READY.', spoken: true }),
+              mode: 'fast', keys: {}, models: { ollama: jarvis.settings.cloudModels?.ollama },
+              ollamaEnabled: true, endpoints: { ollama: jarvis.settings.ollamaEndpoint },
+              fetchImpl: fetch as unknown as FetchLike, signal, timeoutMs: 20_000, maxTokens: 12,
+            });
+            return { text: answer.text, totalMs: answer.metrics.totalMs, firstTokenMs: answer.metrics.firstTokenMs };
+          },
+        } : {}),
       }));
     } catch (error) { setResults([{ name: 'Self-test', status: 'FAIL', detail: humanizeError(errorMessage(error)) }]); }
     finally { setBusy(false); }
@@ -61,7 +75,11 @@ export function DiagnosticsCard() {
   return <Card title="System diagnostics">
     <AppText>JARVIS {Constants.expoConfig?.version ?? 'unknown'} · build {Constants.expoConfig?.android?.versionCode ?? 'unknown'}</AppText>
     <AppText muted>Source: {Constants.expoConfig?.extra?.buildCommit ?? 'UNVERIFIED'}</AppText>
-    <AppText>{jarvis.modelState.status === 'ready' ? 'Local model loaded · run inference self-test to verify generation' : `Brain ${jarvis.modelState.status}`}</AppText>
+    <AppText>{jarvis.modelState.status === 'ready'
+      ? 'Embedded brain loaded · run inference self-test to verify generation'
+      : jarvis.settings.ollamaEnabled
+        ? `Embedded brain ${jarvis.modelState.status} · Ollama configured; run self-test`
+        : `Brain ${jarvis.modelState.status}`}</AppText>
     <AppText>Local Only: {jarvis.settings.localOnly ? 'ON' : 'OFF'} · Tools: {tools.length} registered · {jarvis.settings.localOnly ? tools.filter(t => t.network).length : 0} policy blocked · {tools.filter(t => t.permissions.length).length} permission dependent</AppText>
     <AppText muted>Runtime availability depends on permissions, installed Android handlers and configured providers; registry counts do not prove availability.</AppText>
     <AppText>{device}</AppText>

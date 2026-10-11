@@ -131,6 +131,11 @@ it('reports failed local inference honestly', async () => {
   const results = await runSelfTest({ modelPresent: true, modelReady: true, infer: async () => { throw new Error('Native model error'); } });
   expect(results.find(r => r.name === 'Local inference')).toMatchObject({ status: 'FAIL', detail: 'Native model error' });
 });
+it('reports a real local backend response separately from the embedded model', async () => {
+  const results = await runSelfTest({ modelPresent: true, modelReady: false, backendName: 'Ollama', backendInfer: async () => ({ text: 'READY', totalMs: 321 }) });
+  expect(results.find(r => r.name === 'Local inference')?.status).toBe('BLOCKED');
+  expect(results.find(r => r.name === 'Ollama inference')).toMatchObject({ status: 'PASS', detail: expect.stringContaining('321 ms') });
+});
 it('keeps capture/transcription unverified until actual frames/text are observed', async () => {
   const missing = await runSelfTest({ modelPresent: false, modelReady: false, microphoneGranted: true });
   expect(missing.find(r => r.name === 'Microphone permission')?.status).toBe('PASS');

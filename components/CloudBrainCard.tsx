@@ -74,7 +74,7 @@ export function CloudBrainCard() {
   ).length + (jarvis.settings.ollamaEnabled ? 1 : 0);
 
   return (
-    <Card title="Cloud brain (fallback)">
+    <Card title="AI backend (local + cloud)">
       <View style={styles.switchRow}>
         <AppText>Answer through the cloud when no local brain is loaded</AppText>
         <Switch

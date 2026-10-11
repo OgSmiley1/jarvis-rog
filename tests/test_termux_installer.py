@@ -16,14 +16,14 @@ class TermuxInstallerTest(unittest.TestCase):
         apk = pathlib.Path(directory) / 'app.apk'
         with zipfile.ZipFile(apk, 'w') as bundle:
             bundle.writestr('assets/app.config', json.dumps({
-                'version': '0.5.6', 'android': {'package': 'com.app.localjarviscoach', 'versionCode': 2026101004},
+                'version': '0.5.7', 'android': {'package': 'com.app.localjarviscoach', 'versionCode': 2026101101},
                 'extra': {'buildCommit': embedded_commit},
             }))
             bundle.writestr('assets/index.android.bundle', b'fixture')
             if native:
                 bundle.writestr('lib/arm64-v8a/librnllama.so', b'fixture')
                 bundle.writestr('lib/arm64-v8a/librnskia.so', b'fixture')
-        manifest = dict(versionName='0.5.6', versionCode=2026101004, package='com.app.localjarviscoach',
+        manifest = dict(versionName='0.5.7', versionCode=2026101101, package='com.app.localjarviscoach',
                         sourceCommit='a' * 40, size=apk.stat().st_size, sha256=hashlib.sha256(apk.read_bytes()).hexdigest())
         return apk, manifest
 
