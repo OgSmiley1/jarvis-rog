@@ -1,4 +1,6 @@
-# JARVIS 0.5.7 release evidence
+# JARVIS 0.5.8 release evidence
+
+0.5.8 makes the already-installed loopback Ollama service the enabled fallback on a clean installation. Existing installations retain their saved preference. Hosted providers still require explicit keys and remain blocked by Local Only.
 
 0.5.7 adds a real loopback Ollama inference check to System Diagnostics. It distinguishes the optional embedded GGUF state from the configured Ollama backend, so an invalid GGUF no longer makes a working Ollama configuration look like the whole assistant is offline.
 

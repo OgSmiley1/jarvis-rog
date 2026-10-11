@@ -33,11 +33,12 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
   // Off by default: a network voice sounds better but stops working the moment
   // the phone loses signal, and JARVIS is local-first.
   ttsAllowNetworkVoice: false,
-  // Off by default: enabling it lets a question leave the phone.
-  cloudFallbackEnabled: false,
+  // On for the no-key loopback Ollama backend. Hosted providers still require
+  // their own explicit key and Local Only continues to block them.
+  cloudFallbackEnabled: true,
   cloudFirst: false,
   cloudAllowTraining: false,
-  ollamaEnabled: false,
+  ollamaEnabled: true,
   ollamaEndpoint: 'http://127.0.0.1:11434',
   floatingOrbEnabled: false,
   // Off by default: 351 MB should never start downloading on mobile data unasked.

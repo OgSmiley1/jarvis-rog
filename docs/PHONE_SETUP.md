@@ -2,7 +2,7 @@
 
 Do these steps once after installing the APK.
 
-For the current APK and Termux command, use [0.5.7 release setup](RELEASE_0.5.7.md).
+For the current APK and Termux command, use [0.5.8 release setup](RELEASE_0.5.8.md).
 Keep Local Only off during initial model/voice downloads; enable it after resources
 are installed. Existing models should be reused rather than downloaded again.
 

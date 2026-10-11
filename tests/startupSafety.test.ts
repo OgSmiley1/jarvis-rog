@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 describe('startup safety contract', () => {
+  it('connects a fresh install to the free loopback Ollama backend', () => {
+    const settings = read('lib/storage/database.ts');
+    expect(settings).toContain('cloudFallbackEnabled: true');
+    expect(settings).toContain('ollamaEnabled: true');
+    expect(settings).toContain("ollamaEndpoint: 'http://127.0.0.1:11434'");
+  });
   it('does not statically load llama.rn through the root provider', () => {
     const provider = read('context/JarvisContext.tsx');
 
